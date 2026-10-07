@@ -1,0 +1,60 @@
+name: P1 E2E
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  structural:
+    name: typecheck (always)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  cal-chromium:
+    name: cal-chromium shard ${{ matrix.shard }}
+    needs: structural
+    runs-on: ubuntu-latest
+    if: ${{ secrets.CAL_E2E_BASE_URL != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      CAL_E2E_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
+      CAL_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
+      CAL_E2E_EMAIL: ${{ secrets.CAL_E2E_EMAIL }}
+      CAL_E2E_PASSWORD: ${{ secrets.CAL_E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - name: Run Cal Chromium shard
+        run: npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report
+          if-no-files-found: ignore
+
+  skip-live:
+    name: live E2E skipped (no CAL_E2E_BASE_URL)
+    needs: structural
+    runs-on: ubuntu-latest
+    if: ${{ secrets.CAL_E2E_BASE_URL == '' }}
+    steps:
+      - run: |
+          echo "Product services are not in GitHub-hosted CI yet."
+          echo "Local green: npm run test:cal (globalSetup uses harness up() + waitHealthy)."
+          echo "To enable Actions E2E, add secret CAL_E2E_BASE_URL (plus CAL_E2E_EMAIL / CAL_E2E_PASSWORD) and re-run workflow_dispatch."
