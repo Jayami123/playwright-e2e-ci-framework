@@ -17,7 +17,7 @@ export async function postCalCredentials(
   password: string,
 ): Promise<CalLoginResult> {
   const started = Date.now();
-  const csrfResponse = await page.request.get("/api/auth/csrf");
+  const csrfResponse = await page.request.get("/api/auth/csrf", { timeout: 120_000 });
   expect(csrfResponse.ok(), `GET /api/auth/csrf failed (${csrfResponse.status()})`).toBeTruthy();
   const { csrfToken } = (await csrfResponse.json()) as { csrfToken: string };
 

@@ -17,7 +17,7 @@ export class EventTypesPage extends CalBasePage {
   async create(title: string, lengthMinutes = 10): Promise<void> {
     await this.installTimezoneHandler();
     await this.dismissTimezonePrompt();
-    await this.page.getByTestId("new-event-type").click();
+    await this.page.getByTestId("new-event-type").click({ noWaitAfter: true });
     await expect(this.page.getByTestId("event-type-quick-chat")).toBeVisible();
     await this.page.getByTestId("event-type-quick-chat").fill(title);
     const duration = this.page.getByLabel(/duration/i);

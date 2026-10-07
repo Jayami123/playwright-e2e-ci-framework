@@ -5,10 +5,11 @@ const live = !skipLiveCal();
 
 export default defineConfig({
   testDir: "./tests",
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  workers: process.env.CI ? 1 : undefined,
+  // Webpack Cal on Windows serializes compiles; 4 workers time out CSRF and leave blank pages.
+  workers: 1,
   reporter: process.env.CI ? [["blob"], ["list"]] : [["html"], ["list"]],
   timeout: 180_000,
   expect: { timeout: 20_000 },
@@ -16,7 +17,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.CAL_E2E_BASE_URL || calBaseUrl(),
     navigationTimeout: 180_000,
-    actionTimeout: 20_000,
+    actionTimeout: 60_000,
     trace: "on-first-retry",
     video: "retain-on-failure",
     screenshot: "only-on-failure",

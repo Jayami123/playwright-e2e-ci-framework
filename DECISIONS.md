@@ -55,3 +55,5 @@ Harness `up()` webpack is required (Turbopack 404s app routes). Webpack `Unhandl
 `globalSetup` waits on `GET /api/auth/csrf` and skips `adapter.up()` when that already returns 200, so a later health probe of `GET /` cannot kill a listening webpack process.
 
 Base URL default is `http://127.0.0.1:3000` (Windows `localhost` is often IPv6).
+
+Playwright **workers stay at 1**. Four parallel browsers against one `next dev --webpack` queue compiles; CSRF times out at 20s and `/pro/30min` hydrates as a blank page. The green local run used `--workers=1`.
