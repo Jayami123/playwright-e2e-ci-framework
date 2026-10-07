@@ -1,0 +1,20 @@
+{
+  "name": "playwright-e2e-ci-framework",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:cal": "playwright test --project=cal-chromium",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20",
+    "dotenv": "^16",
+    "typescript": "^5"
+  }
+}
