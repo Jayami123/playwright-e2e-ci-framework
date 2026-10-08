@@ -1,0 +1,20 @@
+name: Playwright browsers
+description: Cache and install Chromium for Playwright (requires npm ci first).
+
+runs:
+  using: composite
+  steps:
+    - id: playwright
+      name: Playwright version
+      run: |
+        set -euo pipefail
+        echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-ms-playwright-${{ steps.playwright.outputs.version }}
+    - run: |
+        set -euo pipefail
+        npx playwright install chromium --with-deps
+      shell: bash

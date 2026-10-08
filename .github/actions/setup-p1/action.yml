@@ -1,0 +1,14 @@
+name: Setup P1
+description: Node.js from .nvmrc with npm cache, then npm ci.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+    - run: |
+        set -euo pipefail
+        npm ci
+      shell: bash

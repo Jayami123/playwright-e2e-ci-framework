@@ -23,5 +23,5 @@ jobs:
   e2e:
     uses: ./.github/workflows/e2e.yml
     with:
-      cal_ref: ${{ github.event.inputs.cal_ref || 'main' }}
+      cal_ref: ${{ inputs.cal_ref || 'main' }}
     secrets: inherit
