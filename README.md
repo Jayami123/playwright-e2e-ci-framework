@@ -110,7 +110,7 @@ npm run report
 
 Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`.
 
-**Typical durations:** recorded here after the first green self-hosted run on this workflow (see the Actions run for your PR).
+**Typical durations** (first run, cold caches; [run 37787015928](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/37787015928) `cal-self-hosted`): job 7m 9s; Cal yarn install 2m52s; DB migrate+seed 32s; tRPC types (turbo) 40s; next build ~83s (compiled 43s, TypeScript 36.3s, 88/88 static pages); 5 tests ~10s. Warm-cache timings TBD after a warm run.
 
 **Download the HTML report:** open the workflow run on GitHub → **Artifacts** → `playwright-report` → unzip → open `index.html`.
 
