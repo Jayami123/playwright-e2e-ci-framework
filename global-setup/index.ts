@@ -1,4 +1,4 @@
-import { getAdapter } from "qa-portfolio-harness";
+import { createPgClient, getAdapter } from "qa-portfolio-harness";
 import { calBaseUrl, skipLiveCal } from "../src/env.js";
 
 async function getStatus(url: string, timeoutMs: number): Promise<number | undefined> {
@@ -19,11 +19,38 @@ async function getStatus(url: string, timeoutMs: number): Promise<number | undef
   }
 }
 
+/** First EventType id so warmup can compile the editor route FW-003 navigates to. */
+async function warmupEventTypeId(): Promise<string | undefined> {
+  const fromEnv = process.env.CAL_WARMUP_EVENT_TYPE_ID?.trim();
+  if (fromEnv) return fromEnv;
+  try {
+    const adapter = getAdapter("cal");
+    const pool = createPgClient(adapter.dbUrl);
+    try {
+      const result = await pool.query<{ id: number }>(`SELECT id FROM "EventType" ORDER BY id ASC LIMIT 1`);
+      const id = result.rows[0]?.id;
+      return id === undefined ? undefined : String(id);
+    } finally {
+      await pool.end();
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.log(`Warmup event-type id lookup skipped (${detail}); using 1164.`);
+    return "1164";
+  }
+}
+
 async function warmupCalPages(baseUrl: string): Promise<void> {
   const origin = baseUrl.replace(/\/$/, "").replace("://localhost", "://127.0.0.1");
-  for (const path of ["/auth/login", "/pro/30min", "/bookings/upcoming", "/event-types"]) {
+  const paths = ["/auth/login", "/pro/30min", "/bookings/upcoming", "/event-types"];
+  const editorId = await warmupEventTypeId();
+  if (editorId) {
+    paths.push(`/event-types/${editorId}`);
+  }
+  for (const path of paths) {
     const started = Date.now();
-    const status = await getStatus(`${origin}${path}`, 180_000);
+    const timeoutMs = path.includes("/event-types/") && /\/\d+$/.test(path) ? 600_000 : 180_000;
+    const status = await getStatus(`${origin}${path}`, timeoutMs);
     console.log(`Warmup ${path} HTTP ${status ?? "fail"} in ${Date.now() - started}ms`);
   }
 }

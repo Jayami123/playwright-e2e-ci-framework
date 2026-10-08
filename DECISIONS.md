@@ -46,7 +46,7 @@ No CI duration or flake-rate claims. FW-001 logs elapsed ms. Targets belong here
 
 Local `retries: 0` so a flake fails the run instead of hiding behind a retry. CI still retries twice. FW-001 writes storageState to `testInfo.outputPath` so it does not clobber `.auth/cal-pro.json`.
 
-FW-003 waits for the sidebar to leave "Loading...", dismisses the timezone dialog, and gives the New-event-type dialog 180s for webpack's first compile.
+FW-003 waits for the sidebar to leave "Loading...", dismisses the timezone dialog, and gives the New-event-type dialog 180s for webpack's first compile. `globalSetup` also warms `GET /event-types/:id` (first seed row, or `CAL_WARMUP_EVENT_TYPE_ID`) with a 10-minute budget so the editor compile is not paid inside the test.
 
 FW-003/004 hangs against `next dev --webpack` are a **dev-server environment problem**, not a Cal product finding. `cal-web.log` from the second stock-Cal run showed `Server is approaching the used memory threshold, restarting...` (no `JavaScript heap out of memory`). That restart dropped `/bookings/upcoming` with `ERR_CONNECTION_RESET` and left the event-types shell on "Loading...". Try `NODE_OPTIONS=--max-old-space-size=8192` before logging a product bug. If it still fails, the next step is a dated harness branch that serves `next start` after `next build`.
 
