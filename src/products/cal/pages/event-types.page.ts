@@ -44,7 +44,7 @@ export class EventTypesPage extends BasePage {
   }
 
   private async waitForListHydrated(): Promise<void> {
-    await expect(this.listEventLinks().nth(0)).toBeVisible({ timeout: timeouts().page });
+    await expect(this.listEventLinks()).not.toHaveCount(0, { timeout: timeouts().page });
   }
 
   async create(title: string, lengthMinutes = DEFAULT_EVENT_DURATION_MINUTES): Promise<void> {
@@ -92,7 +92,7 @@ export class EventTypesPage extends BasePage {
       throw new Error(`Could not parse event type id from href: ${href ?? "null"}`);
     }
     const row = this.page.getByRole("listitem").filter({ has: link });
-    await row.getByTestId(CAL_TEST_IDS.eventTypeOptions(id)).nth(0).click();
+    await row.getByTestId(CAL_TEST_IDS.eventTypeOptions(id)).filter({ visible: true }).click();
     await this.page.getByRole("menuitem", { name: /delete/i }).click();
     await this.page.getByRole("dialog").getByTestId(CAL_TEST_IDS.dialogConfirmation).click();
     await expect(this.eventTypeLink(title)).toHaveCount(0);
