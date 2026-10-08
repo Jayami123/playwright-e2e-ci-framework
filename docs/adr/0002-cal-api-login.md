@@ -11,7 +11,7 @@ Cal.diy's own Playwright fixture posts to `GET /api/auth/csrf` then `POST /api/a
 
 Framework tests log in through that API. Setup writes `storageState` to `.auth/cal-pro.json`. FW-001 writes a copy under `testInfo.outputPath` so it does not clobber the setup file. FW-002 uses a single empty-session mechanism (`test.use({ storageState })` on the describe) and asserts a wrong password does not create a session.
 
-`csrfToken` is validated as a non-empty string before the callback POST. The Windows `router.push` workaround stays only in a Cal-fork stash, not this repo.
+`csrfToken` is validated as a non-empty string before the callback POST.
 
 ## Consequences
 

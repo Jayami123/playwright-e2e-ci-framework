@@ -1,4 +1,4 @@
-﻿# playwright-e2e-ci-framework
+# playwright-e2e-ci-framework
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
@@ -54,7 +54,7 @@ docs/adr/                     architecture decisions
 ```powershell
 copy .env.example .env
 # set CAL_E2E_EMAIL and CAL_E2E_PASSWORD
-npm i
+npm ci
 npx playwright install chromium
 ```
 
@@ -88,12 +88,12 @@ npm run report
 
 ## FW tests
 
-| ID            | Title                                           |
-| ------------- | ----------------------------------------------- |
-| P1-CAL-FW-001 | API login produces reusable storageState        |
-| P1-CAL-FW-002 | Wrong password does not produce a session       |
-| P1-CAL-FW-003 | Faker-isolated event type create/delete via POM |
-| P1-CAL-FW-004 | Console/page-error guard                        |
+| ID            | Title                                         |
+| ------------- | --------------------------------------------- |
+| P1-CAL-FW-001 | API login produces a reusable storageState    |
+| P1-CAL-FW-002 | wrong password does not create a session      |
+| P1-CAL-FW-003 | creates and deletes an isolated event type    |
+| P1-CAL-FW-004 | booker and bookings pages emit no page errors |
 
 ## CI
 
