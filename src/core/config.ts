@@ -22,7 +22,7 @@ export function failOnMissingEnv(missing: readonly string[]): asserts missing is
   }
 }
 
-export function normalizeOrigin(url: string): string {
+export function normalizeBaseUrl(url: string): string {
   let parsed: URL;
   try {
     parsed = new URL(url);

@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { normalizeOrigin, parsePositiveInt } from "./src/core/config.js";
+import { normalizeBaseUrl, parsePositiveInt } from "./src/core/config.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
@@ -10,7 +10,7 @@ const rawBase = process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL;
 const baseURL = live
   ? loadConfig().baseUrl
   : rawBase !== undefined && rawBase.trim() !== ""
-    ? normalizeOrigin(rawBase)
+    ? normalizeBaseUrl(rawBase)
     : undefined;
 
 export default defineConfig({

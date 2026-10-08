@@ -2,7 +2,7 @@ import path from "node:path";
 import {
   collectMissingEnv,
   failOnMissingEnv,
-  normalizeOrigin,
+  normalizeBaseUrl,
   repoRoot,
 } from "../../core/config.js";
 
@@ -102,7 +102,7 @@ export function loadConfig(): CalE2EConfig {
   process.env.PRODUCTS_ROOT = productsRoot;
 
   cached = {
-    baseUrl: normalizeOrigin(baseUrlRaw),
+    baseUrl: normalizeBaseUrl(baseUrlRaw),
     email,
     password,
     webMode: parseWebMode(process.env.CAL_WEB_MODE),
