@@ -14,6 +14,7 @@ export interface TimeoutBudget {
   readonly editor: number;
   readonly test: number;
   readonly journey: number;
+  readonly isolatedJourney: number;
   readonly expect: number;
   readonly navigation: number;
   readonly action: number;
@@ -30,6 +31,7 @@ export const TIMEOUTS = {
     editor: 30_000,
     test: 60_000,
     journey: 60_000,
+    isolatedJourney: 300_000,
     expect: 5_000,
     navigation: 30_000,
     action: 10_000,
@@ -44,6 +46,7 @@ export const TIMEOUTS = {
     editor: 600_000,
     test: 180_000,
     journey: 600_000,
+    isolatedJourney: 600_000,
     expect: 20_000,
     navigation: 180_000,
     action: 60_000,
