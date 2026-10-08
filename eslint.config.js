@@ -25,8 +25,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ["tests/**/*.ts"],
     ...playwright.configs["flat/recommended"],
+    files: ["tests/**/*.ts", "src/products/**/*.ts"],
+  },
+  {
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": ["error", { allowExpressions: true }],
+    },
   },
   {
     files: ["eslint.config.js"],
