@@ -122,6 +122,7 @@ export class BookerPage extends BasePage {
     if (attribute === null) {
       throw new Error(`No slot button with instant ${iso}`);
     }
+    // Exception (ADR 0006): duplicate fall-back slot labels share the same text; data-time is the only unique key.
     const slot = this.slotButtons().and(this.page.locator(`[data-time="${attribute}"]`));
     await expect(slot).toHaveCount(1);
     await slot.click();
@@ -174,7 +175,7 @@ export class BookerPage extends BasePage {
 
   private async bookingSubmitContext(prefix: string): Promise<string> {
     const fail = this.page.getByTestId(CAL_TEST_IDS.bookingFail);
-    const failVisible = (await fail.count()) > 0;
+    const failVisible = await fail.isVisible().catch(() => false);
     const failText = failVisible ? (await fail.innerText()).trim() : "";
     const confirmText = (await this.confirmButton.innerText().catch(() => "")).trim();
     return `${prefix}; confirm="${confirmText}"; bookingFail=${failText || "absent"}; url=${this.page.url()}`;

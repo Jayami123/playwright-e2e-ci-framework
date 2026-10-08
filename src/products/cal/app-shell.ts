@@ -16,10 +16,12 @@ export class CalAppShell {
   constructor(private readonly page: Page) {}
 
   async dismissNextIssueOverlay(): Promise<void> {
+    // Exception (ADR 0006): Next.js dev overlay lives under nextjs-portal with no semantic roles.
     const overlay = this.page
       .locator("nextjs-portal")
       .locator("[data-nextjs-dialog], [data-nextjs-dialog-overlay]");
-    if ((await overlay.count()) === 0) {
+    const visible = await overlay.isVisible().catch(() => false);
+    if (!visible) {
       return;
     }
     await this.page.keyboard.press("Escape").catch(() => undefined);

@@ -36,7 +36,7 @@ export async function readBookingOracle(
   } else {
     await success.expectLoaded();
   }
-  const displayedStartLabel = await success.readDisplayedStartLabel();
+  const displayedStartLabel = await success.expectDisplayedStart(viewerTimeZone, expectedInstant);
   const dbStartUtc = await readBookingStartUtc(uid);
   const expectedIso = expectedInstant.toISOString();
   expect(dbStartUtc.toISOString()).toBe(expectedIso);

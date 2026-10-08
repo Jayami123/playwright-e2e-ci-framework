@@ -1,15 +1,11 @@
 import { expect, type TestInfo } from "@playwright/test";
 import {
-  civilDateFromInstant,
   civilDateToIso,
-  expectedSlotLabelsForViewerDay,
-  fromZonedCivil,
+  expectedSlotEntriesForViewerDay,
   monthParam,
-  nextWeekdayAfter,
   normalizeSlotLabel,
-  parseClockToMinutes,
-  toZonedLabel,
   type CivilDate,
+  type ViewerDaySlotEntry,
 } from "../../core/timezone.js";
 import { required } from "../../core/required.js";
 import {
@@ -21,6 +17,7 @@ import {
 } from "./db.js";
 import {
   BOOKING_DATE_WINDOW_BASE_DAYS,
+  BOOKING_WINDOW_OFFSET_BY_PROJECT,
   MIN_LEAD_DAYS,
   SLOT_STEP_MINUTES,
   WEEKDAY_SEARCH_ATTEMPTS,
@@ -30,17 +27,10 @@ import type { BookerPage, SlotView } from "./pages/booker.page.js";
 export interface OpenViewerDaySlots {
   readonly date: CivilDate;
   readonly expectedLabels: readonly string[];
+  readonly expectedEntries: readonly ViewerDaySlotEntry[];
   readonly slots: readonly SlotView[];
   readonly first: SlotView;
-}
-
-export function availabilityStartCivil(organiser: OrganiserAvailability): {
-  readonly hour: number;
-  readonly minute: number;
-} {
-  const firstRow = required(organiser.rows[0], "organiser has no availability rows");
-  const minutes = parseClockToMinutes(firstRow.startClock);
-  return { hour: Math.floor(minutes / 60), minute: minutes % 60 };
+  readonly expectedFirstInstant: Date;
 }
 
 export function expectUniformSpacing(slots: readonly SlotView[], stepMs: number): void {
@@ -52,23 +42,21 @@ export function expectUniformSpacing(slots: readonly SlotView[], stepMs: number)
   }
 }
 
-export function bookingMinLeadDays(testInfo: TestInfo): number {
-  const projectOffset = testInfo.project.name
-    .split("")
-    .reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  return BOOKING_DATE_WINDOW_BASE_DAYS + testInfo.parallelIndex * 7 + (projectOffset % 7);
+export function bookingWindowOffsetDays(testInfo: TestInfo): number {
+  const projectOffset = BOOKING_WINDOW_OFFSET_BY_PROJECT[testInfo.project.name] ?? 0;
+  return BOOKING_DATE_WINDOW_BASE_DAYS + testInfo.parallelIndex * 7 + projectOffset;
 }
 
-async function buildExpectedLabelsForViewerDay(options: {
+async function buildExpectedEntriesForViewerDay(options: {
   readonly organiser: OrganiserAvailability;
   readonly viewerTimeZone: string;
   readonly viewerDate: CivilDate;
   readonly username: string;
   readonly eventSlug: string;
-}): Promise<readonly string[]> {
+}): Promise<readonly ViewerDaySlotEntry[]> {
   const rules = await readEventTypeBookingRules(options.username, options.eventSlug);
   const notBefore = earliestBookableInstant(rules.minimumBookingNoticeMinutes);
-  return expectedSlotLabelsForViewerDay({
+  return expectedSlotEntriesForViewerDay({
     organiserTimeZone: options.organiser.timeZone,
     viewerTimeZone: options.viewerTimeZone,
     viewerDate: options.viewerDate,
@@ -92,17 +80,27 @@ async function openViewerDay(options: {
   });
   await options.booker.expectLoaded();
   const slots = await options.booker.readSlots();
-  const expectedLabels = await buildExpectedLabelsForViewerDay({
+  const expectedEntries = await buildExpectedEntriesForViewerDay({
     organiser: options.organiser,
     viewerTimeZone: options.viewerTimeZone,
     viewerDate: options.viewerDate,
     username: options.user,
     eventSlug: options.event,
   });
-  const actualLabels = slots.map((slot) => normalizeSlotLabel(slot.label));
-  expect(actualLabels).toEqual(expectedLabels);
+  const expectedLabels = expectedEntries.map((entry) => entry.label);
   const first = required(slots[0], "Booker rendered no slots on the chosen viewer date");
-  return { date: options.viewerDate, expectedLabels, slots, first };
+  const expectedFirstInstant = required(
+    expectedEntries[0],
+    "Intl oracle produced no slots for the chosen viewer date",
+  ).instant;
+  return {
+    date: options.viewerDate,
+    expectedLabels,
+    expectedEntries,
+    slots,
+    first,
+    expectedFirstInstant,
+  };
 }
 
 export async function openFirstAvailabilitySlot(options: {
@@ -111,18 +109,14 @@ export async function openFirstAvailabilitySlot(options: {
   readonly viewerTimeZone: string;
   readonly user: string;
   readonly event: string;
-}): Promise<OpenViewerDaySlots & { readonly expectedLabel: string }> {
+}): Promise<OpenViewerDaySlots> {
   const viewerDate = await firstViewerWeekdayWithoutBookings({
     organiserEmail: options.organiser.email,
     viewerTimeZone: options.viewerTimeZone,
     minLeadDays: MIN_LEAD_DAYS,
     maxAttempts: WEEKDAY_SEARCH_ATTEMPTS,
   });
-  const opened = await openViewerDay({ ...options, viewerDate });
-  return {
-    ...opened,
-    expectedLabel: required(opened.expectedLabels[0], "expected label list was empty"),
-  };
+  return openViewerDay({ ...options, viewerDate });
 }
 
 export async function openBookingAvailabilitySlot(options: {
@@ -132,18 +126,14 @@ export async function openBookingAvailabilitySlot(options: {
   readonly user: string;
   readonly event: string;
   readonly testInfo: TestInfo;
-}): Promise<OpenViewerDaySlots & { readonly expectedLabel: string }> {
+}): Promise<OpenViewerDaySlots> {
   const viewerDate = await firstViewerWeekdayWithoutBookings({
     organiserEmail: options.organiser.email,
     viewerTimeZone: options.viewerTimeZone,
-    minLeadDays: bookingMinLeadDays(options.testInfo),
+    minLeadDays: bookingWindowOffsetDays(options.testInfo),
     maxAttempts: WEEKDAY_SEARCH_ATTEMPTS,
   });
-  const opened = await openViewerDay({ ...options, viewerDate });
-  return {
-    ...opened,
-    expectedLabel: required(opened.expectedLabels[0], "expected label list was empty"),
-  };
+  return openViewerDay({ ...options, viewerDate });
 }
 
 export async function openWeekdaySlots(options: {
@@ -152,18 +142,23 @@ export async function openWeekdaySlots(options: {
   readonly viewerTimeZone: string;
   readonly user: string;
   readonly event: string;
-}): Promise<OpenViewerDaySlots & { readonly expectedLabel: string }> {
-  const today = civilDateFromInstant(new Date(), options.viewerTimeZone);
-  const viewerDate = nextWeekdayAfter(today, options.organiser.timeZone, true);
-  const opened = await openViewerDay({ ...options, viewerDate });
-  const start = availabilityStartCivil(options.organiser);
-  const expectedLabel = toZonedLabel(
-    fromZonedCivil(options.organiser.timeZone, { ...viewerDate, ...start }),
-    options.viewerTimeZone,
-  );
-  return { ...opened, expectedLabel };
+}): Promise<OpenViewerDaySlots> {
+  const viewerDate = await firstViewerWeekdayWithoutBookings({
+    organiserEmail: options.organiser.email,
+    viewerTimeZone: options.viewerTimeZone,
+    minLeadDays: MIN_LEAD_DAYS,
+    maxAttempts: WEEKDAY_SEARCH_ATTEMPTS,
+  });
+  return openViewerDay({ ...options, viewerDate });
 }
 
-export function expectedInstantIso(instant: Date): string {
-  return instant.toISOString();
+export function actualSlotLabels(slots: readonly SlotView[]): readonly string[] {
+  return slots.map((slot) => normalizeSlotLabel(slot.label));
+}
+
+export function expectSlotLabelsMatch(
+  actual: readonly string[],
+  expected: readonly string[],
+): void {
+  expect(actual).toEqual(expected);
 }

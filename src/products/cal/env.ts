@@ -97,12 +97,14 @@ export function loadConfig(): CalE2EConfig {
 
   const email = process.env.CAL_E2E_EMAIL?.trim() ?? "";
   const password = process.env.CAL_E2E_PASSWORD ?? "";
-  const dstEmail = process.env.CAL_DST_EMAIL?.trim() || "trial@example.com";
-  const dstPassword = process.env.CAL_DST_PASSWORD?.trim() || "trial";
+  const dstEmail = process.env.CAL_DST_EMAIL?.trim() ?? "";
+  const dstPassword = process.env.CAL_DST_PASSWORD ?? "";
   const baseUrlRaw = (process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL)?.trim() ?? "";
   const missing = collectMissingEnv({
     CAL_E2E_EMAIL: email,
     CAL_E2E_PASSWORD: password,
+    CAL_DST_EMAIL: dstEmail,
+    CAL_DST_PASSWORD: dstPassword,
     "CAL_E2E_BASE_URL or CAL_BASE_URL": baseUrlRaw,
   });
   failOnMissingEnv(missing);

@@ -313,6 +313,14 @@ export interface AvailabilityWindow {
   readonly endMinutes: number;
 }
 
+/** Days before/after the viewer date to probe organiser civil dates (cross-midnight TZ). */
+export const ORGANISER_DATE_PROBE_DAYS = 2 as const;
+
+export interface ViewerDaySlotEntry {
+  readonly instant: Date;
+  readonly label: string;
+}
+
 function uniqueOrganiserDatesForViewerDay(
   viewerDate: CivilDate,
   viewerTimeZone: string,
@@ -320,7 +328,11 @@ function uniqueOrganiserDatesForViewerDay(
 ): readonly CivilDate[] {
   const seen = new Set<string>();
   const dates: CivilDate[] = [];
-  for (let delta = -2; delta <= 2; delta += 1) {
+  for (
+    let delta = -ORGANISER_DATE_PROBE_DAYS;
+    delta <= ORGANISER_DATE_PROBE_DAYS;
+    delta += 1
+  ) {
     const probeInstant = fromZonedCivil(viewerTimeZone, {
       ...addDays(viewerDate, delta),
       hour: 12,
@@ -336,15 +348,15 @@ function uniqueOrganiserDatesForViewerDay(
   return dates;
 }
 
-export function expectedSlotLabelsForViewerDay(options: {
+export function expectedSlotEntriesForViewerDay(options: {
   readonly organiserTimeZone: string;
   readonly viewerTimeZone: string;
   readonly viewerDate: CivilDate;
   readonly windows: readonly AvailabilityWindow[];
   readonly stepMinutes: number;
   readonly notBefore: Date;
-}): readonly string[] {
-  const labelled: { readonly instant: Date; readonly label: string }[] = [];
+}): readonly ViewerDaySlotEntry[] {
+  const labelled: ViewerDaySlotEntry[] = [];
   const seenInstants = new Set<string>();
 
   for (const organiserDate of uniqueOrganiserDatesForViewerDay(
@@ -384,6 +396,11 @@ export function expectedSlotLabelsForViewerDay(options: {
 
   return labelled
     .slice()
-    .sort((left, right) => left.instant.getTime() - right.instant.getTime())
-    .map((entry) => entry.label);
+    .sort((left, right) => left.instant.getTime() - right.instant.getTime());
+}
+
+export function expectedSlotLabelsForViewerDay(
+  options: Parameters<typeof expectedSlotEntriesForViewerDay>[0],
+): readonly string[] {
+  return expectedSlotEntriesForViewerDay(options).map((entry) => entry.label);
 }
