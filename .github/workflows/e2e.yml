@@ -13,6 +13,13 @@ on:
         description: Timeout for the cal-self-hosted job
         type: number
         default: 90
+      playwright_browsers_timeout_minutes:
+        description: >
+          Timeout for Playwright Chromium install steps (cache + apt --with-deps).
+          Hung apt mirrors (run 37792386085 attempt 1) must fail fast instead of
+          consuming the 90-minute cal-self-hosted job.
+        type: number
+        default: 10
     secrets:
       CAL_E2E_BASE_URL:
         required: false
@@ -106,6 +113,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-p1
       - uses: ./.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
       - name: Run Cal Chromium shard
         run: |
           set -euo pipefail
@@ -223,6 +231,7 @@ jobs:
           fi
 
       - uses: ./p1/.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
         with:
           working-directory: ${{ env.P1_WORKING_DIRECTORY }}
 
