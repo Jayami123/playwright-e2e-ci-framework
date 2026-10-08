@@ -1,11 +1,18 @@
 name: Playwright browsers
 description: Cache and install Chromium for Playwright (requires npm ci first).
 
+inputs:
+  working-directory:
+    description: Directory containing node_modules after npm ci
+    required: false
+    default: "."
+
 runs:
   using: composite
   steps:
     - id: playwright
       name: Playwright version
+      working-directory: ${{ inputs.working-directory }}
       run: |
         set -euo pipefail
         echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
@@ -18,3 +25,4 @@ runs:
         set -euo pipefail
         npx playwright install chromium --with-deps
       shell: bash
+      working-directory: ${{ inputs.working-directory }}

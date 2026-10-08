@@ -152,11 +152,14 @@ jobs:
     timeout-minutes: ${{ inputs.self_hosted_timeout_minutes }}
     if: needs.structural.outputs.has_live_url != 'true'
     env:
-      PRODUCTS_ROOT: ${{ github.workspace }}
+      P1_WORKING_DIRECTORY: p1
+      CAL_CHECKOUT_PATH: products/cal
+      PRODUCTS_ROOT: ${{ github.workspace }}/products
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          path: ${{ env.P1_WORKING_DIRECTORY }}
 
       - name: Checkout Cal fork
         id: checkout_cal
@@ -164,71 +167,81 @@ jobs:
         with:
           repository: Jayami123/cal
           ref: ${{ inputs.cal_ref }}
-          path: cal
+          path: ${{ env.CAL_CHECKOUT_PATH }}
           persist-credentials: false
 
       - name: Stub harness product roots
         run: |
           set -euo pipefail
           # qa-portfolio-harness loadConfig() resolves every product under PRODUCTS_ROOT.
-          mkdir -p documenso medusa twenty-CRM
+          mkdir -p "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa" "${PRODUCTS_ROOT}/twenty-CRM"
 
-      - uses: ./.github/actions/setup-p1
+      - uses: ./p1/.github/actions/setup-p1
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
 
       - uses: actions/cache@v4
         with:
-          path: cal/.yarn/cache
-          key: cal-yarn-${{ hashFiles('cal/yarn.lock') }}
+          path: products/cal/.yarn/cache
+          key: cal-yarn-${{ hashFiles('products/cal/yarn.lock') }}
 
       - uses: actions/cache/restore@v4
         id: cal_next
         with:
-          path: cal/apps/web/.next
+          path: products/cal/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
 
       - name: Install Cal dependencies
-        working-directory: cal
+        working-directory: ${{ env.CAL_CHECKOUT_PATH }}
         run: |
           set -euo pipefail
           corepack enable
           yarn install --immutable
 
       - name: Prepare Cal product .env
+        env:
+          CAL_ENV_DIR: ${{ env.CAL_CHECKOUT_PATH }}
         run: |
           set -euo pipefail
-          cp cal/.env.example cal/.env
-          sed -i 's|http://localhost:3000|http://127.0.0.1:3000|g' cal/.env
+          cp "${CAL_ENV_DIR}/.env.example" "${CAL_ENV_DIR}/.env"
+          sed -i 's|http://localhost:3000|http://127.0.0.1:3000|g' "${CAL_ENV_DIR}/.env"
           NEXTAUTH_SECRET="$(openssl rand -base64 32)"
           CALENDSO_ENCRYPTION_KEY="$(openssl rand -base64 24)"
           echo "::add-mask::${NEXTAUTH_SECRET}"
           echo "::add-mask::${CALENDSO_ENCRYPTION_KEY}"
-          grep -v '^NEXTAUTH_SECRET=' cal/.env | grep -v '^CALENDSO_ENCRYPTION_KEY=' > cal/.env.tmp
-          mv cal/.env.tmp cal/.env
-          printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> cal/.env
-          printf 'CALENDSO_ENCRYPTION_KEY=%s\n' "$CALENDSO_ENCRYPTION_KEY" >> cal/.env
-          if ! grep -qE '^NEXTAUTH_SECRET=.+' cal/.env; then
-            echo "::error::NEXTAUTH_SECRET is empty in cal/.env after prepare"
+          grep -v '^NEXTAUTH_SECRET=' "${CAL_ENV_DIR}/.env" | grep -v '^CALENDSO_ENCRYPTION_KEY=' > "${CAL_ENV_DIR}/.env.tmp"
+          mv "${CAL_ENV_DIR}/.env.tmp" "${CAL_ENV_DIR}/.env"
+          printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "${CAL_ENV_DIR}/.env"
+          printf 'CALENDSO_ENCRYPTION_KEY=%s\n' "$CALENDSO_ENCRYPTION_KEY" >> "${CAL_ENV_DIR}/.env"
+          if ! grep -qE '^NEXTAUTH_SECRET=.+' "${CAL_ENV_DIR}/.env"; then
+            echo "::error::NEXTAUTH_SECRET is empty in ${CAL_ENV_DIR}/.env after prepare"
             exit 1
           fi
-          if ! grep -qE '^CALENDSO_ENCRYPTION_KEY=.+' cal/.env; then
-            echo "::error::CALENDSO_ENCRYPTION_KEY is empty in cal/.env after prepare"
+          if ! grep -qE '^CALENDSO_ENCRYPTION_KEY=.+' "${CAL_ENV_DIR}/.env"; then
+            echo "::error::CALENDSO_ENCRYPTION_KEY is empty in ${CAL_ENV_DIR}/.env after prepare"
             exit 1
           fi
 
-      - uses: ./.github/actions/playwright-browsers
+      - uses: ./p1/.github/actions/playwright-browsers
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
 
       - name: Run Cal E2E suite
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
           CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
           CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
           CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
           CAL_E2E_PASSWORD: ${{ env.CAL_DEFAULT_E2E_PASSWORD }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
         run: |
           set -euo pipefail
+          # Harness up() owns Postgres, seed, tRPC types, and next build.
           npm run test:cal
 
       - name: Merge blob reports into HTML
         if: ${{ !cancelled() }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
           set -euo pipefail
           if [ -d blob-report ] && [ -n "$(find blob-report -type f -print -quit)" ]; then
@@ -239,9 +252,12 @@ jobs:
 
       - name: Redact Cal server log
         if: ${{ always() }}
+        env:
+          CAL_ENV_DIR: ${{ env.CAL_CHECKOUT_PATH }}
+          P1_DIR: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
           set -euo pipefail
-          LOG_SRC="node_modules/qa-portfolio-harness/.harness/cal-web.log"
+          LOG_SRC="${P1_DIR}/node_modules/qa-portfolio-harness/.harness/cal-web.log"
           LOG_DST="cal-web-redacted.log"
           if [ ! -f "$LOG_SRC" ]; then
             echo "(no cal-web.log from harness)" > "$LOG_DST"
@@ -253,7 +269,7 @@ jobs:
             "$LOG_SRC" > "$LOG_DST"
           read_env() {
             local key="$1"
-            grep -E "^${key}=" cal/.env | sed -E "s/^${key}=//" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"
+            grep -E "^${key}=" "${CAL_ENV_DIR}/.env" | sed -E "s/^${key}=//" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"
           }
           NEXTAUTH_VAL="$(read_env NEXTAUTH_SECRET)"
           ENCRYPTION_VAL="$(read_env CALENDSO_ENCRYPTION_KEY)"
@@ -274,7 +290,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: playwright-report
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report
           if-no-files-found: ignore
           retention-days: 14
 
@@ -282,7 +298,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: playwright-test-results
-          path: test-results
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
           if-no-files-found: ignore
           retention-days: 14
 
@@ -296,7 +312,7 @@ jobs:
       - uses: actions/cache/save@v4
         if: >-
           ${{ steps.cal_next.outputs.cache-hit != 'true'
-          && hashFiles('cal/apps/web/.next/required-server-files.json') != '' }}
+          && hashFiles('products/cal/apps/web/.next/required-server-files.json') != '' }}
         with:
-          path: cal/apps/web/.next
+          path: products/cal/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
