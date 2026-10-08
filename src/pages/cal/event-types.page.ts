@@ -49,7 +49,7 @@ export class EventTypesPage extends CalBasePage {
   }
 
   eventTypeLink(title: string) {
-    return this.page.getByRole("link", { name: title, exact: true });
+    return this.page.getByRole("link", { name: title }).first();
   }
 
   async expectListed(title: string): Promise<void> {

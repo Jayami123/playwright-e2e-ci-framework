@@ -52,7 +52,7 @@ FW-003/004 hangs against `next dev --webpack` are a **dev-server environment pro
 
 ## Locators
 
-Prefer `getByRole` / `getByLabel` / `getByTestId`. Product test ids used: `new-event-type`, `event-type-quick-chat`, `event-type-options-{id}`, `dialog-confirmation`. Event type rows are `getByRole("link", { name, exact: true })`. Duplicate `event-type-options-{id}` nodes use `.first()`.
+Prefer `getByRole` / `getByLabel` / `getByTestId`. Product test ids used: `new-event-type`, `event-type-quick-chat`, `event-type-options-{id}`, `dialog-confirmation`. Event type rows are `getByRole("link", { name })` (accessible name includes the slug and duration). Duplicate `event-type-options-{id}` nodes use `.first()`.
 
 ## Console guard
 
