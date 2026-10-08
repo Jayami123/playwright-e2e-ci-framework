@@ -182,13 +182,13 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: products/cal/.yarn/cache
-          key: cal-yarn-${{ hashFiles('products/cal/yarn.lock') }}
+          path: ${{ env.CAL_CHECKOUT_PATH }}/.yarn/cache
+          key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
 
       - uses: actions/cache/restore@v4
         id: cal_next
         with:
-          path: products/cal/apps/web/.next
+          path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
 
       - name: Install Cal dependencies
@@ -312,7 +312,7 @@ jobs:
       - uses: actions/cache/save@v4
         if: >-
           ${{ steps.cal_next.outputs.cache-hit != 'true'
-          && hashFiles('products/cal/apps/web/.next/required-server-files.json') != '' }}
+          && hashFiles(format('{0}/apps/web/.next/required-server-files.json', env.CAL_CHECKOUT_PATH)) != '' }}
         with:
-          path: products/cal/apps/web/.next
+          path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
