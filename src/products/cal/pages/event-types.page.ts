@@ -2,8 +2,9 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { CalAppShell } from "../app-shell.js";
 import { timeouts } from "../env.js";
+import { DEFAULT_EVENT_DURATION_MINUTES } from "../factories.js";
 import { CAL_ROUTES, isEventTypeEditorPath } from "../routes.js";
-import { CAL_TEST_IDS, DEFAULT_EVENT_DURATION_MINUTES } from "../testIds.js";
+import { CAL_TEST_IDS } from "../testIds.js";
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -56,7 +57,7 @@ export class EventTypesPage extends BasePage {
     await this.durationField.fill(String(lengthMinutes));
     const created = this.page.waitForResponse(
       (response) =>
-        response.url().includes("eventTypesHeavy/create") &&
+        response.url().includes(CAL_ROUTES.eventTypesHeavyCreate) &&
         response.request().method() === "POST" &&
         response.ok(),
       { timeout: timeouts().page },

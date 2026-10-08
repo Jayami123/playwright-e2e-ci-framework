@@ -5,6 +5,7 @@ export const CAL_ROUTES = {
   bookingsUpcoming: "/bookings/upcoming",
   eventTypes: "/event-types",
   eventTypeEditor: (id: string): string => `/event-types/${id}`,
+  eventTypesHeavyCreate: "eventTypesHeavy/create",
   publicBooker: (user: string, event: string): string => `/${user}/${event}`,
 } as const;
 

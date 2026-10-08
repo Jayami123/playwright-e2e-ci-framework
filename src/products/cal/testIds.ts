@@ -5,5 +5,3 @@ export const CAL_TEST_IDS = {
   dialogConfirmation: "dialog-confirmation",
   bookerContainer: "booker-container",
 } as const;
-
-export const DEFAULT_EVENT_DURATION_MINUTES = 10;

@@ -1,5 +1,7 @@
 import { fakePerson } from "qa-portfolio-harness";
 
+export const DEFAULT_EVENT_DURATION_MINUTES = 10;
+
 const TITLE_MAX_LENGTH = 48;
 
 export function runId(): string {
