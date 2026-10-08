@@ -4,36 +4,18 @@ import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/
 
 process.env.P1_SEED ??= String(Date.now());
 
-function requestedProjects(): ReadonlySet<string> | undefined {
-  const names: string[] = [];
-  for (let index = 0; index < process.argv.length; index += 1) {
-    const arg = process.argv[index];
-    if (arg === undefined) {
-      continue;
-    }
-    if (arg.startsWith("--project=")) {
-      names.push(...arg.slice("--project=".length).split(","));
-      continue;
-    }
-    if (arg === "--project") {
-      const next = process.argv[index + 1];
-      if (next !== undefined && !next.startsWith("-")) {
-        names.push(...next.split(","));
-      }
-    }
+/** Set by `npm run test:unit` so globalSetup does not start the Cal harness. */
+function shouldStartCalHarness(): boolean {
+  if (process.env.P1_PLAYWRIGHT_HARNESS === "0") {
+    return false;
   }
-  return names.length > 0 ? new Set(names) : undefined;
+  if (process.env.npm_lifecycle_event === "test:unit") {
+    return false;
+  }
+  return true;
 }
 
-function needsCalHarness(projects: ReadonlySet<string> | undefined): boolean {
-  if (projects === undefined) {
-    return true;
-  }
-  return projects.has("cal-chromium") || projects.has("cal-setup");
-}
-
-const projectFilter = requestedProjects();
-const live = !skipLiveCal() && needsCalHarness(projectFilter);
+const live = !skipLiveCal() && shouldStartCalHarness();
 const webMode = live ? loadConfig().webMode : parseWebMode(process.env.CAL_WEB_MODE);
 const rawBase = process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL;
 const baseURL = live

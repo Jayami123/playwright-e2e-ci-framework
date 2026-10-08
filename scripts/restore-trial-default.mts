@@ -7,16 +7,20 @@ import { AvailabilityPage } from "../src/products/cal/pages/availability.page.js
 async function main(): Promise<void> {
   const { dstEmail, dstPassword, baseUrl } = loadConfig();
   const browser = await chromium.launch();
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await installTimezoneHandler(page);
-  await page.goto(baseUrl);
-  await loginCalWithCredentials(page, dstEmail, dstPassword);
-  const availability = new AvailabilityPage(page);
-  await availability.promoteWorkingHoursDefault();
-  await availability.deleteQaSchedules();
-  await browser.close();
-  console.log("Restored trial default schedule and removed sch-qa-* schedules.");
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await installTimezoneHandler(page);
+    await page.goto(baseUrl);
+    await loginCalWithCredentials(page, dstEmail, dstPassword);
+    const availability = new AvailabilityPage(page);
+    await availability.promoteWorkingHoursDefault();
+    await availability.deleteQaSchedules();
+    await context.close();
+    console.log("Restored trial default schedule and removed sch-qa-* schedules.");
+  } finally {
+    await browser.close();
+  }
 }
 
 main().catch((error: unknown) => {

@@ -72,6 +72,9 @@ jobs:
       - run: |
           set -euo pipefail
           npm run format:check
+      - run: |
+          set -euo pipefail
+          npm run test:unit
 
   structural:
     name: typecheck (always)

@@ -10,6 +10,7 @@
     "test": "playwright test",
     "test:cal": "playwright test --project=cal-chromium",
     "test:unit": "playwright test --project=unit",
+    "cal:restore-trial": "tsx scripts/restore-trial-default.mts",
     "test:smoke": "playwright test --project=cal-chromium --grep @smoke",
     "test:cal:headed": "playwright test --project=cal-chromium --headed",
     "test:cal:debug": "playwright test --project=cal-chromium --debug",
@@ -34,6 +35,7 @@
     "eslint-plugin-playwright": "^2.2.2",
     "prettier": "^3.6.2",
     "typescript": "^5",
+    "tsx": "^4.20.5",
     "typescript-eslint": "^8.44.1"
   }
 }
