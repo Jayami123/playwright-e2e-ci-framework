@@ -233,7 +233,12 @@ jobs:
 
       - name: Merge blob reports into HTML
         if: ${{ !cancelled() }}
-        run: npx playwright merge-reports --reporter html ./blob-report
+        run: |
+          if [ -d blob-report ] && [ -n "$(find blob-report -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report
+          else
+            echo "No blob report to merge (tests may have failed before reporters ran)."
+          fi
 
       - name: Redact Cal server log
         if: ${{ always() }}
