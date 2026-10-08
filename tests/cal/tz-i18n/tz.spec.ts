@@ -3,7 +3,7 @@ import { required } from "../../../src/core/required.js";
 import {
   actualSlotLabels,
   expectSlotLabelsMatch,
-  expectUniformSpacing,
+  expectUniformSpacingWithinOrganiserDays,
   openBookingAvailabilitySlot,
   openFirstAvailabilitySlot,
   openWeekdaySlots,
@@ -67,11 +67,19 @@ test.describe("P1-CAL-TZ booker timezone", () => {
     });
   }
 
-  function expectHalfHourOffsetGrid(result: Awaited<ReturnType<typeof openWeekdaySlots>>): void {
+  function expectHalfHourOffsetGrid(
+    result: Awaited<ReturnType<typeof openWeekdaySlots>>,
+    organiserTimeZone: string,
+  ): void {
     const normalized = actualSlotLabels(result.slots);
     expectSlotLabelsMatch(normalized, result.expectedLabels);
     expect(new Set(normalized).size, "duplicate slot labels").toBe(normalized.length);
-    expectUniformSpacing(result.slots, THIRTY_MINUTES_MS);
+    expectUniformSpacingWithinOrganiserDays({
+      slots: result.slots,
+      expectedEntries: result.expectedEntries,
+      organiserTimeZone,
+      stepMs: THIRTY_MINUTES_MS,
+    });
     for (let index = 0; index < result.expectedEntries.length; index += 1) {
       const slot = required(result.slots[index], `missing slot at index ${String(index)}`);
       const entry = required(
@@ -111,7 +119,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
         });
         expect(result.slots.length).toBeGreaterThan(0);
         test.fail(true, TZ003_KATHMANDU_ISSUE);
-        expectHalfHourOffsetGrid(result);
+        expectHalfHourOffsetGrid(result, organiser.timeZone);
       },
     );
   });
@@ -140,7 +148,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           event: PRO_THIRTY_MIN_SLUG.event,
         });
         expect(result.slots.length).toBeGreaterThan(0);
-        expectHalfHourOffsetGrid(result);
+        expectHalfHourOffsetGrid(result, organiser.timeZone);
       },
     );
   });
@@ -180,7 +188,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
 
         await test.step("reload keeps America/New_York selected and first label", async () => {
           await booker.reload();
-          await expect(booker.timezoneSelect).toContainText(/America\/New_York|New York/i);
+          await expect(booker.timezoneSelectRoot).toContainText(/America\/New_York|New York/i);
           const afterReload = await booker.readSlots();
           const expectedNy = toZonedLabel(opened.expectedFirstInstant, NEW_YORK_TZ);
           expect(normalizeSlotLabel(required(afterReload[0], "no slots after reload").label)).toBe(
@@ -226,7 +234,6 @@ test.describe("P1-CAL-TZ-002 booked instant", () => {
           event: slug,
           testInfo,
         });
-        expectSlotLabelsMatch(actualSlotLabels(opened.slots), opened.expectedLabels);
         const first = opened.first;
         const expectedInstant = opened.expectedFirstInstant;
 

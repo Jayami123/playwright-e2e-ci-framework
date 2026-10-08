@@ -47,6 +47,7 @@ function bookerPath(user: string, event: string, query?: BookerQuery): string {
 export class BookerPage extends BasePage {
   readonly container: Locator;
   readonly timezoneSelect: Locator;
+  readonly timezoneSelectRoot: Locator;
   readonly nameField: Locator;
   readonly emailField: Locator;
   readonly confirmButton: Locator;
@@ -55,6 +56,7 @@ export class BookerPage extends BasePage {
     super(page);
     this.container = page.getByTestId(CAL_TEST_IDS.bookerContainer);
     this.timezoneSelect = page.getByRole("combobox", { name: /timezone select/i });
+    this.timezoneSelectRoot = page.getByTestId(CAL_TEST_IDS.timezoneSelect);
     this.nameField = page.getByRole("textbox", { name: /your name/i });
     this.emailField = page.getByRole("textbox", { name: /email address/i });
     this.confirmButton = page.getByTestId(CAL_TEST_IDS.confirmBook);
@@ -122,7 +124,7 @@ export class BookerPage extends BasePage {
     if (attribute === null) {
       throw new Error(`No slot button with instant ${iso}`);
     }
-    // ADR 0006: duplicate fall-back labels; data-time is the only unique key (dynamic template; see no-raw-locators).
+    // ADR 0006: rule gap — `no-raw-locators` only flags string literals; fall-back duplicate labels need `[data-time="…"]`.
     const byInstant = this.page.locator(`[data-time="${attribute}"]`);
     const slot = this.slotButtons().and(byInstant);
     await expect(slot).toHaveCount(1);
@@ -132,8 +134,7 @@ export class BookerPage extends BasePage {
   async selectTimezone(iana: string): Promise<void> {
     await expect(this.timezoneSelect).toBeVisible({ timeout: timeouts().page });
     await this.timezoneSelect.click();
-    const search = this.page.getByRole("textbox", { name: /timezone select/i });
-    await search.fill(iana.replace(/_/g, " "));
+    await this.timezoneSelect.fill(iana.replace(/_/g, " "));
     await this.page.getByTestId(CAL_TEST_IDS.timezoneSelectOption(iana)).click();
   }
 

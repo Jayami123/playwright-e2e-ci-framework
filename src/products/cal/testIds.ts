@@ -4,6 +4,7 @@ export const CAL_TEST_IDS = {
   eventTypeOptions: (id: string): string => `event-type-options-${id}`,
   dialogConfirmation: "dialog-confirmation",
   bookerContainer: "booker-container",
+  timezoneSelect: "timezone-select",
   timeSlot: "time",
   timezoneSelectOption: (iana: string): string => `select-option-${iana}`,
   confirmBook: "confirm-book-button",

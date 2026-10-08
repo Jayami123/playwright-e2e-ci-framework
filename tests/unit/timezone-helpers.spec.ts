@@ -11,6 +11,7 @@ import {
   nextWeekdayAfter,
   normalizeSlotLabel,
   nthWeekdayOfMonth,
+  toBookingSuccessWhenLine,
   toZonedLabel,
   WEEKDAY,
 } from "../../src/core/timezone.js";
@@ -83,6 +84,19 @@ test.describe("timezone helpers", () => {
     expect(toZonedLabel(nineLondon, "Asia/Colombo")).toBe("1:30pm");
     expect(toZonedLabel(nineLondon, "Pacific/Auckland")).toBe("9:00pm");
     expect(normalizeSlotLabel("9:00 AM")).toBe("9:00am");
+  });
+
+  test("formats booking success When line like Cal success page", { tag: ["@unit", "@tz"] }, () => {
+    const start = fromZonedCivil("Europe/London", {
+      year: 2026,
+      month: 10,
+      day: 9,
+      hour: 9,
+      minute: 0,
+    });
+    const line = toBookingSuccessWhenLine(start, 30, "Asia/Colombo");
+    expect(line).toMatch(/^1:30\sPM\s-\s2:00\sPM\s\(.+\)$/i);
+    expect(normalizeSlotLabel(line.split(" - ")[0] ?? line)).toBe("1:30pm");
   });
 
   test("spring-forward skips 02:00–02:59 America/New_York", { tag: ["@unit", "@tz"] }, () => {
@@ -168,6 +182,25 @@ test.describe("timezone helpers", () => {
       }).map((entry) => entry.label),
     );
   });
+
+  test(
+    "EU spring-forward Sunday lists Sydney lead-in before organiser midnight",
+    {
+      tag: ["@unit", "@tz"],
+    },
+    () => {
+      const viewerDate = { year: 2027, month: 3, day: 28 };
+      const labels = expectedSlotLabelsForViewerDay({
+        organiserTimeZone: LONDON_TZ,
+        viewerTimeZone: "Australia/Sydney",
+        viewerDate,
+        windows: [{ days: [WEEKDAY.sunday], startMinutes: 0, endMinutes: 17 * 60 }],
+        stepMinutes: 30,
+        notBefore: BOOKING_NOTICE_EPOCH,
+      });
+      expect(labels.slice(0, 4)).toEqual(["10:00am", "10:30am", "11:00am", "11:30am"]);
+    },
+  );
 
   test("US spring-forward Sunday label list skips phantom hour", { tag: ["@unit", "@tz"] }, () => {
     const viewerDate = { year: 2027, month: 3, day: 14 };

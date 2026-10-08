@@ -1,9 +1,14 @@
 import { expect, type TestInfo } from "@playwright/test";
 import {
+  addDays,
+  civilDateFromInstant,
   civilDateToIso,
+  compareCivilDate,
   expectedSlotEntriesForViewerDay,
   monthParam,
   normalizeSlotLabel,
+  weekdayOf,
+  WEEKDAY,
   type CivilDate,
   type ViewerDaySlotEntry,
 } from "../../core/timezone.js";
@@ -12,7 +17,9 @@ import {
   availabilityWindowsFromOrganiser,
   earliestBookableInstant,
   firstViewerWeekdayWithoutBookings,
+  organiserHasBlockingBookingsBetween,
   readEventTypeBookingRules,
+  viewerWeekdayUtcRange,
   type OrganiserAvailability,
 } from "./db.js";
 import {
@@ -39,6 +46,37 @@ export function expectUniformSpacing(slots: readonly SlotView[], stepMs: number)
     const previous = required(isos[index - 1], "previous slot ISO missing");
     const current = required(isos[index], "slot ISO missing");
     expect(current - previous, "consecutive slot spacing").toBe(stepMs);
+  }
+}
+
+export function expectUniformSpacingWithinOrganiserDays(options: {
+  readonly slots: readonly SlotView[];
+  readonly expectedEntries: readonly ViewerDaySlotEntry[];
+  readonly organiserTimeZone: string;
+  readonly stepMs: number;
+}): void {
+  if (options.expectedEntries.length === 0) {
+    return;
+  }
+  let groupStart = 0;
+  for (let index = 1; index <= options.expectedEntries.length; index += 1) {
+    const atEnd = index === options.expectedEntries.length;
+    const boundary =
+      atEnd ||
+      compareCivilDate(
+        civilDateFromInstant(
+          required(options.expectedEntries[index], "next expected entry").instant,
+          options.organiserTimeZone,
+        ),
+        civilDateFromInstant(
+          required(options.expectedEntries[index - 1], "prior expected entry").instant,
+          options.organiserTimeZone,
+        ),
+      ) !== 0;
+    if (boundary) {
+      expectUniformSpacing(options.slots.slice(groupStart, index), options.stepMs);
+      groupStart = index;
+    }
   }
 }
 
@@ -119,6 +157,48 @@ export async function openFirstAvailabilitySlot(options: {
   return openViewerDay({ ...options, viewerDate });
 }
 
+function slotLabelListsEqual(actual: readonly string[], expected: readonly string[]): boolean {
+  return (
+    actual.length === expected.length && actual.every((label, index) => label === expected[index])
+  );
+}
+
+async function firstViewerWeekdayWithMatchingSlots(options: {
+  readonly booker: BookerPage;
+  readonly organiser: OrganiserAvailability;
+  readonly viewerTimeZone: string;
+  readonly user: string;
+  readonly event: string;
+  readonly minLeadDays: number;
+}): Promise<OpenViewerDaySlots> {
+  let cursor = civilDateFromInstant(new Date(), options.viewerTimeZone);
+  cursor = addDays(cursor, options.minLeadDays);
+  for (let attempt = 0; attempt < WEEKDAY_SEARCH_ATTEMPTS; attempt += 1) {
+    const weekday = weekdayOf(cursor, options.viewerTimeZone);
+    if (weekday === WEEKDAY.saturday || weekday === WEEKDAY.sunday) {
+      cursor = addDays(cursor, 1);
+      continue;
+    }
+    const { startUtc, endUtc } = viewerWeekdayUtcRange(cursor, options.viewerTimeZone);
+    const blocked = await organiserHasBlockingBookingsBetween(
+      options.organiser.email,
+      startUtc,
+      endUtc,
+    );
+    if (!blocked) {
+      const opened = await openViewerDay({ ...options, viewerDate: cursor });
+      const actual = actualSlotLabels(opened.slots);
+      if (slotLabelListsEqual(actual, opened.expectedLabels)) {
+        return opened;
+      }
+    }
+    cursor = addDays(cursor, 1);
+  }
+  throw new Error(
+    `No weekday with booker slots matching the Intl oracle within ${String(WEEKDAY_SEARCH_ATTEMPTS)} attempts from lead ${String(options.minLeadDays)}`,
+  );
+}
+
 export async function openBookingAvailabilitySlot(options: {
   readonly booker: BookerPage;
   readonly organiser: OrganiserAvailability;
@@ -127,13 +207,10 @@ export async function openBookingAvailabilitySlot(options: {
   readonly event: string;
   readonly testInfo: TestInfo;
 }): Promise<OpenViewerDaySlots> {
-  const viewerDate = await firstViewerWeekdayWithoutBookings({
-    organiserEmail: options.organiser.email,
-    viewerTimeZone: options.viewerTimeZone,
+  return firstViewerWeekdayWithMatchingSlots({
+    ...options,
     minLeadDays: bookingWindowOffsetDays(options.testInfo),
-    maxAttempts: WEEKDAY_SEARCH_ATTEMPTS,
   });
-  return openViewerDay({ ...options, viewerDate });
 }
 
 export async function openWeekdaySlots(options: {

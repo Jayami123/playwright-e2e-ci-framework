@@ -67,18 +67,27 @@ export class EventTypesPage extends BasePage {
   }
 
   private availabilityCombobox(): Locator {
-    return this.page.getByRole("main").getByRole("combobox");
+    return this.page
+      .getByRole("main")
+      .filter({ has: this.page.getByRole("link", { name: /edit availability/i }) })
+      .getByRole("combobox");
   }
 
   async assignAvailabilitySchedule(scheduleName: string): Promise<void> {
     const editor = new URL(this.page.url());
     await this.gotoPath(`${editor.pathname}?tabName=availability`);
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    await this.shell.waitUntilReady();
     await expect(this.page.getByRole("link", { name: /edit availability/i })).toBeVisible({
       timeout: timeouts().page,
     });
     const combo = this.availabilityCombobox();
+    await expect(combo).toBeVisible({ timeout: timeouts().page });
+    await combo.scrollIntoViewIfNeeded();
     await combo.focus();
     await this.page.keyboard.press("Enter");
+    await this.page.keyboard.press("ArrowDown");
+    await this.page.keyboard.type(scheduleName);
     const option = this.page.getByRole("option", {
       name: new RegExp(escapeRegExp(scheduleName)),
     });
@@ -98,7 +107,9 @@ export class EventTypesPage extends BasePage {
   }
 
   async expectSundayAvailabilityRow(): Promise<void> {
-    await expect(this.page.getByTestId("Sunday")).toBeVisible({ timeout: timeouts().page });
+    await expect(this.page.getByRole("main").getByText(/^Sunday\b/i)).toBeVisible({
+      timeout: timeouts().page,
+    });
   }
 
   async createdSlug(): Promise<string> {

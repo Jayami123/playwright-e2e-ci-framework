@@ -6,11 +6,8 @@ import { CalAppShell } from "../app-shell.js";
 import { timeouts } from "../env.js";
 import { CAL_ROUTES } from "../routes.js";
 import { CAL_TEST_IDS } from "../testIds.js";
-import {
-  CLOCK_FIVE_PM_LABEL,
-  CLOCK_NINE_AM_LABEL,
-  WORKING_HOURS_SCHEDULE_NAME,
-} from "../schedules.js";
+import { readScheduleEditorPathByName } from "../db.js";
+import { WORKING_HOURS_SCHEDULE_NAME } from "../schedules.js";
 
 export class AvailabilityPage extends BasePage {
   private readonly shell: CalAppShell;
@@ -31,7 +28,22 @@ export class AvailabilityPage extends BasePage {
   }
 
   scheduleRow(name: string): Locator {
-    return this.page.getByTestId(CAL_TEST_IDS.schedules).getByText(name, { exact: true });
+    return this.scheduleLink(name);
+  }
+
+  private scheduleLink(name: string): Locator {
+    return this.scheduleListItem(name).getByRole("link", {
+      name: new RegExp(`^${escapeRegExp(name)}$`),
+    });
+  }
+
+  private scheduleListItem(name: string): Locator {
+    return this.page
+      .getByTestId(CAL_TEST_IDS.schedules)
+      .getByRole("listitem")
+      .filter({
+        has: this.page.getByRole("link", { name: new RegExp(`^${escapeRegExp(name)}$`) }),
+      });
   }
 
   async createNamedSchedule(name: string): Promise<void> {
@@ -70,15 +82,29 @@ export class AvailabilityPage extends BasePage {
     return this.page.getByTestId(dayName);
   }
 
-  private dayHourCombobox(dayName: string, selectedLabel: string): Locator {
-    const normalized = normalizeSlotLabel(selectedLabel);
-    return this.dayRow(dayName).getByRole("combobox", {
-      name: new RegExp(`^${escapeRegExp(normalized)}$`, "i"),
-    });
+  private hourRangeRow(dayName: string): Locator {
+    return this.dayRow(dayName).filter({ hasText: / - / });
   }
 
-  private async chooseComboboxOption(combo: Locator, optionLabel: string): Promise<void> {
-    const normalized = normalizeSlotLabel(optionLabel);
+  private startHourCombobox(dayName: string): Locator {
+    // Cal LazySelect pair in one flex row; inputs have no accessible name (verified on harness UI).
+    // eslint-disable-next-line playwright/no-nth-methods -- start is always the first combobox in the range row
+    return this.hourRangeRow(dayName).getByRole("combobox").nth(0);
+  }
+
+  private endHourCombobox(dayName: string): Locator {
+    // eslint-disable-next-line playwright/no-nth-methods -- end is always the second combobox in the range row
+    return this.hourRangeRow(dayName).getByRole("combobox").nth(1);
+  }
+
+  private async selectDayHourOption(
+    dayName: string,
+    slot: "start" | "end",
+    hourLabel: string,
+  ): Promise<void> {
+    const normalized = normalizeSlotLabel(hourLabel);
+    const combo =
+      slot === "start" ? this.startHourCombobox(dayName) : this.endHourCombobox(dayName);
     await expect(combo).toBeVisible({ timeout: timeouts().page });
     await combo.click();
     await this.page
@@ -91,41 +117,38 @@ export class AvailabilityPage extends BasePage {
   async enableDay(dayName: string): Promise<void> {
     const toggle = this.daySwitch(dayName);
     await expect(toggle).toBeVisible({ timeout: timeouts().page });
-    if (await toggle.isChecked()) {
-      return;
-    }
-    await toggle.click();
+    await toggle.setChecked(true);
     await expect(toggle).toBeChecked({ timeout: timeouts().page });
+    await expect(this.dayRow(dayName).getByRole("combobox")).toHaveCount(2, {
+      timeout: timeouts().page,
+    });
   }
 
   async setDayHours(dayName: string, startLabel: string, endLabel: string): Promise<void> {
     await this.enableDay(dayName);
-    const normalizedStart = normalizeSlotLabel(startLabel);
-    const normalizedEnd = normalizeSlotLabel(endLabel);
-    const defaultStart = normalizeSlotLabel(CLOCK_NINE_AM_LABEL);
-    const defaultEnd = normalizeSlotLabel(CLOCK_FIVE_PM_LABEL);
-    if (normalizedStart !== defaultStart) {
-      await this.chooseComboboxOption(
-        this.dayHourCombobox(dayName, CLOCK_NINE_AM_LABEL),
-        startLabel,
-      );
-    }
-    if (normalizedEnd !== defaultEnd) {
-      await this.chooseComboboxOption(this.dayHourCombobox(dayName, CLOCK_FIVE_PM_LABEL), endLabel);
-    }
+    await this.selectDayHourOption(dayName, "start", startLabel);
+    await this.selectDayHourOption(dayName, "end", endLabel);
+  }
+
+  private setAsDefaultSwitch(): Locator {
+    return this.page
+      .getByRole("main")
+      .filter({ has: this.page.getByText(/^set as default$/i) })
+      .getByRole("switch");
   }
 
   async setAsDefault(): Promise<void> {
-    const toggle = this.page.getByRole("switch", { name: /set as default/i });
+    const toggle = this.setAsDefaultSwitch();
     await expect(toggle).toBeVisible({ timeout: timeouts().page });
-    if (await toggle.isChecked()) {
-      return;
+    const priorState = await toggle.getAttribute("data-state");
+    await toggle.setChecked(true);
+    if (priorState === "unchecked") {
+      const update = this.page.getByRole("button", { name: /^update$/i });
+      await expect(update).toBeVisible({ timeout: timeouts().page });
+      await update.click();
+      await expect(update).toHaveCount(0, { timeout: timeouts().page });
     }
-    await toggle.click();
-    const update = this.page.getByRole("button", { name: /^update$/i });
-    await expect(update).toBeVisible({ timeout: timeouts().page });
-    await update.click();
-    await expect(update).toHaveCount(0, { timeout: timeouts().page });
+    await expect(toggle).toBeChecked({ timeout: timeouts().page });
   }
 
   async save(): Promise<void> {
@@ -145,23 +168,27 @@ export class AvailabilityPage extends BasePage {
     await saved;
   }
 
-  async openByName(name: string): Promise<void> {
-    await this.goto();
-    await this.scheduleRow(name).click();
+  async openByName(name: string, options?: { readonly ownerEmail?: string }): Promise<void> {
+    if (options?.ownerEmail !== undefined) {
+      await this.gotoPath(await readScheduleEditorPathByName(options.ownerEmail, name));
+      await this.shell.waitUntilReady();
+    } else {
+      await this.goto();
+      await this.scheduleRow(name).click();
+    }
     await expect(this.page.getByTestId(CAL_TEST_IDS.availabilityTitle)).toHaveValue(name, {
       timeout: timeouts().page,
     });
   }
 
-  async promoteWorkingHoursDefault(): Promise<void> {
-    await this.openByName(WORKING_HOURS_SCHEDULE_NAME);
-    const toggle = this.page.getByRole("switch", { name: /set as default/i });
-    await expect(toggle).toBeVisible({ timeout: timeouts().page });
-    if (await toggle.isChecked()) {
-      return;
+  async promoteWorkingHoursDefault(ownerEmail: string): Promise<void> {
+    await this.openByName(WORKING_HOURS_SCHEDULE_NAME, { ownerEmail });
+    const saveButton = this.page.getByRole("button", { name: /^save$/i });
+    await expect(saveButton).toBeVisible({ timeout: timeouts().page });
+    if (await saveButton.isEnabled()) {
+      await this.setAsDefault();
+      await this.save();
     }
-    await this.setAsDefault();
-    await this.save();
   }
 
   async deleteByName(
@@ -169,11 +196,10 @@ export class AvailabilityPage extends BasePage {
     options?: { readonly tolerateMissing?: boolean },
   ): Promise<void> {
     await this.goto();
-    const rowText = this.scheduleRow(name);
-    if (options?.tolerateMissing === true && !(await rowText.isVisible())) {
+    const item = this.scheduleListItem(name);
+    if (options?.tolerateMissing === true && (await item.count()) === 0) {
       return;
     }
-    const item = this.page.getByRole("listitem").filter({ has: rowText });
     const more = item.getByTestId(CAL_TEST_IDS.scheduleMore).filter({ visible: true });
     await expect(more, `Schedule "${name}" has no delete menu (still default?)`).toBeVisible({
       timeout: timeouts().page,
@@ -181,7 +207,7 @@ export class AvailabilityPage extends BasePage {
     await more.click();
     await this.page.getByTestId(CAL_TEST_IDS.deleteSchedule).click();
     await this.page.getByRole("dialog").getByTestId(CAL_TEST_IDS.dialogConfirmation).click();
-    await expect(this.scheduleRow(name)).toHaveCount(0);
+    await expect(this.scheduleListItem(name)).toHaveCount(0);
   }
 
   async deleteQaSchedules(): Promise<void> {

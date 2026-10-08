@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { normalizeSlotLabel, toZonedLabel } from "../../../core/timezone.js";
+import { normalizeSlotLabel, toBookingSuccessWhenLine } from "../../../core/timezone.js";
+import { SLOT_STEP_MINUTES } from "../schedules.js";
 import { BasePage } from "../../../core/base.page.js";
 import { timeouts } from "../env.js";
 import { CAL_ROUTES } from "../routes.js";
@@ -24,8 +25,9 @@ export class BookingSuccessPage extends BasePage {
   }
 
   async expectDisplayedStart(viewerTimeZone: string, expectedInstant: Date): Promise<string> {
-    const expectedLabel = toZonedLabel(expectedInstant, viewerTimeZone);
-    await expect(this.root).toContainText(expectedLabel, { timeout: timeouts().page });
-    return normalizeSlotLabel(expectedLabel);
+    const whenLine = toBookingSuccessWhenLine(expectedInstant, SLOT_STEP_MINUTES, viewerTimeZone);
+    await expect(this.root).toContainText(whenLine, { timeout: timeouts().page });
+    const startSegment = whenLine.split(" - ")[0] ?? whenLine;
+    return normalizeSlotLabel(startSegment);
   }
 }

@@ -117,6 +117,28 @@ export async function readOrganiserAvailability(email: string): Promise<Organise
   });
 }
 
+export async function readScheduleEditorPathByName(
+  email: string,
+  scheduleName: string,
+): Promise<string> {
+  return withCalPool(async (pool) => {
+    const result = await pool.query<{ id: number }>(
+      `SELECT s.id
+       FROM "Schedule" s
+       JOIN users u ON s."userId" = u.id
+       WHERE u.email = $1 AND s.name = $2
+       ORDER BY s.id ASC
+       LIMIT 1`,
+      [email, scheduleName],
+    );
+    const id = result.rows[0]?.id;
+    if (id === undefined) {
+      throw new Error(`No schedule named "${scheduleName}" for ${email}`);
+    }
+    return `/availability/${String(id)}`;
+  });
+}
+
 export async function readEventTypeBookingRules(
   username: string,
   slug: string,

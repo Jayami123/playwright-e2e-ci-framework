@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
-import { toZonedLabel } from "../../core/timezone.js";
+import { normalizeSlotLabel, toBookingSuccessWhenLine } from "../../core/timezone.js";
+import { SLOT_STEP_MINUTES } from "./schedules.js";
 import { readBookingStartUtc } from "./db.js";
 import { timeouts } from "./env.js";
 import { BookingSuccessPage } from "./pages/booking-success.page.js";
@@ -40,7 +41,9 @@ export async function readBookingOracle(
   const dbStartUtc = await readBookingStartUtc(uid);
   const expectedIso = expectedInstant.toISOString();
   expect(dbStartUtc.toISOString()).toBe(expectedIso);
-  expect(displayedStartLabel).toBe(toZonedLabel(expectedInstant, viewerTimeZone));
+  const whenLine = toBookingSuccessWhenLine(expectedInstant, SLOT_STEP_MINUTES, viewerTimeZone);
+  const expectedStart = normalizeSlotLabel(whenLine.split(" - ")[0] ?? whenLine);
+  expect(displayedStartLabel).toBe(expectedStart);
   return { uid, dbStartUtc, displayedStartLabel };
 }
 
