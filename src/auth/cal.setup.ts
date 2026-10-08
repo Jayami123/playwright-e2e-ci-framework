@@ -10,6 +10,6 @@ setup("P1-CAL-FW setup: API login writes .auth/cal-pro.json", async ({ page }) =
   const elapsedMs = await loginCalWithCredentials(page, email, password);
   await expect(page).not.toHaveURL(/\/auth\/login/);
   await page.context().storageState({ path: AUTH_STATE_PATH });
-  // Measured only — no target claimed (Phase 2 timings live elsewhere).
+  // Measured only -- no target claimed (Phase 2 timings live elsewhere).
   console.log(`P1-CAL-FW setup login elapsed ${elapsedMs}ms`);
 });

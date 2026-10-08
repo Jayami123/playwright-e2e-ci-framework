@@ -1,6 +1,6 @@
 ﻿# playwright-e2e-ci-framework
 
-Portfolio **P1 · Web E2E & CI**. Playwright + TypeScript black-box tests against the four product forks. This repo does not modify product source.
+Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against the four product forks. This repo does not modify product source.
 
 Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.1.0`.
 
@@ -48,7 +48,7 @@ npm run report
 
 ## Branch / PR
 
-Never commit on `main`. Use dated `feat/…` branches and open a PR into `main` on [playwright-e2e-ci-framework](https://github.com/Jayami123/playwright-e2e-ci-framework).
+Never commit on `main`. Use dated `feat/...` branches and open a PR into `main` on [playwright-e2e-ci-framework](https://github.com/Jayami123/playwright-e2e-ci-framework).
 
 ```powershell
 git push -u origin HEAD
@@ -57,7 +57,7 @@ gh pr create --base main --head feat/2026-10-08-phase1-cal-framework
 
 ## CI
 
-`.github/workflows/p1-e2e.yml` typechecks on every PR. Live `cal-chromium` shards 1–4 run only if secret `CAL_E2E_BASE_URL` is set (product services are not started in Actions yet). Local green + CI structural green is the Phase 1 bar.
+`.github/workflows/p1-e2e.yml` calls `.github/workflows/e2e.yml`. Typecheck always runs. Live `cal-chromium` shards 1-4 run only when secret `CAL_E2E_BASE_URL` is present (checked via env, not job `if: secrets.*`). Product services are not started in Actions yet. Local green + CI structural green is the Phase 1 bar.
 
 ## Not in Phase 1
 

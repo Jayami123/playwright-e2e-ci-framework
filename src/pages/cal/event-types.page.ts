@@ -1,6 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 import { CalBasePage } from "./base.page.js";
 
+const WEBPACK_WAIT_MS = 180_000;
+
 export class EventTypesPage extends CalBasePage {
   constructor(page: Page) {
     super(page);
@@ -9,17 +11,23 @@ export class EventTypesPage extends CalBasePage {
   async goto(): Promise<void> {
     await this.installTimezoneHandler();
     await this.gotoPath("/event-types");
-    await this.dismissTimezonePrompt();
-    await expect(this.page.getByRole("heading", { name: /event types/i })).toBeVisible();
-    await expect(this.page.getByTestId("new-event-type")).toBeVisible();
+    await this.waitForShellReady();
+    await expect(this.page.getByRole("heading", { name: /event types/i })).toBeVisible({
+      timeout: WEBPACK_WAIT_MS,
+    });
+    await expect(this.page.getByTestId("new-event-type")).toBeVisible({ timeout: WEBPACK_WAIT_MS });
   }
 
   async create(title: string, lengthMinutes = 10): Promise<void> {
     await this.installTimezoneHandler();
-    await this.dismissTimezonePrompt();
+    await this.waitForShellReady();
     await this.page.getByTestId("new-event-type").click({ noWaitAfter: true });
-    await expect(this.page.getByTestId("event-type-quick-chat")).toBeVisible();
-    await this.page.getByTestId("event-type-quick-chat").fill(title);
+    await this.dismissTimezonePrompt();
+    await this.dismissNextIssueOverlay();
+    const titleField = this.page.getByTestId("event-type-quick-chat");
+    await expect(titleField).toBeVisible({ timeout: WEBPACK_WAIT_MS });
+    await titleField.fill(title);
+    await expect(titleField).toHaveValue(title);
     const duration = this.page.getByLabel(/duration/i);
     await duration.fill("");
     await duration.fill(String(lengthMinutes));
@@ -28,23 +36,25 @@ export class EventTypesPage extends CalBasePage {
         response.url().includes("eventTypesHeavy/create") &&
         response.request().method() === "POST" &&
         response.ok(),
-      { timeout: 180_000 },
+      { timeout: WEBPACK_WAIT_MS },
     );
+    await this.dismissTimezonePrompt();
     await this.page.getByRole("button", { name: /continue/i }).click();
+    await this.dismissTimezonePrompt();
     await created;
     await this.page.waitForURL((url) => /\/event-types\/\d+/.test(url.pathname), {
       waitUntil: "domcontentloaded",
-      timeout: 180_000,
+      timeout: WEBPACK_WAIT_MS,
     });
   }
 
   eventTypeLink(title: string) {
-    return this.page.locator('a[href*="/event-types/"]').filter({ hasText: title }).first();
+    return this.page.getByRole("link", { name: title, exact: true });
   }
 
   async expectListed(title: string): Promise<void> {
     await this.goto();
-    await expect(this.eventTypeLink(title)).toBeVisible();
+    await expect(this.eventTypeLink(title)).toBeVisible({ timeout: WEBPACK_WAIT_MS });
   }
 
   async deleteByTitle(title: string): Promise<void> {

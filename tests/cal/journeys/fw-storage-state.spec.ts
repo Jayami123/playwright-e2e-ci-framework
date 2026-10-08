@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { loginCalWithCredentials, postCalCredentials } from "../../../src/auth/credentials.js";
-import { AUTH_STATE_PATH, calCredentials } from "../../../src/env.js";
+import { calCredentials } from "../../../src/env.js";
 import { BookingsPage } from "../../../src/pages/cal/bookings.page.js";
 
 test.describe("P1-CAL-FW-001 API login produces reusable storageState", () => {
-  test("P1-CAL-FW-001 API login produces reusable storageState", async ({ browser, page }) => {
+  test("P1-CAL-FW-001 API login produces reusable storageState", async ({ browser, page }, testInfo) => {
     const { email, password } = calCredentials();
     const started = Date.now();
     const loginMs = await loginCalWithCredentials(page, email, password);
-    const statePath = AUTH_STATE_PATH;
+    const statePath = testInfo.outputPath("storage-state.json");
     await page.context().storageState({ path: statePath });
 
     const reused = await browser.newContext({ storageState: statePath });

@@ -7,7 +7,7 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 1,
+  retries: process.env.CI ? 2 : 0,
   // Webpack Cal on Windows serializes compiles; 4 workers time out CSRF and leave blank pages.
   workers: 1,
   reporter: process.env.CI ? [["blob"], ["list"]] : [["html"], ["list"]],
@@ -41,6 +41,6 @@ export default defineConfig({
     // Phase 2: enable after browser-matrix nightly is in scope.
     // { name: "cal-webkit", use: { ...devices["Desktop Safari"], storageState: AUTH_STATE_PATH } },
     // { name: "cal-firefox", use: { ...devices["Desktop Firefox"], storageState: AUTH_STATE_PATH } },
-    // Phase 3: visual projects (3 viewports) — do not enable yet.
+    // Phase 3: visual projects (3 viewports) -- do not enable yet.
   ],
 });
