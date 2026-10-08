@@ -62,15 +62,24 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
     await use(new BookerPage(page));
   },
 
-  eventTypeCleanup: async ({ eventTypes }, use) => {
+  eventTypeCleanup: async ({ eventTypes }, use, testInfo) => {
     const titles: string[] = [];
     await use({
       register(title: string): void {
         titles.push(title);
       },
     });
+    const failures: unknown[] = [];
     for (const title of titles) {
-      await eventTypes.deleteByTitle(title, { tolerateMissing: true });
+      try {
+        await eventTypes.deleteByTitle(title, { tolerateMissing: true });
+      } catch (error) {
+        testInfo.annotations.push({ type: "cleanup-failed", description: title });
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, "Event type cleanup failed");
     }
   },
 });
