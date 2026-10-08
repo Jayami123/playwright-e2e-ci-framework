@@ -1,31 +1,32 @@
 import { defineConfig, devices } from "@playwright/test";
-import {
-  AUTH_STATE_PATH,
-  calActionTimeoutMs,
-  calBaseUrl,
-  calExpectTimeoutMs,
-  calNavigationTimeoutMs,
-  calTestTimeoutMs,
-  skipLiveCal,
-} from "./src/env.js";
+import { parsePositiveInt } from "./src/core/config.js";
+import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
+
+process.env.P1_SEED ??= String(Date.now());
 
 const live = !skipLiveCal();
+const webMode = live ? loadConfig().webMode : parseWebMode(process.env.CAL_WEB_MODE);
+const baseURL = live
+  ? loadConfig().baseUrl
+  : (process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL)?.replace(/\/$/, "");
 
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
-  forbidOnly: !!process.env.CI,
+  forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  // CAL_WEB_MODE=dev webpack serializes compiles; 4 workers time out CSRF and leave blank pages.
-  workers: 1,
-  reporter: process.env.CI ? [["blob"], ["list"]] : [["html"], ["list"]],
-  timeout: calTestTimeoutMs(),
-  expect: { timeout: calExpectTimeoutMs() },
-  globalSetup: live ? "./global-setup/index.ts" : undefined,
+  // Default 1: CAL_WEB_MODE=dev webpack serializes compiles; extra workers time out CSRF.
+  workers: parsePositiveInt(process.env.PW_WORKERS, 1),
+  reporter: process.env.CI
+    ? [["blob"], ["github"], ["list"]]
+    : [["html", { open: "never" }], ["list"]],
+  timeout: TIMEOUTS[webMode].test,
+  expect: { timeout: TIMEOUTS[webMode].expect },
+  ...(live ? { globalSetup: "./global-setup/index.ts" } : {}),
   use: {
-    baseURL: process.env.CAL_E2E_BASE_URL || calBaseUrl(),
-    navigationTimeout: calNavigationTimeoutMs(),
-    actionTimeout: calActionTimeoutMs(),
+    ...(baseURL === undefined ? {} : { baseURL }),
+    navigationTimeout: TIMEOUTS[webMode].navigation,
+    actionTimeout: TIMEOUTS[webMode].action,
     trace: "on-first-retry",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -33,7 +34,7 @@ export default defineConfig({
   projects: [
     {
       name: "cal-setup",
-      testDir: "./src/auth",
+      testDir: "./tests/setup",
       testMatch: /cal\.setup\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
@@ -43,12 +44,8 @@ export default defineConfig({
       testDir: "./tests/cal",
       use: {
         ...devices["Desktop Chrome"],
-        storageState: AUTH_STATE_PATH,
+        ...(live ? { storageState: loadConfig().authStatePath } : {}),
       },
     },
-    // Phase 2: enable after browser-matrix nightly is in scope.
-    // { name: "cal-webkit", use: { ...devices["Desktop Safari"], storageState: AUTH_STATE_PATH } },
-    // { name: "cal-firefox", use: { ...devices["Desktop Firefox"], storageState: AUTH_STATE_PATH } },
-    // Phase 3: visual projects (3 viewports) -- do not enable yet.
   ],
 });
