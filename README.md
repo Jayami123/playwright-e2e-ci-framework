@@ -103,12 +103,12 @@ npm run report
 
 **E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
 
-| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Set                       | `cal-chromium` shards 1–4 against that URL, then `merge Playwright HTML report`.                                                                                                                |
-| Unset                     | `cal-self-hosted`: checkout [Jayami123/cal](https://github.com/Jayami123/cal), harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed credentials from workflow env only). |
+| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set                       | `cal-chromium` shards 1–4 against that URL, then `merge Playwright HTML report`.                                                                                                                                                         |
+| Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed credentials from workflow env only). |
 
-Self-hosted job caches Cal Yarn and Next build output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`.
+Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`.
 
 **Typical durations:** recorded here after the first green self-hosted run on this workflow (see the Actions run for your PR).
 
