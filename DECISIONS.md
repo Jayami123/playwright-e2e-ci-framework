@@ -5,10 +5,10 @@
 Pinned to the published tag:
 
 ```json
-"qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.1.0"
+"qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.0"
 ```
 
-That tag is `b103330` (PR #1 + PR #2). `npm i` in this repo succeeded: `prepare` (`tsc`) compiled `dist/` because this package already has TypeScript as a `devDependency`.
+That tag is the Cal `next start` work (`feat/2026-10-08-cal-prod-build`). `npm i` in this repo succeeded: `prepare` (`tsc`) compiled `dist/` because this package already has TypeScript as a `devDependency`. Harness `up()` defaults to `next build` then `next start`; `CAL_WEB_MODE=dev` keeps next-dev.
 
 If a consumer without TypeScript hits a failed `prepare`, fall back to:
 
@@ -20,7 +20,7 @@ Do not patch the harness from P1. Record any fallback here.
 
 PR #2 behavior P1 relies on:
 
-- `up()` starts Postgres **and** Cal web (Windows: `next dev --webpack`; Turbopack crashes on `instrumentation.ts`)
+- `up()` starts Postgres **and** Cal web (default: `next build` + `next start`; `CAL_WEB_MODE=dev` for next-dev / Windows webpack)
 - `authenticate()` requires `CAL_API_KEY`; `proveAuth()` hits a Bearer probe
 - `waitHealthy` / health poller updated
 

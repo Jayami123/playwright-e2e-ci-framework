@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.1.0"
+    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

@@ -2,7 +2,7 @@
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against the four product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.1.0`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.0`.
 
 ## Phase 1 (this branch)
 
@@ -20,7 +20,7 @@ npm i
 npx playwright install chromium
 ```
 
-Start Cal (harness `up()` starts Postgres and the web app; Windows uses webpack):
+Start Cal (harness `up()` starts Postgres and the web app; default is `next start` after `next build`. `CAL_WEB_MODE=dev` uses webpack on Windows):
 
 ```powershell
 cd D:\Jayami\Portfolio\qa-portfolio-harness
