@@ -18,4 +18,5 @@ Shard matrix is `1..4` × Chromium / Cal only. Blob reports retain 3 days. Permi
 ## Consequences
 
 - CI is green without a live Cal URL.
-- Enabling Actions E2E is adding secrets (`CAL_E2E_BASE_URL`, `CAL_E2E_EMAIL`, `CAL_E2E_PASSWORD`) and re-running, not changing job `if:` expressions.
+- Enabling Actions E2E against an external deployment is adding secrets (`CAL_E2E_BASE_URL`, `CAL_E2E_EMAIL`, `CAL_E2E_PASSWORD`) and re-running, not changing job `if:` expressions.
+- When the secret is unset, [ADR 0005](0005-ci-self-hosted-cal.md) runs self-hosted Cal E2E instead of a skip-only job.

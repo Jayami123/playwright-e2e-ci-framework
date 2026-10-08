@@ -6,7 +6,7 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 ## Scope
 
-Cal.com / Cal.diy only today: auth `storageState`, four FW tests, Chromium, GitHub Actions with secret-gated live shards.
+Cal.com / Cal.diy only today: auth `storageState`, four FW tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
 
 Later suites (not in this repo yet): Documenso, Medusa, Twenty; TZ/DST, 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
 
@@ -97,12 +97,23 @@ npm run report
 
 ## CI
 
-`.github/workflows/p1-e2e.yml` runs on pull requests, pushes to `main`, and `workflow_dispatch`. It calls reusable `e2e.yml`.
+[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (optional `cal_ref` input for the Cal fork pin). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
 
-- Lint and typecheck always run.
-- Live `cal-chromium` shards 1–4 run only when secret `CAL_E2E_BASE_URL` is present (checked via env, not job `if: secrets.*`).
-- CI reporters: blob + github + list. Blob artifacts retain 3 days.
-- Without the live URL, the skip job writes the reason to `$GITHUB_STEP_SUMMARY`.
-- Product services are not started in Actions yet.
+**Always:** `lint` (ESLint + Prettier check) and `typecheck (always)`.
+
+**E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)):
+
+| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set                       | `cal-chromium` shards 1–4 against that URL, then `merge Playwright HTML report`.                                                                      |
+| Unset                     | `cal-self-hosted`: checkout [Jayami123/cal](https://github.com/Jayami123/cal), harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000`. |
+
+Self-hosted job caches Cal Yarn and Next build output, uploads HTML report (`playwright-report`), failure traces under `playwright-test-results`, and a redacted `cal-server-log`.
+
+**Typical durations:** recorded here after the first green self-hosted run on this workflow (see the Actions run for your PR).
+
+**Download the HTML report:** open the workflow run on GitHub → **Artifacts** → `playwright-report` → unzip → open `index.html`.
+
+External-path blob shards retain 3 days; merged HTML and self-hosted artifacts retain 14 days.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, PR, and commit rules.
