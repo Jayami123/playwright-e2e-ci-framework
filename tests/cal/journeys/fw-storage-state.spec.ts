@@ -4,7 +4,13 @@ import { calCredentials } from "../../../src/env.js";
 import { BookingsPage } from "../../../src/pages/cal/bookings.page.js";
 
 test.describe("P1-CAL-FW-001 API login produces reusable storageState", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test("P1-CAL-FW-001 API login produces reusable storageState", async ({ browser, page }, testInfo) => {
+    const beforeLogin = new BookingsPage(page);
+    await beforeLogin.gotoUpcoming();
+    await beforeLogin.expectLoginRedirect();
+
     const { email, password } = calCredentials();
     const started = Date.now();
     const loginMs = await loginCalWithCredentials(page, email, password);
