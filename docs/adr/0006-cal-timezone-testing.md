@@ -17,7 +17,7 @@ Postgres on `127.0.0.1:5450` / `calendso` (harness compose). Prisma maps `User` 
 | Default schedule            | Name `Working Hours`, `Schedule.timeZone` = `null` (organiser TZ is the user TZ)                                                                                    |
 | Availability                | Weekdays `days = [1,2,3,4,5]` (Mon–Fri), `startTime` / `endTime` = `09:00:00` / `17:00:00` local civil time                                                         |
 | `pro/30min`                 | `periodType` = `unlimited`, `periodDays` = `null`, `length` = 30, `minimumBookingNotice` = 120 minutes                                                              |
-| Re-seeds                    | Multiple `Working Hours` rows exist for `pro`; tests read `users."defaultScheduleId"` joined to `Availability` ordered by `a.id ASC` and never mutate that schedule |
+| Re-seeds                    | Multiple `Working Hours` rows exist for `pro`; tests read availability via `COALESCE(users."defaultScheduleId", first Schedule.id for user)` (mirrors Cal `ScheduleRepository.getDefaultScheduleId`), joined to `Availability` ordered by `a.id ASC`; never mutate that schedule |
 
 `usa@example.com` is `America/Phoenix` (no DST). `trial@example.com` is used only for isolated DST schedules (not FW-001..004).
 
@@ -45,7 +45,9 @@ Jumping to a month/date is done with those query params, not calendar clicks. St
 
 TZ switcher persistence: `timePreferencesStore` writes `localStorage["timeOption.preferredTimeZone"]`. TZ-004 asserts that after reload the timezone select still shows `America/New_York` and the first slot label still matches the New York Intl expectation.
 
-TZ-003 (Kathmandu +05:45 / Adelaide): hard assertions on uniqueness, 30-minute spacing, grid alignment, and first-slot Intl vs organiser 09:00. Kathmandu is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-TZ-003: …" }` because the first slot is 15 minutes off the organiser grid. See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
+TZ-003 (Kathmandu +05:45 / Adelaide): full-list `toEqual` against `expectedSlotLabelsForViewerDay`, uniqueness, 30-minute spacing, and per-slot grid alignment vs Intl entries. Kathmandu calls **`test.fail` only after** slots are loaded (not during DB/setup). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
+
+**Locator exceptions (brief-rule):** booker `selectSlotByIso` filters by `[data-time]` when labels duplicate on fall-back; Next.js dev overlay uses `nextjs-portal` (no roles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers are `getByRole("combobox", { name: <current 12h label> })`.
 
 ## Server-side oracle (TZ-002, DST-002)
 
@@ -56,7 +58,7 @@ Used:
 1. Success page `/booking/{uid}`: visible **When** row start time (normalized `h:mma` label in the viewer/attendee TZ).
 2. Read-only Postgres via harness `createPgClient` (`SELECT "startTime" FROM "Booking" WHERE uid = $1`).
 
-Both must equal the Intl-computed instant from the clicked slot’s `data-time` (not URL query params). Teardown cancels through `POST /api/cancel` with a CSRF token from the Next.js app (not a product fork change).
+Both must equal the **Intl-computed** expected instant for the chosen viewer day and slot (from `expectedSlotEntriesForViewerDay` / booking helpers), which must match the clicked slot’s `data-time`. Success UI is asserted with `toContainText` on the normalized start label (no XPath). Teardown cancels through `POST /api/cancel` with a CSRF token from the organiser session (not the guest page).
 
 ## DST dates vs booking window
 
@@ -80,15 +82,15 @@ DST-002 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-0
 
 - FW specs keep using seed `pro` and `/pro/30min` for read-only TZ-001/003/004.
 - Bookings (TZ-002, DST-002) use Faker-prefixed attendee emails `qa-<run>-…@qa.local`, isolated event types, and `POST /api/cancel` in fixture teardown.
-- Organiser TZ/availability changes never touch `pro`. DST provisioning runs as `trial` via `.auth/cal-trial.json` from the setup project (`CAL_DST_EMAIL` / `CAL_DST_PASSWORD`, trace off on setup).
+- Organiser TZ/availability changes never touch `pro`. DST provisioning runs as `trial` via `.auth/cal-trial.json` from the setup project. `CAL_DST_EMAIL` / `CAL_DST_PASSWORD` are **required** in env (no code fallbacks). Self-hosted CI uses public Cal seed fixtures only (never echoed; `cal-setup` trace off). Per-run Faker organiser remains an open option, not implemented.
 - `isolatedSundayEvent` fixture: create schedule → create event type → assign schedule on the event type → assert Sunday row; teardown cancel booking → delete event type → delete schedule (schedule delete failure is **not** tolerated).
-- TZ-002/DST-002 booking dates use a lead-day window offset by `testInfo.parallelIndex` and project name so Phase 2c matrix workers do not double-book `pro`.
+- TZ-002 booking dates use `bookingWindowOffsetDays(testInfo)` (`BOOKING_WINDOW_OFFSET_BY_PROJECT` + worker index) so parallel workers do not double-book `pro`.
 - Guest booker flows use an empty `storageState` so the public page is not the organiser session.
-- Local harness cleanup: `node --import tsx scripts/restore-trial-default.mts` promotes **Working Hours** and deletes `sch-qa-*` schedules (UI only).
+- Local harness cleanup: `npm run cal:restore-trial` (idempotent: promote **Working Hours** only when not already default; deletes `sch-qa-*`; UI only).
 
 ## Timezone in Playwright
 
-Per-describe `test.use({ timezoneId })` (context option). Expected labels are computed with `Intl` in `src/core` (`toZonedLabel`, `expectedSlotLabelsForViewerDay`, DST date helpers). TZ-001 compares the full label list for one viewer date. Pure helpers have a separate **`unit`** Playwright project under `tests/unit/` (no browser, no cal-setup).
+Per-describe `test.use({ timezoneId })` (context option). Expected labels are computed with `Intl` in `src/core` (`toZonedLabel`, `expectedSlotEntriesForViewerDay`, DST date helpers). TZ-001 compares the full label list for one viewer date in the spec body. Pure helpers use the **`unit`** project (`npm run test:unit`; `npm_lifecycle_event=test:unit` skips harness `globalSetup`).
 
 The existing auto `timezoneHandler` dismisses Cal’s “Don’t update” dialog so FW tests are not blocked.
 

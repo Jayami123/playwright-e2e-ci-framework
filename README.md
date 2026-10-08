@@ -74,6 +74,7 @@ Then from this repo:
 ```powershell
 npm run lint
 npm run typecheck
+npm run test:unit
 npm run test:cal
 npm run test:smoke
 npm run report
@@ -110,7 +111,7 @@ npm run report
 
 [`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (optional `cal_ref` input for the Cal fork pin). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
 
-**Always:** `lint` (actionlint on workflows, then ESLint + Prettier check) and `typecheck (always)`.
+**Always:** `lint` (actionlint, ESLint, Prettier, and `npm run test:unit`) and `typecheck (always)`.
 
 **E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
 

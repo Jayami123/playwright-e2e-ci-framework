@@ -8,6 +8,7 @@ import {
   weekdayOf,
   type CivilDate,
 } from "../../core/timezone.js";
+import { MINUTES_TO_MS } from "./schedules.js";
 
 export interface AvailabilityRow {
   readonly days: readonly number[];
@@ -90,7 +91,11 @@ export async function readOrganiserAvailability(email: string): Promise<Organise
               a."startTime",
               a."endTime"
        FROM users u
-       JOIN "Schedule" s ON s.id = u."defaultScheduleId"
+       JOIN "Schedule" s
+         ON s.id = COALESCE(
+           u."defaultScheduleId",
+           (SELECT s2.id FROM "Schedule" s2 WHERE s2."userId" = u.id ORDER BY s2.id ASC LIMIT 1)
+         )
        JOIN "Availability" a ON a."scheduleId" = s.id
        WHERE u.email = $1
        ORDER BY a.id ASC`,
@@ -216,7 +221,7 @@ export function availabilityWindowsFromOrganiser(organiser: OrganiserAvailabilit
 }
 
 export function earliestBookableInstant(minimumBookingNoticeMinutes: number): Date {
-  return new Date(Date.now() + minimumBookingNoticeMinutes * 60 * 1000);
+  return new Date(Date.now() + minimumBookingNoticeMinutes * MINUTES_TO_MS);
 }
 
 export async function firstViewerWeekdayWithoutBookings(options: {
