@@ -23,6 +23,20 @@ export function failOnMissingEnv(missing: readonly string[]): void {
   throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
 }
 
+export function normalizeOrigin(url: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch (error) {
+    throw new Error(`Invalid base URL: ${url}`, { cause: error });
+  }
+  if (parsed.hostname === "localhost") {
+    parsed.hostname = "127.0.0.1";
+  }
+  const combined = `${parsed.origin}${parsed.pathname}`;
+  return combined.endsWith("/") ? combined.slice(0, -1) : combined;
+}
+
 export function parsePositiveInt(raw: string | undefined, fallback: number): number {
   if (raw === undefined || raw.trim() === "") {
     return fallback;

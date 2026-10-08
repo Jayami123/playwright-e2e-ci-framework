@@ -1,4 +1,5 @@
 import { getAdapter } from "qa-portfolio-harness";
+import { normalizeOrigin } from "../src/core/config.js";
 import { firstEventTypeId } from "../src/products/cal/db.js";
 import { loadConfig, skipLiveCal, timeouts } from "../src/products/cal/env.js";
 import {
@@ -13,8 +14,7 @@ async function getStatus(url: string, timeoutMs: number): Promise<number | undef
     controller.abort();
   }, timeoutMs);
   try {
-    const ipv4 = url.replace("://localhost", "://127.0.0.1");
-    const response = await fetch(ipv4, {
+    const response = await fetch(normalizeOrigin(url), {
       method: "GET",
       redirect: "manual",
       signal: controller.signal,
@@ -28,7 +28,7 @@ async function getStatus(url: string, timeoutMs: number): Promise<number | undef
 }
 
 async function warmupCalPages(baseUrl: string): Promise<void> {
-  const origin = baseUrl.replace(/\/$/, "").replace("://localhost", "://127.0.0.1");
+  const origin = normalizeOrigin(baseUrl);
   const paths = [
     CAL_ROUTES.login,
     CAL_ROUTES.publicBooker(PRO_THIRTY_MIN_SLUG.user, PRO_THIRTY_MIN_SLUG.event),
@@ -52,7 +52,7 @@ async function warmupCalPages(baseUrl: string): Promise<void> {
 }
 
 async function csrfStatus(baseUrl: string, timeoutMs: number): Promise<number | undefined> {
-  return getStatus(`${baseUrl.replace(/\/$/, "")}${CAL_ROUTES.csrf}`, timeoutMs);
+  return getStatus(`${normalizeOrigin(baseUrl)}${CAL_ROUTES.csrf}`, timeoutMs);
 }
 
 export default async function globalSetup(): Promise<void> {

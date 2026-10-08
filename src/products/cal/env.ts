@@ -1,5 +1,10 @@
 import path from "node:path";
-import { collectMissingEnv, failOnMissingEnv, repoRoot } from "../../core/config.js";
+import {
+  collectMissingEnv,
+  failOnMissingEnv,
+  normalizeOrigin,
+  repoRoot,
+} from "../../core/config.js";
 
 export const CAL_WEB_MODES = ["prod", "dev"] as const;
 export type CalWebMode = (typeof CAL_WEB_MODES)[number];
@@ -75,10 +80,6 @@ export function parseWebMode(raw: string | undefined): CalWebMode {
   return (raw ?? "prod").trim().toLowerCase() === "dev" ? "dev" : "prod";
 }
 
-function normalizeBaseUrl(url: string): string {
-  return url.replace(/\/$/, "").replace("://localhost", "://127.0.0.1");
-}
-
 export function loadConfig(): CalE2EConfig {
   if (cached !== undefined) {
     return cached;
@@ -103,7 +104,7 @@ export function loadConfig(): CalE2EConfig {
   process.env.PRODUCTS_ROOT = productsRoot;
 
   cached = {
-    baseUrl: normalizeBaseUrl(baseUrlRaw),
+    baseUrl: normalizeOrigin(baseUrlRaw),
     email,
     password,
     webMode: parseWebMode(process.env.CAL_WEB_MODE),

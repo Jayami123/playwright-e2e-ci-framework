@@ -1,14 +1,17 @@
 import { defineConfig, devices } from "@playwright/test";
-import { parsePositiveInt } from "./src/core/config.js";
+import { normalizeOrigin, parsePositiveInt } from "./src/core/config.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
 
 const live = !skipLiveCal();
 const webMode = live ? loadConfig().webMode : parseWebMode(process.env.CAL_WEB_MODE);
+const rawBase = process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL;
 const baseURL = live
   ? loadConfig().baseUrl
-  : (process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL)?.replace(/\/$/, "");
+  : rawBase !== undefined && rawBase.trim() !== ""
+    ? normalizeOrigin(rawBase)
+    : undefined;
 
 export default defineConfig({
   testDir: "./tests",
