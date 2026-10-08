@@ -129,6 +129,6 @@ jobs:
       - run: |
           {
             echo "Product services are not in GitHub-hosted CI yet."
-            echo "Local green: npm run test:cal (globalSetup uses harness up() + waitHealthy)."
+            echo "Local green: npm run test:cal (globalSetup calls harness up() then polls GET /api/auth/csrf)."
             echo "To enable Actions E2E, add secret CAL_E2E_BASE_URL (plus CAL_E2E_EMAIL / CAL_E2E_PASSWORD) and re-run workflow_dispatch."
           } | tee -a "$GITHUB_STEP_SUMMARY"
