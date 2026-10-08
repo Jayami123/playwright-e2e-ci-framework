@@ -1,13 +1,10 @@
-import { expect, type Page } from "@playwright/test";
-import { CalBasePage } from "./base.page.js";
+import { expect } from "@playwright/test";
+import { BasePage } from "../../../core/base.page.js";
+import { CAL_ROUTES } from "../routes.js";
 
-export class BookingsPage extends CalBasePage {
-  constructor(page: Page) {
-    super(page);
-  }
-
+export class BookingsPage extends BasePage {
   async gotoUpcoming(): Promise<void> {
-    await this.gotoPath("/bookings/upcoming");
+    await this.gotoPath(CAL_ROUTES.bookingsUpcoming);
   }
 
   async expectAuthenticatedUpcoming(): Promise<void> {

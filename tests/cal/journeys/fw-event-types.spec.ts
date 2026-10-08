@@ -1,24 +1,33 @@
-import { calEditorWaitMs } from "../../../src/env.js";
-import { qaEventTitle } from "../../../src/factories/index.js";
-import { EventTypesPage } from "../../../src/pages/cal/event-types.page.js";
-import { expect, test } from "../../../src/fixtures/test.js";
+import { timeouts } from "../../../src/products/cal/env.js";
+import { qaEventTitle } from "../../../src/products/cal/factories.js";
+import { expect, test } from "../../../src/products/cal/fixtures.js";
 
-test.describe("P1-CAL-FW-003 Faker-isolated event type create/delete via POM", () => {
-  let title: string;
+test.describe("Event types", () => {
+  test(
+    "creates and deletes an isolated event type",
+    {
+      tag: ["@cal", "@smoke"],
+      annotation: { type: "testId", description: "P1-CAL-FW-003" },
+    },
+    async ({ eventTypes, eventTypeCleanup }) => {
+      test.setTimeout(timeouts().editor);
+      const title = qaEventTitle();
+      eventTypeCleanup.register(title);
 
-  test.afterEach(async ({ page }) => {
-    if (!title) return;
-    const eventTypes = new EventTypesPage(page);
-    await eventTypes.deleteByTitle(title);
-  });
+      await test.step("create the event type", async () => {
+        await eventTypes.goto();
+        await eventTypes.create(title);
+      });
 
-  test("P1-CAL-FW-003 Faker-isolated event type create/delete via POM", async ({ page }) => {
-    test.setTimeout(calEditorWaitMs());
-    title = qaEventTitle();
-    const eventTypes = new EventTypesPage(page);
-    await eventTypes.goto();
-    await eventTypes.create(title);
-    await eventTypes.expectListed(title);
-    await expect(eventTypes.eventTypeLink(title)).toBeVisible();
-  });
+      await test.step("show it in the list", async () => {
+        await eventTypes.expectListed(title);
+        await expect(eventTypes.eventTypeLink(title)).toBeVisible();
+      });
+
+      await test.step("delete it", async () => {
+        await eventTypes.deleteByTitle(title);
+        await expect(eventTypes.eventTypeLink(title)).toHaveCount(0);
+      });
+    },
+  );
 });
