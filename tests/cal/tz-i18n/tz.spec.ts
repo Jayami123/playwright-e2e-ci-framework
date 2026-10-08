@@ -1,7 +1,8 @@
-import { fromZonedCivil, normalizeSlotLabel, toZonedLabel } from "../../../src/core/timezone.js";
+import { normalizeSlotLabel, toZonedLabel } from "../../../src/core/timezone.js";
 import { required } from "../../../src/core/required.js";
 import {
-  availabilityStartCivil,
+  actualSlotLabels,
+  expectSlotLabelsMatch,
   expectUniformSpacing,
   openBookingAvailabilitySlot,
   openFirstAvailabilitySlot,
@@ -31,8 +32,6 @@ import {
 } from "../../../src/products/cal/timezones.js";
 
 const VIEWER_TIMEZONES = [AUCKLAND_TZ, COLOMBO_TZ, LOS_ANGELES_TZ] as const;
-const HALF_HOUR_VIEWERS = [KATHMANDU_TZ, ADELAIDE_TZ] as const;
-
 const TZ003_KATHMANDU_ISSUE = "P7-OBS-CAL-TZ-003: first slot 15 min off organiser grid (+05:45)";
 
 test.describe("P1-CAL-TZ booker timezone", () => {
@@ -54,68 +53,98 @@ test.describe("P1-CAL-TZ booker timezone", () => {
         async ({ booker }) => {
           test.setTimeout(timeouts().journey);
           const organiser = await readOrganiserAvailability(loadConfig().email);
-
-          await test.step("open pro/30min on the next weekday", async () => {
-            const opened = await openFirstAvailabilitySlot({
-              booker,
-              organiser,
-              viewerTimeZone: timezoneId,
-              user: PRO_THIRTY_MIN_SLUG.user,
-              event: PRO_THIRTY_MIN_SLUG.event,
-            });
-            expect(opened.slots.length).toBeGreaterThan(0);
-          });
-        },
-      );
-    });
-  }
-
-  for (const timezoneId of HALF_HOUR_VIEWERS) {
-    test.describe(`offset ${timezoneId}`, () => {
-      test.use({ timezoneId });
-
-      test(
-        `P1-CAL-TZ-003 Half-hour and 45-minute offsets (${timezoneId})`,
-        {
-          tag: ["@cal", "@tz"],
-          annotation: [
-            { type: "testId", description: "P1-CAL-TZ-003" },
-            { type: "priority", description: "P1" },
-            ...(timezoneId === KATHMANDU_TZ
-              ? [{ type: "issue" as const, description: TZ003_KATHMANDU_ISSUE }]
-              : []),
-          ],
-        },
-        async ({ booker }) => {
-          test.fail(timezoneId === KATHMANDU_TZ, TZ003_KATHMANDU_ISSUE);
-          test.setTimeout(timeouts().journey);
-          const organiser = await readOrganiserAvailability(loadConfig().email);
-          const result = await openWeekdaySlots({
+          const opened = await openFirstAvailabilitySlot({
             booker,
             organiser,
             viewerTimeZone: timezoneId,
             user: PRO_THIRTY_MIN_SLUG.user,
             event: PRO_THIRTY_MIN_SLUG.event,
           });
-          const normalized = result.slots.map((slot) => normalizeSlotLabel(slot.label));
-          expect(new Set(normalized).size, "duplicate slot labels").toBe(normalized.length);
-          expectUniformSpacing(result.slots, THIRTY_MINUTES_MS);
-          const start = availabilityStartCivil(organiser);
-          const expectedFirstInstant = fromZonedCivil(organiser.timeZone, {
-            ...result.date,
-            ...start,
-          });
-          expect(normalizeSlotLabel(result.first.label)).toBe(
-            toZonedLabel(expectedFirstInstant, timezoneId),
-          );
-          const deltaMs = Date.parse(result.first.iso) - expectedFirstInstant.getTime();
-          const gridRemainder =
-            ((deltaMs % THIRTY_MINUTES_MS) + THIRTY_MINUTES_MS) % THIRTY_MINUTES_MS;
-          expect(gridRemainder).toBe(0);
+          expectSlotLabelsMatch(actualSlotLabels(opened.slots), opened.expectedLabels);
+          expect(opened.slots.length).toBeGreaterThan(0);
         },
       );
     });
   }
+
+  function expectHalfHourOffsetGrid(result: Awaited<ReturnType<typeof openWeekdaySlots>>): void {
+    const normalized = actualSlotLabels(result.slots);
+    expectSlotLabelsMatch(normalized, result.expectedLabels);
+    expect(new Set(normalized).size, "duplicate slot labels").toBe(normalized.length);
+    expectUniformSpacing(result.slots, THIRTY_MINUTES_MS);
+    for (let index = 0; index < result.expectedEntries.length; index += 1) {
+      const slot = required(result.slots[index], `missing slot at index ${String(index)}`);
+      const entry = required(
+        result.expectedEntries[index],
+        `missing expected entry at index ${String(index)}`,
+      );
+      expectClickedSlotMatchesInstant(slot.iso, entry.instant);
+      const deltaMs = Date.parse(slot.iso) - entry.instant.getTime();
+      const gridRemainder =
+        ((deltaMs % THIRTY_MINUTES_MS) + THIRTY_MINUTES_MS) % THIRTY_MINUTES_MS;
+      expect(gridRemainder).toBe(0);
+    }
+  }
+
+  test.describe(`offset ${KATHMANDU_TZ}`, () => {
+    test.use({ timezoneId: KATHMANDU_TZ });
+
+    test(
+      `P1-CAL-TZ-003 Half-hour and 45-minute offsets (${KATHMANDU_TZ})`,
+      {
+        tag: ["@cal", "@tz"],
+        annotation: [
+          { type: "testId", description: "P1-CAL-TZ-003" },
+          { type: "priority", description: "P1" },
+          { type: "issue", description: TZ003_KATHMANDU_ISSUE },
+        ],
+      },
+       
+      async ({ booker }) => {
+        test.setTimeout(timeouts().journey);
+        const organiser = await readOrganiserAvailability(loadConfig().email);
+        const result = await openWeekdaySlots({
+          booker,
+          organiser,
+          viewerTimeZone: KATHMANDU_TZ,
+          user: PRO_THIRTY_MIN_SLUG.user,
+          event: PRO_THIRTY_MIN_SLUG.event,
+        });
+        expect(result.slots.length).toBeGreaterThan(0);
+        test.fail(true, TZ003_KATHMANDU_ISSUE);
+        expectHalfHourOffsetGrid(result);
+      },
+    );
+  });
+
+  test.describe(`offset ${ADELAIDE_TZ}`, () => {
+    test.use({ timezoneId: ADELAIDE_TZ });
+
+    test(
+      `P1-CAL-TZ-003 Half-hour and 45-minute offsets (${ADELAIDE_TZ})`,
+      {
+        tag: ["@cal", "@tz"],
+        annotation: [
+          { type: "testId", description: "P1-CAL-TZ-003" },
+          { type: "priority", description: "P1" },
+        ],
+      },
+       
+      async ({ booker }) => {
+        test.setTimeout(timeouts().journey);
+        const organiser = await readOrganiserAvailability(loadConfig().email);
+        const result = await openWeekdaySlots({
+          booker,
+          organiser,
+          viewerTimeZone: ADELAIDE_TZ,
+          user: PRO_THIRTY_MIN_SLUG.user,
+          event: PRO_THIRTY_MIN_SLUG.event,
+        });
+        expect(result.slots.length).toBeGreaterThan(0);
+        expectHalfHourOffsetGrid(result);
+      },
+    );
+  });
 
   test.describe("timezone switcher", () => {
     test.use({ timezoneId: COLOMBO_TZ });
@@ -139,15 +168,12 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           user: PRO_THIRTY_MIN_SLUG.user,
           event: PRO_THIRTY_MIN_SLUG.event,
         });
+        expectSlotLabelsMatch(actualSlotLabels(opened.slots), opened.expectedLabels);
 
         await test.step("switch booker TZ to America/New_York", async () => {
           await booker.selectTimezone(NEW_YORK_TZ);
           const afterSwitch = await booker.readSlots();
-          const start = availabilityStartCivil(organiser);
-          const expectedNy = toZonedLabel(
-            fromZonedCivil(organiser.timeZone, { ...opened.date, ...start }),
-            NEW_YORK_TZ,
-          );
+          const expectedNy = toZonedLabel(opened.expectedFirstInstant, NEW_YORK_TZ);
           expect(
             normalizeSlotLabel(required(afterSwitch[0], "no slots after TZ switch").label),
           ).toBe(expectedNy);
@@ -157,11 +183,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           await booker.reload();
           await expect(booker.timezoneSelect).toContainText(/America\/New_York|New York/i);
           const afterReload = await booker.readSlots();
-          const start = availabilityStartCivil(organiser);
-          const expectedNy = toZonedLabel(
-            fromZonedCivil(organiser.timeZone, { ...opened.date, ...start }),
-            NEW_YORK_TZ,
-          );
+          const expectedNy = toZonedLabel(opened.expectedFirstInstant, NEW_YORK_TZ);
           expect(normalizeSlotLabel(required(afterReload[0], "no slots after reload").label)).toBe(
             expectedNy,
           );
@@ -186,12 +208,10 @@ test.describe("P1-CAL-TZ-002 booked instant", () => {
       const title = qaEventTitle();
       eventTypeCleanup.register(title);
 
-      let slug = "";
-
-      await test.step("create an isolated 30-minute event type", async () => {
+      const slug = await test.step("create an isolated 30-minute event type", async () => {
         await eventTypes.goto();
         await eventTypes.create(title, THIRTY_MINUTE_DURATION);
-        slug = await eventTypes.createdSlug();
+        return eventTypes.createdSlug();
       });
 
       expect(slug.length).toBeGreaterThan(0);
@@ -207,8 +227,9 @@ test.describe("P1-CAL-TZ-002 booked instant", () => {
           event: slug,
           testInfo,
         });
+        expectSlotLabelsMatch(actualSlotLabels(opened.slots), opened.expectedLabels);
         const first = opened.first;
-        const expectedInstant = new Date(first.iso);
+        const expectedInstant = opened.expectedFirstInstant;
 
         await guest.booker.selectSlotByIso(first.iso);
         const uid = await guest.booker.book(qaAttendee());

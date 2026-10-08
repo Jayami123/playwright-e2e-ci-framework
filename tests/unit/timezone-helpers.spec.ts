@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   civilDateToIso,
+  expectedSlotEntriesForViewerDay,
   expectedSlotInstants,
   expectedSlotLabelsForViewerDay,
   fromZonedCivil,
@@ -13,8 +14,8 @@ import {
   toZonedLabel,
   WEEKDAY,
 } from "../../src/core/timezone.js";
-import { MIN_LEAD_DAYS } from "../../src/products/cal/schedules.js";
-import { NEW_YORK_TZ } from "../../src/products/cal/timezones.js";
+import { BOOKING_NOTICE_EPOCH, MIN_LEAD_DAYS } from "../../src/products/cal/schedules.js";
+import { ADELAIDE_TZ, AUCKLAND_TZ, LONDON_TZ, NEW_YORK_TZ } from "../../src/products/cal/timezones.js";
 
 test.describe("timezone helpers", () => {
   test("computes US and EU DST transition Sundays", { tag: ["@unit", "@tz"] }, () => {
@@ -111,15 +112,65 @@ test.describe("timezone helpers", () => {
     () => {
       const viewerDate = { year: 2026, month: 10, day: 9 };
       const labels = expectedSlotLabelsForViewerDay({
-        organiserTimeZone: "Europe/London",
+        organiserTimeZone: LONDON_TZ,
         viewerTimeZone: "Asia/Colombo",
         viewerDate,
         windows: [{ days: [WEEKDAY.friday], startMinutes: 9 * 60, endMinutes: 17 * 60 }],
         stepMinutes: 30,
-        notBefore: new Date(0),
+        notBefore: BOOKING_NOTICE_EPOCH,
       });
       expect(labels.length).toBeGreaterThan(0);
       expect(labels[0]).toBe("1:30pm");
     },
   );
+
+  test("cross-midnight organiser window lists Auckland viewer labels", { tag: ["@unit", "@tz"] }, () => {
+    const viewerDate = { year: 2026, month: 10, day: 12 };
+    const labels = expectedSlotLabelsForViewerDay({
+      organiserTimeZone: LONDON_TZ,
+      viewerTimeZone: AUCKLAND_TZ,
+      viewerDate,
+      windows: [{ days: [WEEKDAY.monday], startMinutes: 9 * 60, endMinutes: 17 * 60 }],
+      stepMinutes: 30,
+      notBefore: BOOKING_NOTICE_EPOCH,
+    });
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels[0]).toMatch(/pm$/);
+  });
+
+  test("Adelaide viewer lists full slot labels for a weekday", { tag: ["@unit", "@tz"] }, () => {
+    const viewerDate = { year: 2026, month: 10, day: 13 };
+    const labels = expectedSlotLabelsForViewerDay({
+      organiserTimeZone: LONDON_TZ,
+      viewerTimeZone: ADELAIDE_TZ,
+      viewerDate,
+      windows: [{ days: [WEEKDAY.tuesday], startMinutes: 9 * 60, endMinutes: 17 * 60 }],
+      stepMinutes: 30,
+      notBefore: BOOKING_NOTICE_EPOCH,
+    });
+    expect(labels).toEqual(
+      expectedSlotEntriesForViewerDay({
+        organiserTimeZone: LONDON_TZ,
+        viewerTimeZone: ADELAIDE_TZ,
+        viewerDate,
+        windows: [{ days: [WEEKDAY.tuesday], startMinutes: 9 * 60, endMinutes: 17 * 60 }],
+        stepMinutes: 30,
+        notBefore: BOOKING_NOTICE_EPOCH,
+      }).map((entry) => entry.label),
+    );
+  });
+
+  test("US spring-forward Sunday label list skips phantom hour", { tag: ["@unit", "@tz"] }, () => {
+    const viewerDate = { year: 2027, month: 3, day: 14 };
+    const labels = expectedSlotLabelsForViewerDay({
+      organiserTimeZone: NEW_YORK_TZ,
+      viewerTimeZone: NEW_YORK_TZ,
+      viewerDate,
+      windows: [{ days: [WEEKDAY.sunday], startMinutes: 0, endMinutes: 8 * 60 }],
+      stepMinutes: 30,
+      notBefore: BOOKING_NOTICE_EPOCH,
+    });
+    expect(labels.some((label) => label.startsWith("2:"))).toBe(false);
+    expect(labels[0]).toBe("12:00am");
+  });
 });

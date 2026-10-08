@@ -2,14 +2,15 @@ import {
   civilDateFromInstant,
   civilDateToIso,
   expectedSlotInstants,
-  fromZonedCivil,
-  monthParam,
   expectedSlotLabelsForViewerDay,
+  fromZonedCivil,
   lastWeekdayOfMonth,
+  monthParam,
   nextTransitionStrictlyAfterLeadDays,
   normalizeSlotLabel,
   nthWeekdayOfMonth,
   WEEKDAY,
+  type CivilDate,
 } from "../../../src/core/timezone.js";
 import { required } from "../../../src/core/required.js";
 import { timeouts } from "../../../src/products/cal/env.js";
@@ -20,16 +21,39 @@ import {
 } from "../../../src/products/cal/oracle.js";
 import { qaAttendee } from "../../../src/products/cal/factories.js";
 import {
+  BOOKING_NOTICE_EPOCH,
+  FALL_BACK_ONE_THIRTY_AM_LABEL,
   MIN_LEAD_DAYS,
   SUNDAY_AVAILABILITY_END_MINUTES,
   SUNDAY_AVAILABILITY_START_MINUTES,
   SLOT_STEP_MINUTES,
+  US_SPRING_FORWARD_PHANTOM_HOUR_LABEL,
 } from "../../../src/products/cal/schedules.js";
 import { LONDON_TZ, NEW_YORK_TZ, SYDNEY_TZ } from "../../../src/products/cal/timezones.js";
 
-const FALL_BACK_ONE_THIRTY_LABEL = "1:30am" as const;
 const DST002_ISSUE =
   "P7-OBS-CAL-DST-002: both 01:30 instants listed, POST /api/book/event 409 no_available_users_found_error";
+
+function usSpringForwardSundayAfterLead(): CivilDate {
+  const today = civilDateFromInstant(new Date(), NEW_YORK_TZ);
+  return nextTransitionStrictlyAfterLeadDays(today, MIN_LEAD_DAYS, (year) =>
+    nthWeekdayOfMonth(year, 3, WEEKDAY.sunday, 2),
+  );
+}
+
+function usFallBackSundayAfterLead(): CivilDate {
+  const today = civilDateFromInstant(new Date(), NEW_YORK_TZ);
+  return nextTransitionStrictlyAfterLeadDays(today, MIN_LEAD_DAYS, (year) =>
+    nthWeekdayOfMonth(year, 11, WEEKDAY.sunday, 1),
+  );
+}
+
+function euSpringForwardSundayAfterLead(): CivilDate {
+  const today = civilDateFromInstant(new Date(), LONDON_TZ);
+  return nextTransitionStrictlyAfterLeadDays(today, MIN_LEAD_DAYS, (year) =>
+    lastWeekdayOfMonth(year, 3, WEEKDAY.sunday),
+  );
+}
 
 test.describe("P1-CAL-DST", () => {
   test(
@@ -43,16 +67,13 @@ test.describe("P1-CAL-DST", () => {
     },
     async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
       test.setTimeout(timeouts().isolatedJourney);
-      const today = civilDateFromInstant(new Date(), NEW_YORK_TZ);
-      const date = nextTransitionStrictlyAfterLeadDays(today, MIN_LEAD_DAYS, (year) =>
-        nthWeekdayOfMonth(year, 3, WEEKDAY.sunday, 2),
-      );
+      const date = usSpringForwardSundayAfterLead();
       const provisioned = await isolatedSundayEvent.provision({
         scheduleTimeZone: NEW_YORK_TZ,
         overnight: true,
       });
       const guest = await guestBooker(NEW_YORK_TZ);
-      isolatedSundayEvent.trackGuest(guest.page);
+      isolatedSundayEvent.trackGuest();
       await guest.booker.gotoUserEvent(dstOrganiser.username, provisioned.slug, {
         month: monthParam(date),
         date: civilDateToIso(date),
@@ -60,7 +81,7 @@ test.describe("P1-CAL-DST", () => {
       await guest.booker.expectLoaded();
       const slots = await guest.booker.readSlots();
       const labels = slots.map((slot) => normalizeSlotLabel(slot.label));
-      expect(labels.some((label) => /^2:\d{2}am$/.test(label))).toBe(false);
+      expect(labels.some((label) => US_SPRING_FORWARD_PHANTOM_HOUR_LABEL.test(label))).toBe(false);
       const expected = expectedSlotInstants({
         timeZone: NEW_YORK_TZ,
         date,
@@ -82,19 +103,15 @@ test.describe("P1-CAL-DST", () => {
         { type: "issue", description: DST002_ISSUE },
       ],
     },
-    async ({ dstOrganiser, guestBooker, isolatedSundayEvent }, testInfo) => {
-      test.fail(true, DST002_ISSUE);
+    async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
       test.setTimeout(timeouts().isolatedJourney);
-      const today = civilDateFromInstant(new Date(), NEW_YORK_TZ);
-      const date = nextTransitionStrictlyAfterLeadDays(today, MIN_LEAD_DAYS, (year) =>
-        nthWeekdayOfMonth(year, 11, WEEKDAY.sunday, 1),
-      );
+      const date = usFallBackSundayAfterLead();
       const provisioned = await isolatedSundayEvent.provision({
         scheduleTimeZone: NEW_YORK_TZ,
         overnight: true,
       });
       const guest = await guestBooker(NEW_YORK_TZ);
-      isolatedSundayEvent.trackGuest(guest.page);
+      isolatedSundayEvent.trackGuest();
       await guest.booker.gotoUserEvent(dstOrganiser.username, provisioned.slug, {
         month: monthParam(date),
         date: civilDateToIso(date),
@@ -102,9 +119,10 @@ test.describe("P1-CAL-DST", () => {
       await guest.booker.expectLoaded();
       const slots = await guest.booker.readSlots();
       const oneThirty = slots
-        .filter((slot) => normalizeSlotLabel(slot.label) === FALL_BACK_ONE_THIRTY_LABEL)
+        .filter((slot) => normalizeSlotLabel(slot.label) === FALL_BACK_ONE_THIRTY_AM_LABEL)
         .slice()
         .sort((left, right) => left.iso.localeCompare(right.iso));
+      test.fail(true, DST002_ISSUE);
       expect(oneThirty.length).toBeGreaterThan(0);
       const edtInstant = fromZonedCivil(NEW_YORK_TZ, { ...date, hour: 1, minute: 30 });
       const first = required(oneThirty[0], "missing first 1:30am slot");
@@ -113,10 +131,6 @@ test.describe("P1-CAL-DST", () => {
       const uid = await guest.booker.book(qaAttendee());
       isolatedSundayEvent.trackBooking(uid);
       await readBookingOracle(guest.page, uid, NEW_YORK_TZ, edtInstant);
-      testInfo.annotations.push({
-        type: "issue",
-        description: DST002_ISSUE,
-      });
     },
   );
 
@@ -131,16 +145,13 @@ test.describe("P1-CAL-DST", () => {
     },
     async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
       test.setTimeout(timeouts().isolatedJourney);
-      const today = civilDateFromInstant(new Date(), LONDON_TZ);
-      const date = nextTransitionStrictlyAfterLeadDays(today, MIN_LEAD_DAYS, (year) =>
-        lastWeekdayOfMonth(year, 3, WEEKDAY.sunday),
-      );
+      const date = euSpringForwardSundayAfterLead();
       const provisioned = await isolatedSundayEvent.provision({
         scheduleTimeZone: LONDON_TZ,
         overnight: true,
       });
       const guest = await guestBooker(SYDNEY_TZ);
-      isolatedSundayEvent.trackGuest(guest.page);
+      isolatedSundayEvent.trackGuest();
       await guest.booker.gotoUserEvent(dstOrganiser.username, provisioned.slug, {
         month: monthParam(date),
         date: civilDateToIso(date),
@@ -160,7 +171,7 @@ test.describe("P1-CAL-DST", () => {
           },
         ],
         stepMinutes: SLOT_STEP_MINUTES,
-        notBefore: new Date(0),
+        notBefore: BOOKING_NOTICE_EPOCH,
       });
       expect(actualLabels).toEqual(expectedLabels);
     },
