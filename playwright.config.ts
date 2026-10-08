@@ -1,5 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
-import { AUTH_STATE_PATH, calBaseUrl, skipLiveCal } from "./src/env.js";
+import {
+  AUTH_STATE_PATH,
+  calActionTimeoutMs,
+  calBaseUrl,
+  calExpectTimeoutMs,
+  calNavigationTimeoutMs,
+  calTestTimeoutMs,
+  skipLiveCal,
+} from "./src/env.js";
 
 const live = !skipLiveCal();
 
@@ -8,16 +16,16 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Webpack Cal on Windows serializes compiles; 4 workers time out CSRF and leave blank pages.
+  // CAL_WEB_MODE=dev webpack serializes compiles; 4 workers time out CSRF and leave blank pages.
   workers: 1,
   reporter: process.env.CI ? [["blob"], ["list"]] : [["html"], ["list"]],
-  timeout: 180_000,
-  expect: { timeout: 20_000 },
+  timeout: calTestTimeoutMs(),
+  expect: { timeout: calExpectTimeoutMs() },
   globalSetup: live ? "./global-setup/index.ts" : undefined,
   use: {
     baseURL: process.env.CAL_E2E_BASE_URL || calBaseUrl(),
-    navigationTimeout: 180_000,
-    actionTimeout: 60_000,
+    navigationTimeout: calNavigationTimeoutMs(),
+    actionTimeout: calActionTimeoutMs(),
     trace: "on-first-retry",
     video: "retain-on-failure",
     screenshot: "only-on-failure",

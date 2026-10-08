@@ -1,6 +1,6 @@
 # P1 Phase 1 decisions
 
-## Harness dependency
+## Decision: harness v0.2.0 runs next build + next start
 
 Pinned to the published tag:
 
@@ -8,7 +8,9 @@ Pinned to the published tag:
 "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.0"
 ```
 
-That tag is the Cal `next start` work (`feat/2026-10-08-cal-prod-build`). `npm i` in this repo succeeded: `prepare` (`tsc`) compiled `dist/` because this package already has TypeScript as a `devDependency`. Harness `up()` defaults to `next build` then `next start`; `CAL_WEB_MODE=dev` keeps next-dev.
+That tag is the Cal `next start` work (`feat/2026-10-08-cal-prod-build`). Default local and FW runs use `next build` then `next start`. Do not treat `next-dev` hangs as Cal product findings. `CAL_WEB_MODE=dev` is the webpack fallback only.
+
+`npm i` in this repo succeeded: `prepare` (`tsc`) compiled `dist/` because this package already has TypeScript as a `devDependency`.
 
 If a consumer without TypeScript hits a failed `prepare`, fall back to:
 
@@ -46,9 +48,13 @@ No CI duration or flake-rate claims. FW-001 logs elapsed ms. Targets belong here
 
 Local `retries: 0` so a flake fails the run instead of hiding behind a retry. CI still retries twice. FW-001 writes storageState to `testInfo.outputPath` so it does not clobber `.auth/cal-pro.json`.
 
-FW-003 waits for the sidebar to leave "Loading...", dismisses the timezone dialog, and gives the New-event-type dialog 180s for webpack's first compile. `globalSetup` also warms `GET /event-types/:id` (first seed row, or `CAL_WARMUP_EVENT_TYPE_ID`) with a 10-minute budget so the editor compile is not paid inside the test.
+Timeouts are short by default (`next start`). The 180s page/shell waits and 600s editor warmup / FW-003 wall clock apply **only** when `CAL_WEB_MODE=dev`.
 
-FW-003/004 hangs against `next dev --webpack` are a **dev-server environment problem**, not a Cal product finding. `cal-web.log` from the second stock-Cal run showed `Server is approaching the used memory threshold, restarting...` (no `JavaScript heap out of memory`). That restart dropped `/bookings/upcoming` with `ERR_CONNECTION_RESET` and left the event-types shell on "Loading...". Try `NODE_OPTIONS=--max-old-space-size=8192` before logging a product bug. If it still fails, the next step is a dated harness branch that serves `next start` after `next build`.
+`CAL_WEB_MODE=dev` only: FW-003 waits for the sidebar to leave "Loading...", dismisses the timezone dialog, and gives the New-event-type dialog 180s for webpack's first compile. `globalSetup` also warms `GET /event-types/:id` (first seed row, or `CAL_WARMUP_EVENT_TYPE_ID`) with a 10-minute budget so the editor compile is not paid inside the test.
+
+`CAL_WEB_MODE=dev` only: FW-003/004 hangs against `next dev --webpack` are a **dev-server environment problem**, not a Cal product finding. `cal-web.log` from the second stock-Cal run showed `Server is approaching the used memory threshold, restarting...` (no `JavaScript heap out of memory`). That restart dropped `/bookings/upcoming` with `ERR_CONNECTION_RESET` and left the event-types shell on "Loading...". An 8GB heap (`NODE_OPTIONS=--max-old-space-size=8192`) stopped the memory-threshold restart, but that 8GB **dev** run still failed: the event-type editor's first webpack compile took 3.4 minutes, past the 180s `waitForURL`. That is not a Cal product finding.
+
+After switching to harness v0.2.0 `next start`, FW-003's last failure was our locator: `getByRole("link", { name: title, exact: true })` missed the list row because the accessible name includes the slug and duration (for example `qa-qa-…-vita 10m`). Match by title substring, not `exact: true`.
 
 ## Locators
 
@@ -58,12 +64,14 @@ Prefer `getByRole` / `getByLabel` / `getByTestId`. Product test ids used: `new-e
 
 Allowlist starts with one documented Cal.diy React 19 `console.error` (`Accessing element.ref was removed in React 19`). `P1_CONSOLE_ALLOWLIST` adds more. Do not allowlist HTTP 500s or `pageerror` module-build failures.
 
-## Live Cal on Windows webpack
+## Live Cal on Windows webpack (`CAL_WEB_MODE=dev` only)
 
-Harness `up()` webpack is required (Turbopack 404s app routes). Webpack `UnhandledSchemeError` on `node:*` specifiers in the client graph blocked every HTML route. The local cal.diy fork (not this repo) now registers webpack `resolveForScheme("node")` in `apps/web/next.config.ts`. After that, `/auth/login`, `/event-types`, `/bookings/upcoming`, and `/pro/30min` return 200/307.
+These notes apply when the harness is forced to `next-dev` / webpack. Default v0.2.0 is `next start`.
+
+`CAL_WEB_MODE=dev` only: harness `up()` webpack is required (Turbopack 404s app routes). Webpack `UnhandledSchemeError` on `node:*` specifiers in the client graph blocked every HTML route. The local cal.diy fork (not this repo) now registers webpack `resolveForScheme("node")` in `apps/web/next.config.ts`. After that, `/auth/login`, `/event-types`, `/bookings/upcoming`, and `/pro/30min` return 200/307.
 
 `globalSetup` waits on `GET /api/auth/csrf` and skips `adapter.up()` when that already returns 200, so a later health probe of `GET /` cannot kill a listening webpack process.
 
 Base URL default is `http://127.0.0.1:3000` (Windows `localhost` is often IPv6).
 
-Playwright **workers stay at 1**. Four parallel browsers against one `next dev --webpack` queue compiles; CSRF times out at 20s and `/pro/30min` hydrates as a blank page. The green local run used `--workers=1`.
+Playwright **workers stay at 1**. `CAL_WEB_MODE=dev` only: four parallel browsers against one `next dev --webpack` queue compiles; CSRF times out at 20s and `/pro/30min` hydrates as a blank page. The green local run used `--workers=1`.

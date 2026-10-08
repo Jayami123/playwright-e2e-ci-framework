@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { calBaseUrl } from "../env.js";
+import { calBaseUrl, calCsrfTimeoutMs } from "../env.js";
 
 export interface CalLoginResult {
   ok: boolean;
@@ -17,7 +17,7 @@ export async function postCalCredentials(
   password: string,
 ): Promise<CalLoginResult> {
   const started = Date.now();
-  const csrfResponse = await page.request.get("/api/auth/csrf", { timeout: 120_000 });
+  const csrfResponse = await page.request.get("/api/auth/csrf", { timeout: calCsrfTimeoutMs() });
   expect(csrfResponse.ok(), `GET /api/auth/csrf failed (${csrfResponse.status()})`).toBeTruthy();
   const { csrfToken } = (await csrfResponse.json()) as { csrfToken: string };
 

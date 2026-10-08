@@ -1,8 +1,7 @@
 import { expect, type Page } from "@playwright/test";
-import { calBaseUrl } from "../../env.js";
+import { calBaseUrl, calWaitMs } from "../../env.js";
 
 const timezoneHandlerPages = new WeakSet<Page>();
-const WEBPACK_WAIT_MS = 180_000;
 
 export class CalBasePage {
   constructor(protected readonly page: Page) {}
@@ -18,10 +17,15 @@ export class CalBasePage {
     await this.dismissTimezonePrompt();
   }
 
-  /** Dev overlay intercepts clicks; Escape closes the Next.js issue toast. */
+  /**
+   * Escape only a visible Next error overlay dialog. A bare `nextjs-portal`
+   * (or Cal's New-event-type dialog) must not get Escape.
+   */
   protected async dismissNextIssueOverlay(): Promise<void> {
-    const overlay = this.page.locator("nextjs-portal");
-    if ((await overlay.count()) === 0) return;
+    const overlay = this.page.locator(
+      "nextjs-portal [data-nextjs-dialog], nextjs-portal [data-nextjs-dialog-overlay]",
+    );
+    if (!(await overlay.first().isVisible().catch(() => false))) return;
     await this.page.keyboard.press("Escape").catch(() => undefined);
   }
 
@@ -44,14 +48,14 @@ export class CalBasePage {
 
   /**
    * Org switcher shows "Loading..." until the shell hydrates.
-   * A stuck spinner after the webpack wait is usually next-dev compiling or a memory restart.
+   * Under CAL_WEB_MODE=dev a stuck spinner is usually first compile or a memory restart.
    */
   protected async waitForShellReady(): Promise<void> {
     await this.dismissTimezonePrompt();
     await this.dismissNextIssueOverlay();
     const loading = this.page.getByRole("button", { name: /Loading/i });
-    await expect(loading, "Cal sidebar still shows Loading... after webpack wait").toHaveCount(0, {
-      timeout: WEBPACK_WAIT_MS,
+    await expect(loading, "Cal sidebar still shows Loading... after shell wait").toHaveCount(0, {
+      timeout: calWaitMs(),
     });
   }
 }

@@ -12,6 +12,9 @@ on:
       CAL_E2E_PASSWORD:
         required: false
 
+permissions:
+  contents: read
+
 jobs:
   structural:
     name: typecheck (always)
@@ -19,10 +22,10 @@ jobs:
     outputs:
       has_live_url: ${{ steps.live.outputs.has_live_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
@@ -51,10 +54,10 @@ jobs:
       CAL_E2E_EMAIL: ${{ secrets.CAL_E2E_EMAIL }}
       CAL_E2E_PASSWORD: ${{ secrets.CAL_E2E_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npx playwright install chromium --with-deps
@@ -66,6 +69,31 @@ jobs:
           name: blob-report-${{ matrix.shard }}
           path: blob-report
           if-no-files-found: ignore
+
+  merge-reports:
+    name: merge Playwright HTML report
+    needs: [cal-chromium]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: all-blob-reports
+          merge-multiple: true
+      - name: Merge blob reports into HTML
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14
 
   skip-live:
     name: live E2E skipped (no CAL_E2E_BASE_URL)

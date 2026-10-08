@@ -1,7 +1,6 @@
 import { expect, type Page } from "@playwright/test";
+import { calWaitMs } from "../../env.js";
 import { CalBasePage } from "./base.page.js";
-
-const WEBPACK_WAIT_MS = 180_000;
 
 export class EventTypesPage extends CalBasePage {
   constructor(page: Page) {
@@ -13,9 +12,9 @@ export class EventTypesPage extends CalBasePage {
     await this.gotoPath("/event-types");
     await this.waitForShellReady();
     await expect(this.page.getByRole("heading", { name: /event types/i })).toBeVisible({
-      timeout: WEBPACK_WAIT_MS,
+      timeout: calWaitMs(),
     });
-    await expect(this.page.getByTestId("new-event-type")).toBeVisible({ timeout: WEBPACK_WAIT_MS });
+    await expect(this.page.getByTestId("new-event-type")).toBeVisible({ timeout: calWaitMs() });
   }
 
   async create(title: string, lengthMinutes = 10): Promise<void> {
@@ -23,9 +22,8 @@ export class EventTypesPage extends CalBasePage {
     await this.waitForShellReady();
     await this.page.getByTestId("new-event-type").click({ noWaitAfter: true });
     await this.dismissTimezonePrompt();
-    await this.dismissNextIssueOverlay();
     const titleField = this.page.getByTestId("event-type-quick-chat");
-    await expect(titleField).toBeVisible({ timeout: WEBPACK_WAIT_MS });
+    await expect(titleField).toBeVisible({ timeout: calWaitMs() });
     await titleField.fill(title);
     await expect(titleField).toHaveValue(title);
     const duration = this.page.getByLabel(/duration/i);
@@ -36,7 +34,7 @@ export class EventTypesPage extends CalBasePage {
         response.url().includes("eventTypesHeavy/create") &&
         response.request().method() === "POST" &&
         response.ok(),
-      { timeout: WEBPACK_WAIT_MS },
+      { timeout: calWaitMs() },
     );
     await this.dismissTimezonePrompt();
     await this.page.getByRole("button", { name: /continue/i }).click();
@@ -44,7 +42,7 @@ export class EventTypesPage extends CalBasePage {
     await created;
     await this.page.waitForURL((url) => /\/event-types\/\d+/.test(url.pathname), {
       waitUntil: "domcontentloaded",
-      timeout: WEBPACK_WAIT_MS,
+      timeout: calWaitMs(),
     });
   }
 
@@ -54,15 +52,15 @@ export class EventTypesPage extends CalBasePage {
 
   async expectListed(title: string): Promise<void> {
     await this.goto();
-    await expect(this.eventTypeLink(title)).toBeVisible({ timeout: WEBPACK_WAIT_MS });
+    await expect(this.eventTypeLink(title)).toBeVisible({ timeout: calWaitMs() });
   }
 
   async deleteByTitle(title: string): Promise<void> {
     await this.goto();
     const link = this.eventTypeLink(title);
-    if ((await link.count()) === 0) {
-      return;
-    }
+    await expect(link, `Event type "${title}" not found for delete`).toBeVisible({
+      timeout: calWaitMs(),
+    });
     const href = await link.getAttribute("href");
     const id = href?.match(/\/event-types\/(\d+)/)?.[1];
     if (!id) {

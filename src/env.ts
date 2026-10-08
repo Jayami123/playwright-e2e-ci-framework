@@ -27,3 +27,48 @@ export function skipLiveCal(): boolean {
   if (process.env.CI && !process.env.CAL_E2E_BASE_URL) return true;
   return false;
 }
+
+/** webpack / next-dev first-compile waits. Default is next start (short). */
+export function isCalWebDev(): boolean {
+  return process.env.CAL_WEB_MODE === "dev";
+}
+
+/** Page/shell waits. 180s is CAL_WEB_MODE=dev first compile only. */
+export function calWaitMs(): number {
+  return isCalWebDev() ? 180_000 : 15_000;
+}
+
+/** Editor warmup and FW-003 wall clock. 600s is CAL_WEB_MODE=dev first compile only. */
+export function calEditorWaitMs(): number {
+  return isCalWebDev() ? 600_000 : 30_000;
+}
+
+export function calTestTimeoutMs(): number {
+  return isCalWebDev() ? 180_000 : 60_000;
+}
+
+export function calExpectTimeoutMs(): number {
+  return isCalWebDev() ? 20_000 : 5_000;
+}
+
+export function calNavigationTimeoutMs(): number {
+  return isCalWebDev() ? 180_000 : 30_000;
+}
+
+export function calActionTimeoutMs(): number {
+  return isCalWebDev() ? 60_000 : 10_000;
+}
+
+export function calCsrfTimeoutMs(): number {
+  return isCalWebDev() ? 120_000 : 15_000;
+}
+
+export function calWarmupTimeoutMs(pathname: string): number {
+  const editor = pathname.includes("/event-types/") && /\/\d+$/.test(pathname);
+  if (isCalWebDev()) return editor ? 600_000 : 180_000;
+  return 15_000;
+}
+
+export function calUpDeadlineMs(): number {
+  return isCalWebDev() ? 180_000 : 60_000;
+}

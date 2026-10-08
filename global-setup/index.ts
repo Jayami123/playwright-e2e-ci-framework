@@ -1,5 +1,5 @@
 import { createPgClient, getAdapter } from "qa-portfolio-harness";
-import { calBaseUrl, skipLiveCal } from "../src/env.js";
+import { calBaseUrl, calCsrfTimeoutMs, calUpDeadlineMs, calWarmupTimeoutMs, skipLiveCal } from "../src/env.js";
 
 async function getStatus(url: string, timeoutMs: number): Promise<number | undefined> {
   const controller = new AbortController();
@@ -49,7 +49,7 @@ async function warmupCalPages(baseUrl: string): Promise<void> {
   }
   for (const path of paths) {
     const started = Date.now();
-    const timeoutMs = path.includes("/event-types/") && /\/\d+$/.test(path) ? 600_000 : 180_000;
+    const timeoutMs = calWarmupTimeoutMs(path);
     const status = await getStatus(`${origin}${path}`, timeoutMs);
     console.log(`Warmup ${path} HTTP ${status ?? "fail"} in ${Date.now() - started}ms`);
   }
@@ -69,7 +69,7 @@ export default async function globalSetup(): Promise<void> {
   process.env.PRODUCTS_ROOT ??= "../products";
 
   const base = calBaseUrl();
-  const already = await csrfStatus(base, 45_000);
+  const already = await csrfStatus(base, calCsrfTimeoutMs());
   if (already === 200) {
     console.log(`Cal already serving ${base}/api/auth/csrf (HTTP 200); skipping harness up().`);
     await warmupCalPages(base);
@@ -79,11 +79,11 @@ export default async function globalSetup(): Promise<void> {
   try {
     const adapter = getAdapter("cal");
     await adapter.up();
-    const deadline = Date.now() + 180_000;
-    let status = await csrfStatus(adapter.baseUrl, 60_000);
+    const deadline = Date.now() + calUpDeadlineMs();
+    let status = await csrfStatus(adapter.baseUrl, calCsrfTimeoutMs());
     while (status !== 200 && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 5_000));
-      status = await csrfStatus(adapter.baseUrl, 60_000);
+      status = await csrfStatus(adapter.baseUrl, calCsrfTimeoutMs());
     }
     if (status !== 200) {
       throw new Error(`GET /api/auth/csrf last status ${status ?? "unreachable"}`);
