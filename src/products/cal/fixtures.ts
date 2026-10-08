@@ -29,10 +29,13 @@ interface CalWorkerFixtures {
 export const test = base.extend<CalFixtures, CalWorkerFixtures>({
   factorySeed: [
     // eslint-disable-next-line no-empty-pattern -- worker fixture has no test-scoped dependencies
-    async ({}, use) => {
-      const seed = parsePositiveInt(process.env.P1_SEED, Date.now());
+    async ({}, use, workerInfo) => {
+      const base = parsePositiveInt(process.env.P1_SEED, Date.now());
+      const seed = base + workerInfo.parallelIndex;
       setFactorySeed(seed);
-      console.log(`P1_SEED=${String(seed)}`);
+      console.log(
+        `P1_SEED=${String(base)} worker=${String(workerInfo.parallelIndex)} seed=${String(seed)}`,
+      );
       await use(seed);
     },
     { scope: "worker", auto: true },
