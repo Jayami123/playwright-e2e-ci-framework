@@ -1,5 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import { installTimezoneHandler } from "./app-shell.js";
 import { loadConfig, timeouts } from "./env.js";
 import { CAL_ROUTES } from "./routes.js";
 
@@ -59,7 +58,6 @@ export async function loginCalWithCredentials(
 ): Promise<number> {
   const result = await postCalCredentials(page, email, password);
   expect(result.ok, `Cal credentials login failed (HTTP ${String(result.status)})`).toBeTruthy();
-  await installTimezoneHandler(page);
   await page.goto(CAL_ROUTES.bookingsUpcoming, { waitUntil: "domcontentloaded" });
   return result.elapsedMs;
 }
