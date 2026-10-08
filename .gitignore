@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+*.log
+.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+P1-web-e2e-ci.html
+.DS_Store
+Thumbs.db

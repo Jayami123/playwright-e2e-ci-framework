@@ -1,0 +1,107 @@
+name: E2E
+
+# Called from p1-e2e.yml. Job-level `if: secrets.*` is always empty in Actions,
+# so live vs skip is decided from an env check after the secret is injected.
+on:
+  workflow_call:
+    secrets:
+      CAL_E2E_BASE_URL:
+        required: false
+      CAL_E2E_EMAIL:
+        required: false
+      CAL_E2E_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  structural:
+    name: typecheck (always)
+    runs-on: ubuntu-latest
+    outputs:
+      has_live_url: ${{ steps.live.outputs.has_live_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - id: live
+        env:
+          CAL_E2E_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
+        run: |
+          if [ -n "$CAL_E2E_BASE_URL" ]; then
+            echo "has_live_url=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_live_url=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  cal-chromium:
+    name: cal-chromium shard ${{ matrix.shard }}
+    needs: structural
+    runs-on: ubuntu-latest
+    if: needs.structural.outputs.has_live_url == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      CAL_E2E_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
+      CAL_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
+      CAL_E2E_EMAIL: ${{ secrets.CAL_E2E_EMAIL }}
+      CAL_E2E_PASSWORD: ${{ secrets.CAL_E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - name: Run Cal Chromium shard
+        run: npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report
+          if-no-files-found: ignore
+
+  merge-reports:
+    name: merge Playwright HTML report
+    needs: [structural, cal-chromium]
+    if: ${{ !cancelled() && needs.structural.outputs.has_live_url == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: blob-report-*
+          path: all-blob-reports
+          merge-multiple: true
+      - name: Merge blob reports into HTML
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+      - uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14
+
+  skip-live:
+    name: live E2E skipped (no CAL_E2E_BASE_URL)
+    needs: structural
+    runs-on: ubuntu-latest
+    if: needs.structural.outputs.has_live_url != 'true'
+    steps:
+      - run: |
+          echo "Product services are not in GitHub-hosted CI yet."
+          echo "Local green: npm run test:cal (globalSetup uses harness up() + waitHealthy)."
+          echo "To enable Actions E2E, add secret CAL_E2E_BASE_URL (plus CAL_E2E_EMAIL / CAL_E2E_PASSWORD) and re-run workflow_dispatch."
