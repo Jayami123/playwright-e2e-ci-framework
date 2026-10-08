@@ -63,7 +63,7 @@ jobs:
       - run: npx playwright install chromium --with-deps
       - name: Run Cal Chromium shard
         run: npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
         with:
           name: blob-report-${{ matrix.shard }}
@@ -72,8 +72,8 @@ jobs:
 
   merge-reports:
     name: merge Playwright HTML report
-    needs: [cal-chromium]
-    if: ${{ !cancelled() }}
+    needs: [structural, cal-chromium]
+    if: ${{ !cancelled() && needs.structural.outputs.has_live_url == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -82,14 +82,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           pattern: blob-report-*
           path: all-blob-reports
           merge-multiple: true
       - name: Merge blob reports into HTML
         run: npx playwright merge-reports --reporter html ./all-blob-reports
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: playwright-report
           path: playwright-report

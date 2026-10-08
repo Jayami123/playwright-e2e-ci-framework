@@ -30,7 +30,7 @@ export function skipLiveCal(): boolean {
 
 /** webpack / next-dev first-compile waits. Default is next start (short). */
 export function isCalWebDev(): boolean {
-  return process.env.CAL_WEB_MODE === "dev";
+  return (process.env.CAL_WEB_MODE ?? "prod").trim().toLowerCase() === "dev";
 }
 
 /** Page/shell waits. 180s is CAL_WEB_MODE=dev first compile only. */
