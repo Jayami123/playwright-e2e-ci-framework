@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -38,6 +40,8 @@ jobs:
       has_live_url: ${{ steps.live.outputs.has_live_url }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -71,17 +75,22 @@ jobs:
       CAL_E2E_PASSWORD: ${{ secrets.CAL_E2E_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(npx playwright --version)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-ms-playwright-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ steps.playwright.outputs.version }}
           restore-keys: |
-            ${{ runner.os }}-ms-playwright-
+            ${{ runner.os }}-
       - run: npx playwright install chromium --with-deps
       - name: Run Cal Chromium shard
         run: npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
@@ -101,6 +110,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
