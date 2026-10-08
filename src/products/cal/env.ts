@@ -9,10 +9,11 @@ import {
 export const CAL_WEB_MODES = ["prod", "dev"] as const;
 export type CalWebMode = (typeof CAL_WEB_MODES)[number];
 
-interface TimeoutBudget {
+export interface TimeoutBudget {
   readonly page: number;
   readonly editor: number;
   readonly test: number;
+  readonly journey: number;
   readonly expect: number;
   readonly navigation: number;
   readonly action: number;
@@ -28,6 +29,7 @@ export const TIMEOUTS = {
     page: 15_000,
     editor: 30_000,
     test: 60_000,
+    journey: 60_000,
     expect: 5_000,
     navigation: 30_000,
     action: 10_000,
@@ -41,6 +43,7 @@ export const TIMEOUTS = {
     page: 180_000,
     editor: 600_000,
     test: 180_000,
+    journey: 600_000,
     expect: 20_000,
     navigation: 180_000,
     action: 60_000,

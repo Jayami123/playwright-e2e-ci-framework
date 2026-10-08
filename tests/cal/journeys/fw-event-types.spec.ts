@@ -10,7 +10,7 @@ test.describe("Event types", () => {
       annotation: { type: "testId", description: "P1-CAL-FW-003" },
     },
     async ({ eventTypes, eventTypeCleanup }) => {
-      test.setTimeout(timeouts().editor);
+      test.setTimeout(timeouts().journey);
       const title = qaEventTitle();
       eventTypeCleanup.register(title);
 

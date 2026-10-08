@@ -1,4 +1,3 @@
-import { timeouts } from "../../../src/products/cal/env.js";
 import { expect, test } from "../../../src/products/cal/fixtures.js";
 
 test.describe("Console guard", () => {
@@ -9,8 +8,6 @@ test.describe("Console guard", () => {
       annotation: { type: "testId", description: "P1-CAL-FW-004" },
     },
     async ({ booker, bookings, consoleGuard }) => {
-      test.setTimeout(timeouts().test);
-
       await test.step("open the public booker", async () => {
         await booker.gotoProThirtyMin();
         await booker.expectLoaded();
