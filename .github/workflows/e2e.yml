@@ -1,9 +1,25 @@
 name: E2E
 
 # Called from p1-e2e.yml. Job-level `if: secrets.*` is always empty in Actions,
-# so live vs skip is decided from an env check after the secret is injected.
+# so live vs self-hosted is decided from an env check after the secret is injected.
 on:
   workflow_call:
+    inputs:
+      cal_ref:
+        description: Git ref for Jayami123/cal checkout
+        type: string
+        default: main
+      self_hosted_timeout_minutes:
+        description: Timeout for the cal-self-hosted job
+        type: number
+        default: 90
+      playwright_browsers_timeout_minutes:
+        description: >
+          Timeout for Playwright Chromium install steps (cache + apt --with-deps).
+          Hung apt mirrors (run 37792386085 attempt 1) must fail fast instead of
+          consuming the 90-minute cal-self-hosted job.
+        type: number
+        default: 10
     secrets:
       CAL_E2E_BASE_URL:
         required: false
@@ -15,6 +31,16 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
+env:
+  CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
+  CAL_DEFAULT_E2E_EMAIL: pro@example.com
+  CAL_DEFAULT_E2E_PASSWORD: pro
+  ACTIONLINT_VERSION: v1.7.12
+
 jobs:
   lint:
     name: lint
@@ -24,13 +50,22 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run format:check
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/${ACTIONLINT_VERSION}/scripts/download-actionlint.bash")
+          ./actionlint -version
+      - name: Lint workflows
+        run: |
+          set -euo pipefail
+          ./actionlint
+      - uses: ./.github/actions/setup-p1
+      - run: |
+          set -euo pipefail
+          npm run lint
+      - run: |
+          set -euo pipefail
+          npm run format:check
 
   structural:
     name: typecheck (always)
@@ -42,16 +77,15 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+      - uses: ./.github/actions/setup-p1
+      - run: |
+          set -euo pipefail
+          npm run typecheck
       - id: live
         env:
           CAL_E2E_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
         run: |
+          set -euo pipefail
           if [ -n "$CAL_E2E_BASE_URL" ]; then
             echo "has_live_url=true" >> "$GITHUB_OUTPUT"
           else
@@ -77,21 +111,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Playwright version
-        id: playwright
-        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-ms-playwright-${{ steps.playwright.outputs.version }}
-      - run: npx playwright install chromium --with-deps
+      - uses: ./.github/actions/setup-p1
+      - uses: ./.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
       - name: Run Cal Chromium shard
-        run: npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
+        run: |
+          set -euo pipefail
+          npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
         with:
@@ -110,34 +136,192 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-p1
       - uses: actions/download-artifact@v5
         with:
           pattern: blob-report-*
           path: all-blob-reports
           merge-multiple: true
       - name: Merge blob reports into HTML
-        run: npx playwright merge-reports --reporter html ./all-blob-reports
+        run: |
+          set -euo pipefail
+          npx playwright merge-reports --reporter html ./all-blob-reports
       - uses: actions/upload-artifact@v5
         with:
           name: playwright-report
           path: playwright-report
+          if-no-files-found: ignore
           retention-days: 14
 
-  skip-live:
-    name: live E2E skipped (no CAL_E2E_BASE_URL)
-    needs: structural
+  cal-self-hosted:
+    name: cal-self-hosted
+    needs: [lint, structural]
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: ${{ inputs.self_hosted_timeout_minutes }}
     if: needs.structural.outputs.has_live_url != 'true'
+    env:
+      P1_WORKING_DIRECTORY: p1
+      CAL_CHECKOUT_PATH: products/cal
+      PRODUCTS_ROOT: ${{ github.workspace }}/products
     steps:
-      - run: |
-          {
-            echo "Product services are not in GitHub-hosted CI yet."
-            echo "Local green: npm run test:cal (globalSetup calls harness up() then polls GET /api/auth/csrf)."
-            echo "To enable Actions E2E, add secret CAL_E2E_BASE_URL (plus CAL_E2E_EMAIL / CAL_E2E_PASSWORD) and re-run workflow_dispatch."
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          path: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Checkout Cal fork
+        id: checkout_cal
+        uses: actions/checkout@v5
+        with:
+          repository: Jayami123/cal
+          ref: ${{ inputs.cal_ref }}
+          path: ${{ env.CAL_CHECKOUT_PATH }}
+          persist-credentials: false
+
+      - name: Stub harness product roots
+        run: |
+          set -euo pipefail
+          # qa-portfolio-harness loadConfig() resolves every product under PRODUCTS_ROOT.
+          mkdir -p "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa" "${PRODUCTS_ROOT}/twenty-CRM"
+
+      - uses: ./p1/.github/actions/setup-p1
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CAL_CHECKOUT_PATH }}/.yarn/cache
+          key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
+
+      - uses: actions/cache/restore@v4
+        id: cal_next
+        with:
+          path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
+          key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
+
+      - name: Install Cal dependencies
+        working-directory: ${{ env.CAL_CHECKOUT_PATH }}
+        run: |
+          set -euo pipefail
+          corepack enable
+          yarn install --immutable
+
+      - name: Prepare Cal product .env
+        env:
+          CAL_ENV_DIR: ${{ env.CAL_CHECKOUT_PATH }}
+        run: |
+          set -euo pipefail
+          cp "${CAL_ENV_DIR}/.env.example" "${CAL_ENV_DIR}/.env"
+          sed -i 's|http://localhost:3000|http://127.0.0.1:3000|g' "${CAL_ENV_DIR}/.env"
+          NEXTAUTH_SECRET="$(openssl rand -base64 32)"
+          CALENDSO_ENCRYPTION_KEY="$(openssl rand -base64 24)"
+          echo "::add-mask::${NEXTAUTH_SECRET}"
+          echo "::add-mask::${CALENDSO_ENCRYPTION_KEY}"
+          grep -v '^NEXTAUTH_SECRET=' "${CAL_ENV_DIR}/.env" | grep -v '^CALENDSO_ENCRYPTION_KEY=' > "${CAL_ENV_DIR}/.env.tmp"
+          mv "${CAL_ENV_DIR}/.env.tmp" "${CAL_ENV_DIR}/.env"
+          printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "${CAL_ENV_DIR}/.env"
+          printf 'CALENDSO_ENCRYPTION_KEY=%s\n' "$CALENDSO_ENCRYPTION_KEY" >> "${CAL_ENV_DIR}/.env"
+          if ! grep -qE '^NEXTAUTH_SECRET=.+' "${CAL_ENV_DIR}/.env"; then
+            echo "::error::NEXTAUTH_SECRET is empty in ${CAL_ENV_DIR}/.env after prepare"
+            exit 1
+          fi
+          if ! grep -qE '^CALENDSO_ENCRYPTION_KEY=.+' "${CAL_ENV_DIR}/.env"; then
+            echo "::error::CALENDSO_ENCRYPTION_KEY is empty in ${CAL_ENV_DIR}/.env after prepare"
+            exit 1
+          fi
+
+      - uses: ./p1/.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Run Cal E2E suite
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
+          CAL_E2E_PASSWORD: ${{ env.CAL_DEFAULT_E2E_PASSWORD }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          # Harness up() owns Postgres, seed, tRPC types, and next build.
+          npm run test:cal
+
+      - name: Merge blob reports into HTML
+        if: ${{ !cancelled() }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ -d blob-report ] && [ -n "$(find blob-report -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report
+          else
+            echo "No blob report to merge (tests may have failed before reporters ran)."
+          fi
+
+      - name: Redact Cal server log
+        if: ${{ always() }}
+        env:
+          CAL_ENV_DIR: ${{ env.CAL_CHECKOUT_PATH }}
+          P1_DIR: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          LOG_SRC="${P1_DIR}/node_modules/qa-portfolio-harness/.harness/cal-web.log"
+          LOG_DST="cal-web-redacted.log"
+          if [ ! -f "$LOG_SRC" ]; then
+            echo "(no cal-web.log from harness)" > "$LOG_DST"
+            exit 0
+          fi
+          sed -E \
+            -e '/(SECRET|PASSWORD|KEY|TOKEN|API_KEY|ENCRYPTION)=/Id' \
+            -e '/Bearer /Id' \
+            "$LOG_SRC" > "$LOG_DST"
+          read_env() {
+            local key="$1"
+            grep -E "^${key}=" "${CAL_ENV_DIR}/.env" | sed -E "s/^${key}=//" | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"
+          }
+          NEXTAUTH_VAL="$(read_env NEXTAUTH_SECRET)"
+          ENCRYPTION_VAL="$(read_env CALENDSO_ENCRYPTION_KEY)"
+          DB_URL="$(read_env DATABASE_URL)"
+          DB_PASS=""
+          if [[ "$DB_URL" =~ postgresql://[^:/@]+:([^@]*)@ ]]; then
+            DB_PASS="${BASH_REMATCH[1]}"
+          fi
+          export NEXTAUTH_VAL ENCRYPTION_VAL DB_PASS
+          perl -i -pe '
+            my ($n, $e, $p) = ($ENV{NEXTAUTH_VAL}, $ENV{ENCRYPTION_VAL}, $ENV{DB_PASS});
+            s/\Q$n\E/[REDACTED]/g if length $n;
+            s/\Q$e\E/[REDACTED]/g if length $e;
+            s/\Q$p\E/[REDACTED]/g if length $p;
+          ' "$LOG_DST"
+
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-test-results
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v5
+        if: ${{ always() }}
+        with:
+          name: cal-server-log
+          path: cal-web-redacted.log
+          retention-days: 14
+
+      - uses: actions/cache/save@v4
+        if: >-
+          ${{ steps.cal_next.outputs.cache-hit != 'true'
+          && hashFiles(format('{0}/apps/web/.next/required-server-files.json', env.CAL_CHECKOUT_PATH)) != '' }}
+        with:
+          path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
+          key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}

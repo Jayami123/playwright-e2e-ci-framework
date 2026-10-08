@@ -2,11 +2,11 @@
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.0`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.1`.
 
 ## Scope
 
-Cal.com / Cal.diy only today: auth `storageState`, four FW tests, Chromium, GitHub Actions with secret-gated live shards.
+Cal.com / Cal.diy only today: auth `storageState`, four FW tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
 
 Later suites (not in this repo yet): Documenso, Medusa, Twenty; TZ/DST, 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
 
@@ -97,12 +97,23 @@ npm run report
 
 ## CI
 
-`.github/workflows/p1-e2e.yml` runs on pull requests, pushes to `main`, and `workflow_dispatch`. It calls reusable `e2e.yml`.
+[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (optional `cal_ref` input for the Cal fork pin). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
 
-- Lint and typecheck always run.
-- Live `cal-chromium` shards 1–4 run only when secret `CAL_E2E_BASE_URL` is present (checked via env, not job `if: secrets.*`).
-- CI reporters: blob + github + list. Blob artifacts retain 3 days.
-- Without the live URL, the skip job writes the reason to `$GITHUB_STEP_SUMMARY`.
-- Product services are not started in Actions yet.
+**Always:** `lint` (actionlint on workflows, then ESLint + Prettier check) and `typecheck (always)`.
+
+**E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
+
+| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set                       | `cal-chromium` shards 1–4 against that URL, then `merge Playwright HTML report`.                                                                                                                                                         |
+| Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed credentials from workflow env only). |
+
+Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`.
+
+**Typical durations** (first run, cold caches; [run 37787015928](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/37787015928) `cal-self-hosted`): job 7m 9s; Cal yarn install 2m52s; DB migrate+seed 32s; tRPC types (turbo) 40s; next build ~83s (compiled 43s, TypeScript 36.3s, 88/88 static pages); 5 tests ~10s. Warm ([run 37792386085](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/37792386085) attempt 2, `cal-self-hosted`, `.next` cache hit): job 5m 23s; Cal yarn install 2m49s (Yarn cache hit); Postgres pull+start ~21s; DB migrate+seed 49s; tRPC types and next build skipped (`.next` cache hit, `harness-build.json` matched Cal HEAD); next start ready ~8s; 5 tests ~15s.
+
+**Download the HTML report:** open the workflow run on GitHub → **Artifacts** → `playwright-report` → unzip → open `index.html`.
+
+External-path blob shards retain 3 days; merged HTML and self-hosted artifacts retain 14 days.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, PR, and commit rules.

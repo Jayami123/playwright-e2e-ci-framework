@@ -1,0 +1,22 @@
+name: Setup P1
+description: Node.js from .nvmrc with npm cache, then npm ci.
+
+inputs:
+  working-directory:
+    description: Directory containing package.json, package-lock.json, and .nvmrc
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version-file: ${{ inputs.working-directory }}/.nvmrc
+        cache: npm
+        cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+    - run: |
+        set -euo pipefail
+        npm ci
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
