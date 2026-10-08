@@ -45,9 +45,9 @@ Jumping to a month/date is done with those query params, not calendar clicks. St
 
 TZ switcher persistence: `timePreferencesStore` writes `localStorage["timeOption.preferredTimeZone"]`. TZ-004 asserts that after reload the timezone select still shows `America/New_York` and the first slot label still matches the New York Intl expectation.
 
-TZ-003 (Kathmandu +05:45 / Adelaide): full-list `toEqual` against `expectedSlotLabelsForViewerDay`, uniqueness, 30-minute spacing, and per-slot grid alignment vs Intl entries. Kathmandu calls **`test.fail` only after** slots are loaded (not during DB/setup). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
+TZ-003 (Kathmandu +05:45 / Adelaide): full-list `toEqual` against `expectedSlotLabelsForViewerDay`, uniqueness, 30-minute spacing **within each organiser-day group** (Adelaide spillover leaves a legitimate cross-day gap), and per-slot grid alignment vs Intl entries. Kathmandu calls **`test.fail` only after** slots are loaded (not during DB/setup). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
 
-**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back (documented in code; not flagged by `no-raw-locators` because the selector is a template literal). Next.js dev overlay uses `nextjs-portal` with one `eslint-disable-next-line playwright/no-raw-locators` in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers are `getByRole("combobox", { name: <current 12h label> })`.
+**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back, with an explicit `eslint-disable-next-line playwright/no-raw-locators` (rule gap: only string literals are checked). Next.js dev overlay uses `nextjs-portal` with one disable in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers are LazySelect controls without an accessible name, so the POM opens options via the visible `9:00am`-style label text inside the day row. Schedule delete uses `getByTestId("schedules")` → `listitem` filtered by schedule link name → `schedule-more`.
 
 ## Server-side oracle (TZ-002, DST-002)
 
@@ -55,7 +55,7 @@ Not used: API v2 `GET /v2/bookings/{uid}` (process is not running on the harness
 
 Used:
 
-1. Success page `/booking/{uid}`: visible **When** row start time (normalized `h:mma` label in the viewer/attendee TZ).
+1. Success page `/booking/{uid}`: visible **When** row (`toBookingSuccessWhenLine`: `2:30 PM - 3:00 PM (India Standard Time)` via Intl; oracle normalizes the start segment to booker `h:mma`).
 2. Read-only Postgres via harness `createPgClient` (`SELECT "startTime" FROM "Booking" WHERE uid = $1`).
 
 Both must equal the **Intl-computed** expected instant for the chosen viewer day and slot (from `expectedSlotEntriesForViewerDay` / booking helpers), which must match the clicked slot’s `data-time`. Success UI is asserted with `toContainText` on the normalized start label (no XPath). Teardown cancels through `POST /api/cancel` with a CSRF token from the organiser session (not the guest page).
@@ -91,6 +91,8 @@ DST-002 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-0
 ## Timezone in Playwright
 
 Per-describe `test.use({ timezoneId })` (context option). Expected labels are computed with `Intl` in `src/core` (`toZonedLabel`, `expectedSlotEntriesForViewerDay`, DST date helpers). TZ-001 compares the full label list for one viewer date in the spec body. Pure helpers use the **`unit`** project (`npm run test:unit`; `npm_lifecycle_event=test:unit` skips harness `globalSetup`).
+
+Cross-hemisphere booker on an organiser midnight window (`startMinutes === 0`): Cal can list two 30-minute slots immediately before organiser local midnight when those instants still fall on the viewer civil date (for example EU spring-forward Sunday `Europe/London` viewed as `Australia/Sydney`). `expectedSlotEntriesForViewerDay` adds `ORGANISER_MIDNIGHT_VIEWER_LEAD_IN_STEPS` (2) lead-in instants when organiser and viewer IANA zones differ.
 
 The existing auto `timezoneHandler` dismisses Cal’s “Don’t update” dialog so FW tests are not blocked.
 
