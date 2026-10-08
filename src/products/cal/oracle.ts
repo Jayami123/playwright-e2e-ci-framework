@@ -1,4 +1,5 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { toZonedLabel } from "../../core/timezone.js";
 import { readBookingStartUtc } from "./db.js";
 import { timeouts } from "./env.js";
 import { BookingSuccessPage } from "./pages/booking-success.page.js";
@@ -7,7 +8,7 @@ import { CAL_ROUTES } from "./routes.js";
 export interface BookingOracle {
   readonly uid: string;
   readonly dbStartUtc: Date;
-  readonly confirmationStartUtc: Date | undefined;
+  readonly displayedStartLabel: string;
 }
 
 const BOOKING_CANCEL_REASON = "qa-e2e-teardown";
@@ -23,19 +24,31 @@ function readCsrfToken(payload: unknown): string {
   return token;
 }
 
-export async function readBookingOracle(page: Page, uid: string): Promise<BookingOracle> {
+export async function readBookingOracle(
+  page: Page,
+  uid: string,
+  viewerTimeZone: string,
+  expectedInstant: Date,
+): Promise<BookingOracle> {
   const success = new BookingSuccessPage(page);
   if (!page.url().includes(`/booking/${uid}`)) {
     await success.gotoUid(uid);
   } else {
     await success.expectLoaded();
   }
-  const confirmationStartUtc =
-    success.queryInstant("startTime") ??
-    success.queryInstant("attendeeStartTime") ??
-    success.queryInstant("hostStartTime");
+  const displayedStartLabel = await success.readDisplayedStartLabel();
   const dbStartUtc = await readBookingStartUtc(uid);
-  return { uid, dbStartUtc, confirmationStartUtc };
+  const expectedIso = expectedInstant.toISOString();
+  expect(dbStartUtc.toISOString()).toBe(expectedIso);
+  expect(displayedStartLabel).toBe(toZonedLabel(expectedInstant, viewerTimeZone));
+  return { uid, dbStartUtc, displayedStartLabel };
+}
+
+export function expectClickedSlotMatchesInstant(
+  clickedDataTime: string,
+  expectedInstant: Date,
+): void {
+  expect(new Date(clickedDataTime).toISOString()).toBe(expectedInstant.toISOString());
 }
 
 export async function cancelBookingByUid(page: Page, uid: string): Promise<void> {

@@ -1,10 +1,4 @@
 import { expect, type Locator, type Page, type Response } from "@playwright/test";
-import {
-  civilDateToIso,
-  monthParam,
-  normalizeSlotLabel,
-  type CivilDate,
-} from "../../../core/timezone.js";
 import { BasePage } from "../../../core/base.page.js";
 import { timeouts } from "../env.js";
 import { CAL_ROUTES, PRO_THIRTY_MIN_SLUG } from "../routes.js";
@@ -78,20 +72,6 @@ export class BookerPage extends BasePage {
     await this.gotoUserEvent(PRO_THIRTY_MIN_SLUG.user, PRO_THIRTY_MIN_SLUG.event, query);
   }
 
-  async openDate(date: CivilDate): Promise<void> {
-    const iso = civilDateToIso(date);
-    const url = new URL(this.page.url());
-    const segments = url.pathname.split("/").filter(Boolean);
-    const user = segments[0];
-    const event = segments[1];
-    if (user === undefined || event === undefined) {
-      throw new Error(`Booker path does not include user/event: ${url.pathname}`);
-    }
-    await this.gotoUserEvent(user, event, { month: monthParam(date), date: iso });
-    await this.expectLoaded();
-    await expect(this.slotButtons()).not.toHaveCount(0, { timeout: timeouts().page });
-  }
-
   async expectLoaded(): Promise<void> {
     await expect(this.container).toBeVisible({ timeout: timeouts().page });
   }
@@ -103,20 +83,19 @@ export class BookerPage extends BasePage {
 
   async readSlots(): Promise<readonly SlotView[]> {
     await expect(this.slotButtons()).not.toHaveCount(0, { timeout: timeouts().page });
-    return this.slotButtons().evaluateAll((elements: readonly SlotDom[]) =>
-      elements.map((element) => {
+    const slots = await this.slotButtons().evaluateAll((elements: readonly SlotDom[]) =>
+      elements.map((element, index) => {
         const iso = element.getAttribute("data-time");
+        if (iso === null || iso.trim() === "") {
+          throw new Error(`Slot button at index ${String(index)} is missing data-time`);
+        }
         return {
           label: (element.textContent ?? "").trim(),
-          iso: iso ?? "",
+          iso,
         };
       }),
     );
-  }
-
-  async slotLabels(): Promise<readonly string[]> {
-    const slots = await this.readSlots();
-    return slots.map((slot) => slot.label);
+    return slots;
   }
 
   async backToSlots(): Promise<void> {
@@ -148,26 +127,11 @@ export class BookerPage extends BasePage {
     await slot.click();
   }
 
-  async selectSlotByNormalizedLabel(label: string): Promise<SlotView> {
-    const wanted = normalizeSlotLabel(label);
-    const slots = await this.readSlots();
-    const match = slots.find((slot) => normalizeSlotLabel(slot.label) === wanted);
-    if (match === undefined) {
-      throw new Error(`No slot labelled ${label} (normalized ${wanted})`);
-    }
-    await this.selectSlotByIso(match.iso);
-    return match;
-  }
-
   async selectTimezone(iana: string): Promise<void> {
     await expect(this.timezoneSelect).toBeVisible({ timeout: timeouts().page });
     await this.timezoneSelect.click();
     const search = this.page.getByRole("textbox", { name: /timezone select/i });
-    if ((await search.count()) > 0) {
-      await search.fill(iana.replace(/_/g, " "));
-    } else {
-      await this.timezoneSelect.fill(iana.replace(/_/g, " "));
-    }
+    await search.fill(iana.replace(/_/g, " "));
     await this.page.getByTestId(CAL_TEST_IDS.timezoneSelectOption(iana)).click();
   }
 

@@ -1,27 +1,39 @@
 import { fromZonedCivil, normalizeSlotLabel, toZonedLabel } from "../../../src/core/timezone.js";
 import { required } from "../../../src/core/required.js";
 import {
-  assertThirtyMinuteSpacing,
   availabilityStartCivil,
+  expectUniformSpacing,
+  openBookingAvailabilitySlot,
   openFirstAvailabilitySlot,
   openWeekdaySlots,
 } from "../../../src/products/cal/booker-tz.js";
-import { installTimezoneHandler } from "../../../src/products/cal/app-shell.js";
-import { readOrganiserAvailability } from "../../../src/products/cal/db.js";
 import { loadConfig, timeouts } from "../../../src/products/cal/env.js";
+import { readOrganiserAvailability } from "../../../src/products/cal/db.js";
 import {
   qaAttendee,
   qaEventTitle,
   THIRTY_MINUTE_DURATION,
 } from "../../../src/products/cal/factories.js";
 import { expect, test } from "../../../src/products/cal/fixtures.js";
-import { readBookingOracle } from "../../../src/products/cal/oracle.js";
-import { BookerPage } from "../../../src/products/cal/pages/booker.page.js";
+import {
+  expectClickedSlotMatchesInstant,
+  readBookingOracle,
+} from "../../../src/products/cal/oracle.js";
 import { PRO_THIRTY_MIN_SLUG } from "../../../src/products/cal/routes.js";
+import { THIRTY_MINUTES_MS } from "../../../src/products/cal/schedules.js";
+import {
+  ADELAIDE_TZ,
+  AUCKLAND_TZ,
+  COLOMBO_TZ,
+  KATHMANDU_TZ,
+  LOS_ANGELES_TZ,
+  NEW_YORK_TZ,
+} from "../../../src/products/cal/timezones.js";
 
-const VIEWER_TIMEZONES = ["Pacific/Auckland", "Asia/Colombo", "America/Los_Angeles"] as const;
-const HALF_HOUR_VIEWERS = ["Asia/Kathmandu", "Australia/Adelaide"] as const;
-const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+const VIEWER_TIMEZONES = [AUCKLAND_TZ, COLOMBO_TZ, LOS_ANGELES_TZ] as const;
+const HALF_HOUR_VIEWERS = [KATHMANDU_TZ, ADELAIDE_TZ] as const;
+
+const TZ003_KATHMANDU_ISSUE = "P7-OBS-CAL-TZ-003: first slot 15 min off organiser grid (+05:45)";
 
 test.describe("P1-CAL-TZ booker timezone", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -44,14 +56,14 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           const organiser = await readOrganiserAvailability(loadConfig().email);
 
           await test.step("open pro/30min on the next weekday", async () => {
-            const result = await openFirstAvailabilitySlot({
+            const opened = await openFirstAvailabilitySlot({
               booker,
               organiser,
               viewerTimeZone: timezoneId,
               user: PRO_THIRTY_MIN_SLUG.user,
               event: PRO_THIRTY_MIN_SLUG.event,
             });
-            expect(normalizeSlotLabel(result.first.label)).toBe(result.expectedLabel);
+            expect(opened.slots.length).toBeGreaterThan(0);
           });
         },
       );
@@ -69,9 +81,13 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           annotation: [
             { type: "testId", description: "P1-CAL-TZ-003" },
             { type: "priority", description: "P1" },
+            ...(timezoneId === KATHMANDU_TZ
+              ? [{ type: "issue" as const, description: TZ003_KATHMANDU_ISSUE }]
+              : []),
           ],
         },
-        async ({ booker }, testInfo) => {
+        async ({ booker }) => {
+          test.fail(timezoneId === KATHMANDU_TZ, TZ003_KATHMANDU_ISSUE);
           test.setTimeout(timeouts().journey);
           const organiser = await readOrganiserAvailability(loadConfig().email);
           const result = await openWeekdaySlots({
@@ -83,30 +99,26 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           });
           const normalized = result.slots.map((slot) => normalizeSlotLabel(slot.label));
           expect(new Set(normalized).size, "duplicate slot labels").toBe(normalized.length);
-          assertThirtyMinuteSpacing(result.slots, THIRTY_MINUTES_MS);
-          const actualFirst = normalizeSlotLabel(result.first.label);
-          testInfo.annotations.push({
-            type: "observation",
-            description: `TZ-003 ${timezoneId} first=${actualFirst} expected=${result.expectedLabel} iso=${result.first.iso}`,
-          });
-          const startUtc = fromZonedCivil(organiser.timeZone, {
+          expectUniformSpacing(result.slots, THIRTY_MINUTES_MS);
+          const start = availabilityStartCivil(organiser);
+          const expectedFirstInstant = fromZonedCivil(organiser.timeZone, {
             ...result.date,
-            ...availabilityStartCivil(organiser),
-          }).getTime();
-          const deltaMs = Date.parse(result.first.iso) - startUtc;
+            ...start,
+          });
+          expect(normalizeSlotLabel(result.first.label)).toBe(
+            toZonedLabel(expectedFirstInstant, timezoneId),
+          );
+          const deltaMs = Date.parse(result.first.iso) - expectedFirstInstant.getTime();
           const gridRemainder =
             ((deltaMs % THIRTY_MINUTES_MS) + THIRTY_MINUTES_MS) % THIRTY_MINUTES_MS;
-          testInfo.annotations.push({
-            type: "observation",
-            description: `TZ-003 ${timezoneId} organiser-start deltaMs=${String(deltaMs)} gridRemainder=${String(gridRemainder)}`,
-          });
+          expect(gridRemainder).toBe(0);
         },
       );
     });
   }
 
   test.describe("timezone switcher", () => {
-    test.use({ timezoneId: "Asia/Colombo" });
+    test.use({ timezoneId: COLOMBO_TZ });
 
     test(
       "P1-CAL-TZ-004 Booker timezone switcher overrides the browser TZ",
@@ -117,38 +129,42 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           { type: "priority", description: "P2" },
         ],
       },
-      async ({ booker }, testInfo) => {
+      async ({ booker }) => {
         test.setTimeout(timeouts().journey);
         const organiser = await readOrganiserAvailability(loadConfig().email);
         const opened = await openFirstAvailabilitySlot({
           booker,
           organiser,
-          viewerTimeZone: "Asia/Colombo",
+          viewerTimeZone: COLOMBO_TZ,
           user: PRO_THIRTY_MIN_SLUG.user,
           event: PRO_THIRTY_MIN_SLUG.event,
         });
 
         await test.step("switch booker TZ to America/New_York", async () => {
-          await booker.selectTimezone("America/New_York");
+          await booker.selectTimezone(NEW_YORK_TZ);
           const afterSwitch = await booker.readSlots();
           const start = availabilityStartCivil(organiser);
           const expectedNy = toZonedLabel(
             fromZonedCivil(organiser.timeZone, { ...opened.date, ...start }),
-            "America/New_York",
+            NEW_YORK_TZ,
           );
           expect(
             normalizeSlotLabel(required(afterSwitch[0], "no slots after TZ switch").label),
           ).toBe(expectedNy);
         });
 
-        await test.step("reload and record persistence", async () => {
-          const before = (await booker.timezoneSelect.innerText()).trim();
+        await test.step("reload keeps America/New_York selected and first label", async () => {
           await booker.reload();
-          const after = (await booker.timezoneSelect.innerText()).trim();
-          testInfo.annotations.push({
-            type: "observation",
-            description: `TZ-004 reload persistence: before=${before} after=${after}`,
-          });
+          await expect(booker.timezoneSelect).toContainText(/America\/New_York|New York/i);
+          const afterReload = await booker.readSlots();
+          const start = availabilityStartCivil(organiser);
+          const expectedNy = toZonedLabel(
+            fromZonedCivil(organiser.timeZone, { ...opened.date, ...start }),
+            NEW_YORK_TZ,
+          );
+          expect(normalizeSlotLabel(required(afterReload[0], "no slots after reload").label)).toBe(
+            expectedNy,
+          );
         });
       },
     );
@@ -165,51 +181,41 @@ test.describe("P1-CAL-TZ-002 booked instant", () => {
         { type: "priority", description: "P0" },
       ],
     },
-    async ({ browser, eventTypes, eventTypeCleanup, bookingCleanup }, testInfo) => {
+    async ({ guestBooker, eventTypes, eventTypeCleanup, bookingCleanup }, testInfo) => {
       test.setTimeout(timeouts().isolatedJourney);
       const title = qaEventTitle();
       eventTypeCleanup.register(title);
-      let slug = title;
+
+      let slug = "";
 
       await test.step("create an isolated 30-minute event type", async () => {
         await eventTypes.goto();
         await eventTypes.create(title, THIRTY_MINUTE_DURATION);
-        slug = await eventTypes.createdSlug(title);
+        slug = await eventTypes.createdSlug();
       });
 
-      const guest = await browser.newContext({
-        timezoneId: "Asia/Colombo",
-        storageState: { cookies: [], origins: [] },
-      });
-      const guestPage = await guest.newPage();
-      try {
-        await installTimezoneHandler(guestPage);
-        const booker = new BookerPage(guestPage);
+      expect(slug.length).toBeGreaterThan(0);
+
+      await test.step("book the first slot and verify the oracle", async () => {
+        const guest = await guestBooker(COLOMBO_TZ);
         const organiser = await readOrganiserAvailability(loadConfig().email);
-        const opened = await openFirstAvailabilitySlot({
-          booker,
+        const opened = await openBookingAvailabilitySlot({
+          booker: guest.booker,
           organiser,
-          viewerTimeZone: "Asia/Colombo",
+          viewerTimeZone: COLOMBO_TZ,
           user: PRO_THIRTY_MIN_SLUG.user,
           event: slug,
+          testInfo,
         });
         const first = opened.first;
-        await booker.selectSlotByIso(first.iso);
-        const attendee = qaAttendee();
-        const uid = await booker.book(attendee);
+        const expectedInstant = new Date(first.iso);
+
+        await guest.booker.selectSlotByIso(first.iso);
+        const uid = await guest.booker.book(qaAttendee());
         bookingCleanup.register(uid);
-        const oracle = await readBookingOracle(guestPage, uid);
-        const clickedIso = new Date(first.iso).toISOString();
-        const confirmationIso = oracle.confirmationStartUtc?.toISOString();
-        expect(oracle.dbStartUtc.toISOString()).toBe(clickedIso);
-        expect([clickedIso, undefined]).toContain(confirmationIso);
-        testInfo.annotations.push({
-          type: "observation",
-          description: `TZ-002 confirmationStartUtc=${confirmationIso ?? "absent"}`,
-        });
-      } finally {
-        await guest.close();
-      }
+        expectClickedSlotMatchesInstant(first.iso, expectedInstant);
+        await readBookingOracle(guest.page, uid, COLOMBO_TZ, expectedInstant);
+      });
     },
   );
 });

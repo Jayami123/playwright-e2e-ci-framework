@@ -23,8 +23,6 @@ export const PRO_THIRTY_MIN_SLUG = {
 export const DST_ORGANISER = {
   email: "trial@example.com",
   username: "trial",
-  password: "trial",
-  defaultSchedule: "Working Hours",
 } as const;
 
 export function isEventTypeEditorPath(pathname: string): boolean {

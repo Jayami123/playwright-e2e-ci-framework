@@ -1,15 +1,11 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
+import { escapeRegExp } from "../../../core/regex.js";
 import { CalAppShell } from "../app-shell.js";
 import { timeouts } from "../env.js";
-import { DEFAULT_EVENT_DURATION_MINUTES, eventSlugFromTitle } from "../factories.js";
+import { DEFAULT_EVENT_DURATION_MINUTES } from "../factories.js";
 import { CAL_ROUTES, isEventTypeEditorPath } from "../routes.js";
 import { CAL_TEST_IDS } from "../testIds.js";
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 export class EventTypesPage extends BasePage {
   private readonly shell: CalAppShell;
   readonly heading: Locator;
@@ -70,46 +66,50 @@ export class EventTypesPage extends BasePage {
     });
   }
 
-  async expectAvailabilitySchedule(scheduleName: string): Promise<void> {
+  private availabilityCombobox(): Locator {
+    return this.page.getByRole("main").getByRole("combobox");
+  }
+
+  async assignAvailabilitySchedule(scheduleName: string): Promise<void> {
     const editor = new URL(this.page.url());
     await this.gotoPath(`${editor.pathname}?tabName=availability`);
-    const sunday = this.page.getByRole("listitem").filter({ hasText: /sunday/i });
-    const combo = this.page.getByRole("main").getByRole("combobox");
     await expect(this.page.getByRole("link", { name: /edit availability/i })).toBeVisible({
       timeout: timeouts().page,
     });
-    if ((await sunday.count()) === 0) {
-      await combo.focus();
-      await this.page.keyboard.press("Enter");
-      const option = this.page.getByRole("option", {
-        name: new RegExp(escapeRegExp(scheduleName)),
-      });
-      await expect(option).toBeVisible({ timeout: timeouts().page });
-      await option.click();
-      const save = this.page.getByTestId(CAL_TEST_IDS.updateEventType);
-      await expect(save).toBeEnabled({ timeout: timeouts().page });
-      const saved = this.page.waitForResponse(
-        (response) =>
-          response.url().includes(CAL_ROUTES.eventTypesHeavyUpdate) &&
-          response.request().method() === "POST" &&
-          response.ok(),
-        { timeout: timeouts().page },
-      );
-      await save.click();
-      await saved;
-    }
+    const combo = this.availabilityCombobox();
+    await combo.focus();
+    await this.page.keyboard.press("Enter");
+    const option = this.page.getByRole("option", {
+      name: new RegExp(escapeRegExp(scheduleName)),
+    });
+    await expect(option).toBeVisible({ timeout: timeouts().page });
+    await option.click();
+    const save = this.page.getByTestId(CAL_TEST_IDS.updateEventType);
+    await expect(save).toBeEnabled({ timeout: timeouts().page });
+    const saved = this.page.waitForResponse(
+      (response) =>
+        response.url().includes(CAL_ROUTES.eventTypesHeavyUpdate) &&
+        response.request().method() === "POST" &&
+        response.ok(),
+      { timeout: timeouts().page },
+    );
+    await save.click();
+    await saved;
+  }
+
+  async expectSundayAvailabilityRow(): Promise<void> {
+    const sunday = this.page.getByRole("listitem").filter({ hasText: /sunday/i });
     await expect(sunday).toBeVisible({ timeout: timeouts().page });
   }
 
-  async createdSlug(title: string): Promise<string> {
+  async createdSlug(): Promise<string> {
     const slugField = this.page.getByRole("textbox", { name: /url|slug/i });
-    if ((await slugField.count()) > 0) {
-      const value = await slugField.inputValue();
-      if (value.trim() !== "") {
-        return value.trim();
-      }
+    await expect(slugField).toBeVisible({ timeout: timeouts().page });
+    const value = (await slugField.inputValue()).trim();
+    if (value === "") {
+      throw new Error("Event type slug field is empty after create");
     }
-    return eventSlugFromTitle(title);
+    return value;
   }
 
   async expectListed(title: string): Promise<void> {

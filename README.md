@@ -8,7 +8,7 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 Cal.com / Cal.diy only today: auth `storageState`, FW plus timezone/DST booker tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
 
-**11 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`.
+**11 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`. Two TZ/DST cases are **`test.fail`** until known Cal issues are fixed (Kathmandu TZ-003, US fall-back DST-002); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md).
 
 Later suites (not in this repo yet): Documenso, Medusa, Twenty; 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
 
@@ -25,9 +25,10 @@ Later suites (not in this repo yet): Documenso, Medusa, Twenty; 2FA, WebKit/Fire
 ```
 src/core/                     product-agnostic config, BasePage, console guard, Intl TZ helpers
 src/products/cal/             Cal env, routes, test ids, auth, db, oracle, app shell, pages, fixtures
-tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json
+tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/cal/journeys/           FW-001..004
-tests/cal/tz-i18n/            TZ-001..004, DST-001..003, timezone helper unit tests
+tests/cal/tz-i18n/            TZ-001..004, DST-001..003
+tests/unit/                   Intl/timezone helper unit project (no cal-setup)
 global-setup/                 harness up + health + optional dev warmup
 .github/workflows/            lint, typecheck, secret-gated live shards
 docs/adr/                     architecture decisions
@@ -91,19 +92,19 @@ npm run report
 
 ## Implemented P1 cases
 
-| ID             | Title                                                      |
-| -------------- | ---------------------------------------------------------- |
-| P1-CAL-FW-001  | API login produces a reusable storageState                 |
-| P1-CAL-FW-002  | wrong password does not create a session                   |
-| P1-CAL-FW-003  | creates and deletes an isolated event type                 |
-| P1-CAL-FW-004  | booker and bookings pages emit no page errors              |
-| P1-CAL-TZ-001  | Slot labels follow the browser timezone                    |
-| P1-CAL-TZ-002  | Booked instant equals the clicked slot                     |
-| P1-CAL-TZ-003  | Half-hour and 45-minute offsets (Kathmandu, Adelaide)      |
-| P1-CAL-TZ-004  | Booker timezone switcher overrides the browser TZ          |
-| P1-CAL-DST-001 | Spring-forward day shows no phantom 02:00–02:59 slot       |
-| P1-CAL-DST-002 | Fall-back 01:30: confirmation and server oracle agree      |
-| P1-CAL-DST-003 | Cross-hemisphere viewer labels on EU spring-forward Sunday |
+| ID             | Title                                                        |
+| -------------- | ------------------------------------------------------------ |
+| P1-CAL-FW-001  | API login produces a reusable storageState                   |
+| P1-CAL-FW-002  | wrong password does not create a session                     |
+| P1-CAL-FW-003  | creates and deletes an isolated event type                   |
+| P1-CAL-FW-004  | booker and bookings pages emit no page errors                |
+| P1-CAL-TZ-001  | Slot labels follow the browser timezone                      |
+| P1-CAL-TZ-002  | Booked instant equals the clicked slot                       |
+| P1-CAL-TZ-003  | Half-hour and 45-minute offsets (Kathmandu, Adelaide)        |
+| P1-CAL-TZ-004  | Booker timezone switcher overrides the browser TZ            |
+| P1-CAL-DST-001 | Spring-forward day shows no phantom 02:00–02:59 slot         |
+| P1-CAL-DST-002 | Fall-back 01:30 EDT booking vs DB/UI (`test.fail` known 409) |
+| P1-CAL-DST-003 | Cross-hemisphere viewer labels on EU spring-forward Sunday   |
 
 ## CI
 
