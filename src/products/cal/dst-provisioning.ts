@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { THIRTY_MINUTE_DURATION, qaEventTitle, qaScheduleName } from "./factories.js";
+import { THIRTY_MINUTE_DURATION } from "./factories.js";
 import type { AvailabilityPage } from "./pages/availability.page.js";
 import type { EventTypesPage } from "./pages/event-types.page.js";
 import {
@@ -18,19 +18,21 @@ export interface IsolatedSundayEvent {
 export interface SundayProvisionOptions {
   readonly scheduleTimeZone: string;
   readonly overnight: boolean;
+  readonly title: string;
+  readonly scheduleName: string;
 }
 
 export interface SundayOrganiser {
   readonly eventTypes: EventTypesPage;
   readonly availability: AvailabilityPage;
+  readonly page: Page;
 }
 
 export async function provisionIsolatedSundayEvent(
   organiser: SundayOrganiser,
   options: SundayProvisionOptions,
 ): Promise<IsolatedSundayEvent> {
-  const title = qaEventTitle();
-  const scheduleName = qaScheduleName();
+  const { title, scheduleName } = options;
   await organiser.availability.createNamedSchedule(scheduleName);
   await organiser.availability.setTimezone(options.scheduleTimeZone);
   await organiser.availability.enableDay(SUNDAY_DAY_NAME);
@@ -51,14 +53,13 @@ export async function provisionIsolatedSundayEvent(
 export async function teardownIsolatedSundayEvent(options: {
   readonly organiser: SundayOrganiser;
   readonly provisioned: IsolatedSundayEvent;
-  readonly guestPage?: Page;
   readonly bookingUid?: string;
   readonly cancelBooking: (page: Page, uid: string) => Promise<void>;
 }): Promise<void> {
   const failures: unknown[] = [];
-  if (options.bookingUid !== undefined && options.guestPage !== undefined) {
+  if (options.bookingUid !== undefined) {
     try {
-      await options.cancelBooking(options.guestPage, options.bookingUid);
+      await options.cancelBooking(options.organiser.page, options.bookingUid);
     } catch (error) {
       failures.push(error);
     }

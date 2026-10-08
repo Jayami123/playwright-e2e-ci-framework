@@ -1,13 +1,16 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { escapeRegExp } from "../../../core/regex.js";
+import { normalizeSlotLabel } from "../../../core/timezone.js";
 import { CalAppShell } from "../app-shell.js";
 import { timeouts } from "../env.js";
 import { CAL_ROUTES } from "../routes.js";
 import { CAL_TEST_IDS } from "../testIds.js";
-import { WORKING_HOURS_SCHEDULE_NAME } from "../schedules.js";
-
-const DAY_HOUR_COMBOBOXES = 2;
+import {
+  CLOCK_FIVE_PM_LABEL,
+  CLOCK_NINE_AM_LABEL,
+  WORKING_HOURS_SCHEDULE_NAME,
+} from "../schedules.js";
 
 export class AvailabilityPage extends BasePage {
   private readonly shell: CalAppShell;
@@ -28,7 +31,7 @@ export class AvailabilityPage extends BasePage {
   }
 
   scheduleRow(name: string): Locator {
-    return this.page.getByTestId(CAL_TEST_IDS.schedules).getByText(new RegExp(escapeRegExp(name)));
+    return this.page.getByTestId(CAL_TEST_IDS.schedules).getByText(name, { exact: true });
   }
 
   async createNamedSchedule(name: string): Promise<void> {
@@ -60,39 +63,59 @@ export class AvailabilityPage extends BasePage {
   }
 
   daySwitch(dayName: string): Locator {
-    return this.page.getByRole("switch", { name: new RegExp(`^${escapeRegExp(dayName)}$`, "i") });
+    return this.page.getByTestId(`${dayName}-switch`);
   }
 
   dayRow(dayName: string): Locator {
-    return this.page.getByRole("listitem").filter({ has: this.daySwitch(dayName) });
+    return this.page.getByTestId(dayName);
+  }
+
+  private dayHourCombobox(dayName: string, selectedLabel: string): Locator {
+    const normalized = normalizeSlotLabel(selectedLabel);
+    return this.dayRow(dayName).getByRole("combobox", {
+      name: new RegExp(`^${escapeRegExp(normalized)}$`, "i"),
+    });
+  }
+
+  private async chooseComboboxOption(combo: Locator, optionLabel: string): Promise<void> {
+    const normalized = normalizeSlotLabel(optionLabel);
+    await expect(combo).toBeVisible({ timeout: timeouts().page });
+    await combo.click();
+    await this.page
+      .getByRole("option", {
+        name: new RegExp(`^${escapeRegExp(normalized)}$`, "i"),
+      })
+      .click();
   }
 
   async enableDay(dayName: string): Promise<void> {
     const toggle = this.daySwitch(dayName);
     await expect(toggle).toBeVisible({ timeout: timeouts().page });
-    if ((await toggle.getAttribute("aria-checked")) !== "true") {
-      await toggle.click();
+    if (await toggle.isChecked()) {
+      return;
     }
+    await toggle.click();
+    await expect(toggle).toBeChecked({ timeout: timeouts().page });
   }
 
   async setDayHours(dayName: string, startLabel: string, endLabel: string): Promise<void> {
-    const row = this.dayRow(dayName);
-    const combos = row.getByRole("combobox");
-    await expect(combos).toHaveCount(DAY_HOUR_COMBOBOXES, { timeout: timeouts().page });
-    await combos.nth(0).click();
-    await this.page
-      .getByRole("option", { name: new RegExp(`^${escapeRegExp(startLabel)}$`, "i") })
-      .click();
-    await combos.nth(1).click();
-    await this.page
-      .getByRole("option", { name: new RegExp(`^${escapeRegExp(endLabel)}$`, "i") })
-      .click();
+    await this.enableDay(dayName);
+    const normalizedStart = normalizeSlotLabel(startLabel);
+    const normalizedEnd = normalizeSlotLabel(endLabel);
+    const defaultStart = normalizeSlotLabel(CLOCK_NINE_AM_LABEL);
+    const defaultEnd = normalizeSlotLabel(CLOCK_FIVE_PM_LABEL);
+    if (normalizedStart !== defaultStart) {
+      await this.chooseComboboxOption(this.dayHourCombobox(dayName, CLOCK_NINE_AM_LABEL), startLabel);
+    }
+    if (normalizedEnd !== defaultEnd) {
+      await this.chooseComboboxOption(this.dayHourCombobox(dayName, CLOCK_FIVE_PM_LABEL), endLabel);
+    }
   }
 
   async setAsDefault(): Promise<void> {
     const toggle = this.page.getByRole("switch", { name: /set as default/i });
     await expect(toggle).toBeVisible({ timeout: timeouts().page });
-    if ((await toggle.getAttribute("aria-checked")) === "true") {
+    if (await toggle.isChecked()) {
       return;
     }
     await toggle.click();
@@ -129,6 +152,11 @@ export class AvailabilityPage extends BasePage {
 
   async promoteWorkingHoursDefault(): Promise<void> {
     await this.openByName(WORKING_HOURS_SCHEDULE_NAME);
+    const toggle = this.page.getByRole("switch", { name: /set as default/i });
+    await expect(toggle).toBeVisible({ timeout: timeouts().page });
+    if (await toggle.isChecked()) {
+      return;
+    }
     await this.setAsDefault();
     await this.save();
   }
@@ -139,7 +167,7 @@ export class AvailabilityPage extends BasePage {
   ): Promise<void> {
     await this.goto();
     const rowText = this.scheduleRow(name);
-    if (options?.tolerateMissing === true && (await rowText.count()) === 0) {
+    if (options?.tolerateMissing === true && !(await rowText.isVisible())) {
       return;
     }
     const item = this.page.getByRole("listitem").filter({ has: rowText });
@@ -155,10 +183,10 @@ export class AvailabilityPage extends BasePage {
 
   async deleteQaSchedules(): Promise<void> {
     await this.goto();
-    const rows = this.page.getByTestId(CAL_TEST_IDS.schedules).getByText(/^sch-qa-/);
-    const count = await rows.count();
-    for (let index = 0; index < count; index += 1) {
-      const name = (await rows.nth(0).innerText()).trim();
+    const names = (
+      await this.page.getByTestId(CAL_TEST_IDS.schedules).getByText(/^sch-qa-/).allInnerTexts()
+    ).map((name) => name.trim());
+    for (const name of names) {
       await this.deleteByName(name, { tolerateMissing: true });
     }
   }

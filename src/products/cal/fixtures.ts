@@ -11,6 +11,7 @@ import {
   type SundayOrganiser,
   type SundayProvisionOptions,
 } from "./dst-provisioning.js";
+import { qaEventTitle, qaScheduleName } from "./factories.js";
 import { EventTypesPage } from "./pages/event-types.page.js";
 import { BookingsPage } from "./pages/bookings.page.js";
 import { BookerPage } from "./pages/booker.page.js";
@@ -30,7 +31,6 @@ export interface BookingCleanup {
 
 export interface DstOrganiser extends SundayOrganiser {
   readonly username: string;
-  readonly page: Page;
 }
 
 export interface GuestBookerHandle {
@@ -39,8 +39,10 @@ export interface GuestBookerHandle {
 }
 
 export interface IsolatedSundayEventFixture {
-  provision(options: SundayProvisionOptions): Promise<IsolatedSundayEvent>;
-  trackGuest(page: Page): void;
+  provision(
+    options: Omit<SundayProvisionOptions, "title" | "scheduleName">,
+  ): Promise<IsolatedSundayEvent>;
+  trackGuest(): void;
   trackBooking(uid: string): void;
 }
 
@@ -193,16 +195,25 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
 
   isolatedSundayEvent: async ({ dstOrganiser }, use) => {
     let provisioned: IsolatedSundayEvent | undefined;
-    let guestPage: Page | undefined;
     let bookingUid: string | undefined;
 
     await use({
-      async provision(options: SundayProvisionOptions): Promise<IsolatedSundayEvent> {
-        provisioned = await provisionIsolatedSundayEvent(dstOrganiser, options);
-        return provisioned;
+      async provision(
+        options: Omit<SundayProvisionOptions, "title" | "scheduleName">,
+      ): Promise<IsolatedSundayEvent> {
+        const title = qaEventTitle();
+        const scheduleName = qaScheduleName();
+        provisioned = { title, slug: "", scheduleName };
+        const created = await provisionIsolatedSundayEvent(dstOrganiser, {
+          ...options,
+          title,
+          scheduleName,
+        });
+        provisioned = created;
+        return created;
       },
-      trackGuest(page: Page): void {
-        guestPage = page;
+      trackGuest(): void {
+        // Guest context is not used for booking cancellation (organiser API only).
       },
       trackBooking(uid: string): void {
         bookingUid = uid;
@@ -215,7 +226,6 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
     await teardownIsolatedSundayEvent({
       organiser: dstOrganiser,
       provisioned,
-      ...(guestPage === undefined ? {} : { guestPage }),
       ...(bookingUid === undefined ? {} : { bookingUid }),
       cancelBooking: cancelBookingByUid,
     });

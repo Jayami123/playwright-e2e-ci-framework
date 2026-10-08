@@ -37,7 +37,7 @@ export class EventTypesPage extends BasePage {
   }
 
   private listEventLinks(): Locator {
-    return this.page.getByRole("main").locator(`a[href*="${CAL_ROUTES.eventTypes}/"]`);
+    return this.page.getByRole("main").getByRole("link");
   }
 
   private async waitForListHydrated(): Promise<void> {
@@ -98,8 +98,7 @@ export class EventTypesPage extends BasePage {
   }
 
   async expectSundayAvailabilityRow(): Promise<void> {
-    const sunday = this.page.getByRole("listitem").filter({ hasText: /sunday/i });
-    await expect(sunday).toBeVisible({ timeout: timeouts().page });
+    await expect(this.page.getByTestId("Sunday")).toBeVisible({ timeout: timeouts().page });
   }
 
   async createdSlug(): Promise<string> {
@@ -123,7 +122,7 @@ export class EventTypesPage extends BasePage {
   ): Promise<void> {
     await this.goto();
     const link = this.eventTypeLink(title);
-    if (options?.tolerateMissing === true && (await link.count()) === 0) {
+    if (options?.tolerateMissing === true && !(await link.isVisible())) {
       return;
     }
     await expect(link, `Event type "${title}" not found for delete`).toBeVisible({
