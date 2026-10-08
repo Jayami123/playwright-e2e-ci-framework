@@ -167,6 +167,12 @@ jobs:
           path: cal
           persist-credentials: false
 
+      - name: Stub harness product roots
+        run: |
+          set -euo pipefail
+          # qa-portfolio-harness loadConfig() resolves every product under PRODUCTS_ROOT.
+          mkdir -p documenso medusa twenty-CRM
+
       - uses: ./.github/actions/setup-p1
 
       - uses: actions/cache@v4

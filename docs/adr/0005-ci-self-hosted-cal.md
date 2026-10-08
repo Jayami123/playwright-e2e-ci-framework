@@ -7,7 +7,7 @@
 
 [ADR 0003](0003-ci-secret-gating.md) runs live E2E only when repository secret `CAL_E2E_BASE_URL` points at an external deployment. Without that secret, CI was lint and typecheck only. Portfolio P1 needs Cal FW tests on every pull request without maintaining a public staging URL or sharing a live base URL secret.
 
-The harness (`qa-portfolio-harness#v0.2.0`) already starts Postgres via compose, seeds with `yarn db-seed`, and runs Cal with `next build` + `next start` through `getAdapter('cal').up()`. Global setup in this repo waits on `GET /api/auth/csrf` after `up()`. The harness resolves the Cal fork at `PRODUCTS_ROOT/cal` (no `CAL_PRODUCT_DIR` in CI).
+The harness (`qa-portfolio-harness#v0.2.0`) already starts Postgres via compose, seeds with `yarn db-seed`, and runs Cal with `next build` + `next start` through `getAdapter('cal').up()`. Global setup in this repo waits on `GET /api/auth/csrf` after `up()`. The harness resolves the Cal fork at `PRODUCTS_ROOT/cal` (no `CAL_PRODUCT_DIR` in CI). Because harness `loadConfig()` also checks sibling product roots, CI creates empty `documenso/`, `medusa/`, and `twenty-CRM/` directories under the workspace before calling `getAdapter('cal')`.
 
 ## Decision
 
