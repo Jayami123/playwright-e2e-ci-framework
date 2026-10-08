@@ -4,7 +4,36 @@ import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/
 
 process.env.P1_SEED ??= String(Date.now());
 
-const live = !skipLiveCal();
+function requestedProjects(): ReadonlySet<string> | undefined {
+  const names: string[] = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    const arg = process.argv[index];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg.startsWith("--project=")) {
+      names.push(...arg.slice("--project=".length).split(","));
+      continue;
+    }
+    if (arg === "--project") {
+      const next = process.argv[index + 1];
+      if (next !== undefined && !next.startsWith("-")) {
+        names.push(...next.split(","));
+      }
+    }
+  }
+  return names.length > 0 ? new Set(names) : undefined;
+}
+
+function needsCalHarness(projects: ReadonlySet<string> | undefined): boolean {
+  if (projects === undefined) {
+    return true;
+  }
+  return projects.has("cal-chromium") || projects.has("cal-setup");
+}
+
+const projectFilter = requestedProjects();
+const live = !skipLiveCal() && needsCalHarness(projectFilter);
 const webMode = live ? loadConfig().webMode : parseWebMode(process.env.CAL_WEB_MODE);
 const rawBase = process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL;
 const baseURL = live
@@ -39,7 +68,12 @@ export default defineConfig({
       name: "cal-setup",
       testDir: "./tests/setup",
       testMatch: /cal\.setup\.ts/,
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], trace: "off" },
+    },
+    {
+      name: "unit",
+      testDir: "./tests/unit",
+      testMatch: /.*\.spec\.ts/,
     },
     {
       name: "cal-chromium",
@@ -47,7 +81,7 @@ export default defineConfig({
       testDir: "./tests/cal",
       use: {
         ...devices["Desktop Chrome"],
-        ...(live ? { storageState: loadConfig().authStatePath } : {}),
+        ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
       },
     },
   ],

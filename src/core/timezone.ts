@@ -189,6 +189,20 @@ export function nextOccurrenceOnOrAfter(
   return inYear(from.year + 1);
 }
 
+/** Next DST (or similar) transition date strictly after `from + leadDays` civil days. */
+export function nextTransitionStrictlyAfterLeadDays(
+  from: CivilDate,
+  leadDays: number,
+  transitionForYear: (year: number) => CivilDate,
+): CivilDate {
+  const afterLead = addDays(from, leadDays);
+  const onOrAfter = nextOccurrenceOnOrAfter(afterLead, transitionForYear);
+  if (compareCivilDate(onOrAfter, afterLead) <= 0) {
+    return transitionForYear(afterLead.year + 1);
+  }
+  return onOrAfter;
+}
+
 /** 2nd Sunday of March (US spring-forward), next on/after `from`. */
 export function nextUsSpringForward(from: CivilDate): CivilDate {
   return nextOccurrenceOnOrAfter(from, (year) => nthWeekdayOfMonth(year, 3, WEEKDAY.sunday, 2));
@@ -291,4 +305,85 @@ export function expectedSlotLabels(
   return expectedSlotInstants(options).map((instant) =>
     toZonedLabel(instant, options.viewerTimeZone),
   );
+}
+
+export interface AvailabilityWindow {
+  readonly days: readonly number[];
+  readonly startMinutes: number;
+  readonly endMinutes: number;
+}
+
+function uniqueOrganiserDatesForViewerDay(
+  viewerDate: CivilDate,
+  viewerTimeZone: string,
+  organiserTimeZone: string,
+): readonly CivilDate[] {
+  const seen = new Set<string>();
+  const dates: CivilDate[] = [];
+  for (let delta = -2; delta <= 2; delta += 1) {
+    const probeInstant = fromZonedCivil(viewerTimeZone, {
+      ...addDays(viewerDate, delta),
+      hour: 12,
+      minute: 0,
+    });
+    const organiserDate = civilDateFromInstant(probeInstant, organiserTimeZone);
+    const iso = civilDateToIso(organiserDate);
+    if (!seen.has(iso)) {
+      seen.add(iso);
+      dates.push(organiserDate);
+    }
+  }
+  return dates;
+}
+
+export function expectedSlotLabelsForViewerDay(options: {
+  readonly organiserTimeZone: string;
+  readonly viewerTimeZone: string;
+  readonly viewerDate: CivilDate;
+  readonly windows: readonly AvailabilityWindow[];
+  readonly stepMinutes: number;
+  readonly notBefore: Date;
+}): readonly string[] {
+  const labelled: { readonly instant: Date; readonly label: string }[] = [];
+  const seenInstants = new Set<string>();
+
+  for (const organiserDate of uniqueOrganiserDatesForViewerDay(
+    options.viewerDate,
+    options.viewerTimeZone,
+    options.organiserTimeZone,
+  )) {
+    const weekday = weekdayOf(organiserDate, options.organiserTimeZone);
+    for (const window of options.windows) {
+      if (!window.days.includes(weekday)) {
+        continue;
+      }
+      const instants = expectedSlotInstants({
+        timeZone: options.organiserTimeZone,
+        date: organiserDate,
+        startMinutes: window.startMinutes,
+        endMinutes: window.endMinutes,
+        stepMinutes: options.stepMinutes,
+      });
+      for (const instant of instants) {
+        if (instant.getTime() <= options.notBefore.getTime()) {
+          continue;
+        }
+        const viewerCivil = civilDateFromInstant(instant, options.viewerTimeZone);
+        if (compareCivilDate(viewerCivil, options.viewerDate) !== 0) {
+          continue;
+        }
+        const iso = instant.toISOString();
+        if (seenInstants.has(iso)) {
+          continue;
+        }
+        seenInstants.add(iso);
+        labelled.push({ instant, label: toZonedLabel(instant, options.viewerTimeZone) });
+      }
+    }
+  }
+
+  return labelled
+    .slice()
+    .sort((left, right) => left.instant.getTime() - right.instant.getTime())
+    .map((entry) => entry.label);
 }

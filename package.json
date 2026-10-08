@@ -9,6 +9,7 @@
   "scripts": {
     "test": "playwright test",
     "test:cal": "playwright test --project=cal-chromium",
+    "test:unit": "playwright test --project=unit",
     "test:smoke": "playwright test --project=cal-chromium --grep @smoke",
     "test:cal:headed": "playwright test --project=cal-chromium --headed",
     "test:cal:debug": "playwright test --project=cal-chromium --debug",
