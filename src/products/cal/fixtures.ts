@@ -66,6 +66,7 @@ interface CalWorkerFixtures {
 
 export const test = base.extend<CalFixtures, CalWorkerFixtures>({
   factorySeed: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright worker fixture declares no upstream dependencies
     async ({}, use, workerInfo) => {
       const baseSeed = parsePositiveInt(process.env.P1_SEED, Date.now());
       const seed = baseSeed + workerInfo.parallelIndex;

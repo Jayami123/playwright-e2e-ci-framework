@@ -27,6 +27,13 @@ export default tseslint.config(
   {
     ...playwright.configs["flat/recommended"],
     files: ["tests/**/*.ts", "src/products/**/*.ts"],
+    rules: {
+      "playwright/no-nth-methods": "error",
+      "playwright/no-raw-locators": "error",
+      "playwright/no-wait-for-timeout": "error",
+      // Tags are declared on test options (`tag: ["@cal", …]`), not only in titles.
+      "playwright/require-tags": "error",
+    },
   },
   {
     rules: {

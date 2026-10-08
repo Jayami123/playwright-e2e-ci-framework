@@ -122,8 +122,9 @@ export class BookerPage extends BasePage {
     if (attribute === null) {
       throw new Error(`No slot button with instant ${iso}`);
     }
-    // Exception (ADR 0006): duplicate fall-back slot labels share the same text; data-time is the only unique key.
-    const slot = this.slotButtons().and(this.page.locator(`[data-time="${attribute}"]`));
+    // ADR 0006: duplicate fall-back labels; data-time is the only unique key (dynamic template; see no-raw-locators).
+    const byInstant = this.page.locator(`[data-time="${attribute}"]`);
+    const slot = this.slotButtons().and(byInstant);
     await expect(slot).toHaveCount(1);
     await slot.click();
   }

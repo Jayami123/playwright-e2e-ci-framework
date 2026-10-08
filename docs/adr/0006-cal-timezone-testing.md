@@ -47,7 +47,7 @@ TZ switcher persistence: `timePreferencesStore` writes `localStorage["timeOption
 
 TZ-003 (Kathmandu +05:45 / Adelaide): full-list `toEqual` against `expectedSlotLabelsForViewerDay`, uniqueness, 30-minute spacing, and per-slot grid alignment vs Intl entries. Kathmandu calls **`test.fail` only after** slots are loaded (not during DB/setup). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
 
-**Locator exceptions (brief-rule):** booker `selectSlotByIso` filters by `[data-time]` when labels duplicate on fall-back; Next.js dev overlay uses `nextjs-portal` (no roles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers are `getByRole("combobox", { name: <current 12h label> })`.
+**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back (documented in code; not flagged by `no-raw-locators` because the selector is a template literal). Next.js dev overlay uses `nextjs-portal` with one `eslint-disable-next-line playwright/no-raw-locators` in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers are `getByRole("combobox", { name: <current 12h label> })`.
 
 ## Server-side oracle (TZ-002, DST-002)
 
