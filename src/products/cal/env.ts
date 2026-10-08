@@ -88,20 +88,15 @@ export function loadConfig(): CalE2EConfig {
     return cached;
   }
 
-  const email = process.env.CAL_E2E_EMAIL?.trim();
-  const password = process.env.CAL_E2E_PASSWORD;
-  const baseUrlRaw = (process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL)?.trim();
+  const email = process.env.CAL_E2E_EMAIL?.trim() ?? "";
+  const password = process.env.CAL_E2E_PASSWORD ?? "";
+  const baseUrlRaw = (process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL)?.trim() ?? "";
   const missing = collectMissingEnv({
     CAL_E2E_EMAIL: email,
     CAL_E2E_PASSWORD: password,
+    "CAL_E2E_BASE_URL or CAL_BASE_URL": baseUrlRaw,
   });
-  if (baseUrlRaw === undefined || baseUrlRaw === "") {
-    missing.push("CAL_E2E_BASE_URL or CAL_BASE_URL");
-  }
   failOnMissingEnv(missing);
-  if (email === undefined || password === undefined || baseUrlRaw === undefined) {
-    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
-  }
 
   const productsRoot = process.env.PRODUCTS_ROOT?.trim() || DEFAULT_PRODUCTS_ROOT;
   process.env.PRODUCTS_ROOT = productsRoot;

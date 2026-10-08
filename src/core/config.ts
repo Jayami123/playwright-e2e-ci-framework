@@ -16,11 +16,10 @@ export function collectMissingEnv(entries: Readonly<Record<string, string | unde
     .map(([name]) => name);
 }
 
-export function failOnMissingEnv(missing: readonly string[]): void {
-  if (missing.length === 0) {
-    return;
+export function failOnMissingEnv(missing: readonly string[]): asserts missing is readonly [] {
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
-  throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
 }
 
 export function normalizeOrigin(url: string): string {
