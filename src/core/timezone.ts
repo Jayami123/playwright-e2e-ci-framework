@@ -328,11 +328,7 @@ function uniqueOrganiserDatesForViewerDay(
 ): readonly CivilDate[] {
   const seen = new Set<string>();
   const dates: CivilDate[] = [];
-  for (
-    let delta = -ORGANISER_DATE_PROBE_DAYS;
-    delta <= ORGANISER_DATE_PROBE_DAYS;
-    delta += 1
-  ) {
+  for (let delta = -ORGANISER_DATE_PROBE_DAYS; delta <= ORGANISER_DATE_PROBE_DAYS; delta += 1) {
     const probeInstant = fromZonedCivil(viewerTimeZone, {
       ...addDays(viewerDate, delta),
       hour: 12,
@@ -394,9 +390,7 @@ export function expectedSlotEntriesForViewerDay(options: {
     }
   }
 
-  return labelled
-    .slice()
-    .sort((left, right) => left.instant.getTime() - right.instant.getTime());
+  return labelled.slice().sort((left, right) => left.instant.getTime() - right.instant.getTime());
 }
 
 export function expectedSlotLabelsForViewerDay(

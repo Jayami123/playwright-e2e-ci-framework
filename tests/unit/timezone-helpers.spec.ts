@@ -15,7 +15,12 @@ import {
   WEEKDAY,
 } from "../../src/core/timezone.js";
 import { BOOKING_NOTICE_EPOCH, MIN_LEAD_DAYS } from "../../src/products/cal/schedules.js";
-import { ADELAIDE_TZ, AUCKLAND_TZ, LONDON_TZ, NEW_YORK_TZ } from "../../src/products/cal/timezones.js";
+import {
+  ADELAIDE_TZ,
+  AUCKLAND_TZ,
+  LONDON_TZ,
+  NEW_YORK_TZ,
+} from "../../src/products/cal/timezones.js";
 
 test.describe("timezone helpers", () => {
   test("computes US and EU DST transition Sundays", { tag: ["@unit", "@tz"] }, () => {
@@ -124,19 +129,23 @@ test.describe("timezone helpers", () => {
     },
   );
 
-  test("cross-midnight organiser window lists Auckland viewer labels", { tag: ["@unit", "@tz"] }, () => {
-    const viewerDate = { year: 2026, month: 10, day: 12 };
-    const labels = expectedSlotLabelsForViewerDay({
-      organiserTimeZone: LONDON_TZ,
-      viewerTimeZone: AUCKLAND_TZ,
-      viewerDate,
-      windows: [{ days: [WEEKDAY.monday], startMinutes: 9 * 60, endMinutes: 17 * 60 }],
-      stepMinutes: 30,
-      notBefore: BOOKING_NOTICE_EPOCH,
-    });
-    expect(labels.length).toBeGreaterThan(0);
-    expect(labels[0]).toMatch(/pm$/);
-  });
+  test(
+    "cross-midnight organiser window lists Auckland viewer labels",
+    { tag: ["@unit", "@tz"] },
+    () => {
+      const viewerDate = { year: 2026, month: 10, day: 12 };
+      const labels = expectedSlotLabelsForViewerDay({
+        organiserTimeZone: LONDON_TZ,
+        viewerTimeZone: AUCKLAND_TZ,
+        viewerDate,
+        windows: [{ days: [WEEKDAY.monday], startMinutes: 9 * 60, endMinutes: 17 * 60 }],
+        stepMinutes: 30,
+        notBefore: BOOKING_NOTICE_EPOCH,
+      });
+      expect(labels.length).toBeGreaterThan(0);
+      expect(labels[0]).toMatch(/pm$/);
+    },
+  );
 
   test("Adelaide viewer lists full slot labels for a weekday", { tag: ["@unit", "@tz"] }, () => {
     const viewerDate = { year: 2026, month: 10, day: 13 };

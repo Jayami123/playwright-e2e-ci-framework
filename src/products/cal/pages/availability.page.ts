@@ -105,7 +105,10 @@ export class AvailabilityPage extends BasePage {
     const defaultStart = normalizeSlotLabel(CLOCK_NINE_AM_LABEL);
     const defaultEnd = normalizeSlotLabel(CLOCK_FIVE_PM_LABEL);
     if (normalizedStart !== defaultStart) {
-      await this.chooseComboboxOption(this.dayHourCombobox(dayName, CLOCK_NINE_AM_LABEL), startLabel);
+      await this.chooseComboboxOption(
+        this.dayHourCombobox(dayName, CLOCK_NINE_AM_LABEL),
+        startLabel,
+      );
     }
     if (normalizedEnd !== defaultEnd) {
       await this.chooseComboboxOption(this.dayHourCombobox(dayName, CLOCK_FIVE_PM_LABEL), endLabel);
@@ -184,7 +187,10 @@ export class AvailabilityPage extends BasePage {
   async deleteQaSchedules(): Promise<void> {
     await this.goto();
     const names = (
-      await this.page.getByTestId(CAL_TEST_IDS.schedules).getByText(/^sch-qa-/).allInnerTexts()
+      await this.page
+        .getByTestId(CAL_TEST_IDS.schedules)
+        .getByText(/^sch-qa-/)
+        .allInnerTexts()
     ).map((name) => name.trim());
     for (const name of names) {
       await this.deleteByName(name, { tolerateMissing: true });

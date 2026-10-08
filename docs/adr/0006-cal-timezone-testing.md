@@ -11,12 +11,12 @@ Phase 2a adds P1-CAL-TZ-001..004 and P1-CAL-DST-001..003 as black-box Playwright
 
 Postgres on `127.0.0.1:5450` / `calendso` (harness compose). Prisma maps `User` to table `users`; `EventType`, `Schedule`, `Availability`, and `Booking` keep quoted PascalCase names.
 
-| Fact                        | Value                                                                                                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Seed user `pro@example.com` | `users.timeZone` = `Europe/London`                                                                                                                                  |
-| Default schedule            | Name `Working Hours`, `Schedule.timeZone` = `null` (organiser TZ is the user TZ)                                                                                    |
-| Availability                | Weekdays `days = [1,2,3,4,5]` (Mon–Fri), `startTime` / `endTime` = `09:00:00` / `17:00:00` local civil time                                                         |
-| `pro/30min`                 | `periodType` = `unlimited`, `periodDays` = `null`, `length` = 30, `minimumBookingNotice` = 120 minutes                                                              |
+| Fact                        | Value                                                                                                                                                                                                                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Seed user `pro@example.com` | `users.timeZone` = `Europe/London`                                                                                                                                                                                                                                               |
+| Default schedule            | Name `Working Hours`, `Schedule.timeZone` = `null` (organiser TZ is the user TZ)                                                                                                                                                                                                 |
+| Availability                | Weekdays `days = [1,2,3,4,5]` (Mon–Fri), `startTime` / `endTime` = `09:00:00` / `17:00:00` local civil time                                                                                                                                                                      |
+| `pro/30min`                 | `periodType` = `unlimited`, `periodDays` = `null`, `length` = 30, `minimumBookingNotice` = 120 minutes                                                                                                                                                                           |
 | Re-seeds                    | Multiple `Working Hours` rows exist for `pro`; tests read availability via `COALESCE(users."defaultScheduleId", first Schedule.id for user)` (mirrors Cal `ScheduleRepository.getDefaultScheduleId`), joined to `Availability` ordered by `a.id ASC`; never mutate that schedule |
 
 `usa@example.com` is `America/Phoenix` (no DST). `trial@example.com` is used only for isolated DST schedules (not FW-001..004).

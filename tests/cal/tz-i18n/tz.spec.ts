@@ -80,8 +80,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
       );
       expectClickedSlotMatchesInstant(slot.iso, entry.instant);
       const deltaMs = Date.parse(slot.iso) - entry.instant.getTime();
-      const gridRemainder =
-        ((deltaMs % THIRTY_MINUTES_MS) + THIRTY_MINUTES_MS) % THIRTY_MINUTES_MS;
+      const gridRemainder = ((deltaMs % THIRTY_MINUTES_MS) + THIRTY_MINUTES_MS) % THIRTY_MINUTES_MS;
       expect(gridRemainder).toBe(0);
     }
   }
@@ -99,7 +98,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           { type: "issue", description: TZ003_KATHMANDU_ISSUE },
         ],
       },
-       
+
       async ({ booker }) => {
         test.setTimeout(timeouts().journey);
         const organiser = await readOrganiserAvailability(loadConfig().email);
@@ -129,7 +128,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           { type: "priority", description: "P1" },
         ],
       },
-       
+
       async ({ booker }) => {
         test.setTimeout(timeouts().journey);
         const organiser = await readOrganiserAvailability(loadConfig().email);
