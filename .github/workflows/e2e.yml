@@ -16,13 +16,32 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
   structural:
     name: typecheck (always)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       has_live_url: ${{ steps.live.outputs.has_live_url }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -41,8 +60,9 @@ jobs:
 
   cal-chromium:
     name: cal-chromium shard ${{ matrix.shard }}
-    needs: structural
-    runs-on: ubuntu-latest
+    needs: [lint, structural]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     if: needs.structural.outputs.has_live_url == 'true'
     strategy:
       fail-fast: false
@@ -55,11 +75,20 @@ jobs:
       CAL_E2E_PASSWORD: ${{ secrets.CAL_E2E_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-ms-playwright-${{ steps.playwright.outputs.version }}
       - run: npx playwright install chromium --with-deps
       - name: Run Cal Chromium shard
         run: npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
@@ -69,14 +98,18 @@ jobs:
           name: blob-report-${{ matrix.shard }}
           path: blob-report
           if-no-files-found: ignore
+          retention-days: 3
 
   merge-reports:
     name: merge Playwright HTML report
     needs: [structural, cal-chromium]
     if: ${{ !cancelled() && needs.structural.outputs.has_live_url == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -98,10 +131,13 @@ jobs:
   skip-live:
     name: live E2E skipped (no CAL_E2E_BASE_URL)
     needs: structural
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     if: needs.structural.outputs.has_live_url != 'true'
     steps:
       - run: |
-          echo "Product services are not in GitHub-hosted CI yet."
-          echo "Local green: npm run test:cal (globalSetup uses harness up() + waitHealthy)."
-          echo "To enable Actions E2E, add secret CAL_E2E_BASE_URL (plus CAL_E2E_EMAIL / CAL_E2E_PASSWORD) and re-run workflow_dispatch."
+          {
+            echo "Product services are not in GitHub-hosted CI yet."
+            echo "Local green: npm run test:cal (globalSetup calls harness up() then polls GET /api/auth/csrf)."
+            echo "To enable Actions E2E, add secret CAL_E2E_BASE_URL (plus CAL_E2E_EMAIL / CAL_E2E_PASSWORD) and re-run workflow_dispatch."
+          } | tee -a "$GITHUB_STEP_SUMMARY"

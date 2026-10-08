@@ -1,12 +1,20 @@
-import { createPgClient, getAdapter } from "qa-portfolio-harness";
-import { calBaseUrl, calCsrfTimeoutMs, calUpDeadlineMs, calWarmupTimeoutMs, skipLiveCal } from "../src/env.js";
+import { getAdapter } from "qa-portfolio-harness";
+import { normalizeBaseUrl } from "../src/core/config.js";
+import { firstEventTypeId } from "../src/products/cal/db.js";
+import { loadConfig, skipLiveCal, timeouts } from "../src/products/cal/env.js";
+import {
+  CAL_ROUTES,
+  isEventTypeEditorPath,
+  PRO_THIRTY_MIN_SLUG,
+} from "../src/products/cal/routes.js";
 
 async function getStatus(url: string, timeoutMs: number): Promise<number | undefined> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
   try {
-    const ipv4 = url.replace("://localhost", "://127.0.0.1");
-    const response = await fetch(ipv4, {
+    const response = await fetch(url, {
       method: "GET",
       redirect: "manual",
       signal: controller.signal,
@@ -19,44 +27,32 @@ async function getStatus(url: string, timeoutMs: number): Promise<number | undef
   }
 }
 
-/** First EventType id so warmup can compile the editor route FW-003 navigates to. */
-async function warmupEventTypeId(): Promise<string | undefined> {
-  const fromEnv = process.env.CAL_WARMUP_EVENT_TYPE_ID?.trim();
-  if (fromEnv) return fromEnv;
-  try {
-    const adapter = getAdapter("cal");
-    const pool = createPgClient(adapter.dbUrl);
-    try {
-      const result = await pool.query<{ id: number }>(`SELECT id FROM "EventType" ORDER BY id ASC LIMIT 1`);
-      const id = result.rows[0]?.id;
-      return id === undefined ? undefined : String(id);
-    } finally {
-      await pool.end();
-    }
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.log(`Warmup event-type id lookup skipped (${detail}); using 1164.`);
-    return "1164";
-  }
-}
-
 async function warmupCalPages(baseUrl: string): Promise<void> {
-  const origin = baseUrl.replace(/\/$/, "").replace("://localhost", "://127.0.0.1");
-  const paths = ["/auth/login", "/pro/30min", "/bookings/upcoming", "/event-types"];
-  const editorId = await warmupEventTypeId();
-  if (editorId) {
-    paths.push(`/event-types/${editorId}`);
+  const origin = normalizeBaseUrl(baseUrl);
+  const paths = [
+    CAL_ROUTES.login,
+    CAL_ROUTES.publicBooker(PRO_THIRTY_MIN_SLUG.user, PRO_THIRTY_MIN_SLUG.event),
+    CAL_ROUTES.bookingsUpcoming,
+    CAL_ROUTES.eventTypes,
+  ];
+  if (loadConfig().webMode === "dev") {
+    const editorId = await firstEventTypeId();
+    if (editorId !== undefined) {
+      paths.push(CAL_ROUTES.eventTypeEditor(editorId));
+    }
   }
   for (const path of paths) {
     const started = Date.now();
-    const timeoutMs = calWarmupTimeoutMs(path);
+    const timeoutMs = isEventTypeEditorPath(path) ? timeouts().warmupEditor : timeouts().warmup;
     const status = await getStatus(`${origin}${path}`, timeoutMs);
-    console.log(`Warmup ${path} HTTP ${status ?? "fail"} in ${Date.now() - started}ms`);
+    console.log(
+      `Warmup ${path} HTTP ${status === undefined ? "fail" : String(status)} in ${String(Date.now() - started)}ms`,
+    );
   }
 }
 
 async function csrfStatus(baseUrl: string, timeoutMs: number): Promise<number | undefined> {
-  return getStatus(`${baseUrl.replace(/\/$/, "")}/api/auth/csrf`, timeoutMs);
+  return getStatus(`${normalizeBaseUrl(baseUrl)}${CAL_ROUTES.csrf}`, timeoutMs);
 }
 
 export default async function globalSetup(): Promise<void> {
@@ -65,35 +61,41 @@ export default async function globalSetup(): Promise<void> {
     return;
   }
 
-  process.env.CAL_BASE_URL ??= calBaseUrl();
-  process.env.PRODUCTS_ROOT ??= "../products";
+  const config = loadConfig();
+  process.env.CAL_BASE_URL ??= config.baseUrl;
+  process.env.PRODUCTS_ROOT ??= config.productsRoot;
 
-  const base = calBaseUrl();
-  const already = await csrfStatus(base, calCsrfTimeoutMs());
+  const already = await csrfStatus(config.baseUrl, timeouts().csrf);
   if (already === 200) {
-    console.log(`Cal already serving ${base}/api/auth/csrf (HTTP 200); skipping harness up().`);
-    await warmupCalPages(base);
+    console.log(
+      `Cal already serving ${config.baseUrl}${CAL_ROUTES.csrf} (HTTP 200); skipping harness up().`,
+    );
+    await warmupCalPages(config.baseUrl);
     return;
   }
 
   try {
     const adapter = getAdapter("cal");
     await adapter.up();
-    const deadline = Date.now() + calUpDeadlineMs();
-    let status = await csrfStatus(adapter.baseUrl, calCsrfTimeoutMs());
+    const deadline = Date.now() + timeouts().upDeadline;
+    let status = await csrfStatus(adapter.baseUrl, timeouts().csrf);
     while (status !== 200 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
-      status = await csrfStatus(adapter.baseUrl, calCsrfTimeoutMs());
+      await new Promise((resolve) => {
+        setTimeout(resolve, timeouts().healthPoll);
+      });
+      status = await csrfStatus(adapter.baseUrl, timeouts().csrf);
     }
     if (status !== 200) {
-      throw new Error(`GET /api/auth/csrf last status ${status ?? "unreachable"}`);
+      throw new Error(
+        `GET ${CAL_ROUTES.csrf} last status ${status === undefined ? "unreachable" : String(status)}`,
+      );
     }
     console.log(`Cal healthy at ${adapter.baseUrl} (${adapter.productRoot})`);
     await warmupCalPages(adapter.baseUrl);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Cal did not become healthy. From qa-portfolio-harness run: node scripts/up.mjs cal\n${detail}`,
+      "Cal did not become healthy. From qa-portfolio-harness run: node scripts/up.mjs cal",
+      { cause: error },
     );
   }
 }

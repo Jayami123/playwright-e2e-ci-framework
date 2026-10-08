@@ -2,19 +2,37 @@
   "name": "playwright-e2e-ci-framework",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@10.9.3",
   "scripts": {
     "test": "playwright test",
     "test:cal": "playwright test --project=cal-chromium",
+    "test:smoke": "playwright test --project=cal-chromium --grep @smoke",
+    "test:cal:headed": "playwright test --project=cal-chromium --headed",
+    "test:cal:debug": "playwright test --project=cal-chromium --debug",
     "report": "playwright show-report",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
+    "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22",
+    "@types/pg": "^8.23.1",
     "dotenv": "^16",
-    "typescript": "^5"
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-playwright": "^2.2.2",
+    "prettier": "^3.6.2",
+    "typescript": "^5",
+    "typescript-eslint": "^8.44.1"
   }
 }
