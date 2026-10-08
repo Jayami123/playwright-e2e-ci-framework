@@ -29,11 +29,11 @@ interface CalWorkerFixtures {
 export const test = base.extend<CalFixtures, CalWorkerFixtures>({
   factorySeed: [
     async ({}, use, workerInfo) => {
-      const base = parsePositiveInt(process.env.P1_SEED, Date.now());
-      const seed = base + workerInfo.parallelIndex;
+      const baseSeed = parsePositiveInt(process.env.P1_SEED, Date.now());
+      const seed = baseSeed + workerInfo.parallelIndex;
       setFactorySeed(seed);
       console.log(
-        `P1_SEED=${String(base)} worker=${String(workerInfo.parallelIndex)} seed=${String(seed)}`,
+        `P1_SEED=${String(baseSeed)} worker=${String(workerInfo.parallelIndex)} seed=${String(seed)}`,
       );
       await use(seed);
     },
