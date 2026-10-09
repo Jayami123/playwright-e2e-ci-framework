@@ -12,6 +12,8 @@ export interface BookingOracle {
 
 const BOOKING_CANCEL_REASON = "qa-e2e-teardown";
 
+export const BOOKING_SUCCESS_HTTP_STATUS = 200;
+
 function readCsrfToken(payload: unknown): string {
   if (typeof payload !== "object" || payload === null || !("csrfToken" in payload)) {
     throw new Error("CSRF response JSON did not include csrfToken");

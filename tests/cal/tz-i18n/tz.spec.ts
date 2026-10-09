@@ -1,4 +1,10 @@
-import { normalizeSlotLabel, toZonedLabel } from "../../../src/core/timezone.js";
+import { attachKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
+import {
+  civilDateToIso,
+  monthParam,
+  normalizeSlotLabel,
+  toZonedLabel,
+} from "../../../src/core/timezone.js";
 import { required } from "../../../src/core/required.js";
 import {
   actualSlotLabels,
@@ -107,7 +113,7 @@ test.describe("P1-CAL-TZ booker timezone", () => {
         ],
       },
 
-      async ({ booker }) => {
+      async ({ booker, page }, testInfo) => {
         test.setTimeout(timeouts().journey);
         const organiser = await readOrganiserAvailability(loadConfig().email);
         const result = await openWeekdaySlots({
@@ -118,6 +124,17 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           event: PRO_THIRTY_MIN_SLUG.event,
         });
         expect(result.slots.length).toBeGreaterThan(0);
+        await attachKnownBugEvidence(page, testInfo, {
+          issue: TZ003_KATHMANDU_ISSUE,
+          observed: {
+            slotIsos: result.slots.map((slot) => slot.iso),
+            slotLabels: actualSlotLabels(result.slots),
+          },
+          expected: {
+            slotIsos: result.expectedEntries.map((entry) => entry.instant.toISOString()),
+            slotLabels: [...result.expectedLabels],
+          },
+        });
         test.fail(true, TZ003_KATHMANDU_ISSUE);
         expectHalfHourOffsetGrid(result, organiser.timeZone);
       },
@@ -186,8 +203,12 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           ).toBe(expectedNy);
         });
 
-        await test.step("reload keeps America/New_York selected and first label", async () => {
-          await booker.reload();
+        await test.step("re-open the same day keeps America/New_York selected and first label", async () => {
+          await booker.gotoUserEvent(PRO_THIRTY_MIN_SLUG.user, PRO_THIRTY_MIN_SLUG.event, {
+            month: monthParam(opened.date),
+            date: civilDateToIso(opened.date),
+          });
+          await booker.expectLoaded();
           await expect(booker.timezoneSelectRoot).toContainText(/America\/New_York|New York/i);
           const afterReload = await booker.readSlots();
           const expectedNy = toZonedLabel(opened.expectedFirstInstant, NEW_YORK_TZ);
