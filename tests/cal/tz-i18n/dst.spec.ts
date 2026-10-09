@@ -29,6 +29,10 @@ import {
   SLOT_STEP_MINUTES,
   US_SPRING_FORWARD_PHANTOM_HOUR_LABEL,
 } from "../../../src/products/cal/schedules.js";
+import {
+  euSpringForwardControlSunday,
+  organiserMidnightEarlySlotIsos,
+} from "../../../src/products/cal/dst-dates.js";
 import { LONDON_TZ, NEW_YORK_TZ, SYDNEY_TZ } from "../../../src/products/cal/timezones.js";
 
 const DST002_ISSUE =
@@ -36,11 +40,6 @@ const DST002_ISSUE =
 
 const DST003_ISSUE =
   "P7-OBS-CAL-DST-003: on EU spring-forward Sunday Cal lists organiser slots one hour early (pre-midnight Saturday GMT); evidence data-time 2027-03-27T23:00:00.000Z, 2027-03-27T23:30:00.000Z";
-
-/** Third Sunday of March 2027 (not EU spring-forward; that is 2027-03-28). */
-const EU_CONTROL_SUNDAY: CivilDate = { year: 2027, month: 3, day: 21 };
-
-const DST003_EARLY_SLOT_ISO = ["2027-03-27T23:00:00.000Z", "2027-03-27T23:30:00.000Z"] as const;
 
 function usSpringForwardSundayAfterLead(): CivilDate {
   const today = civilDateFromInstant(new Date(), NEW_YORK_TZ);
@@ -155,6 +154,7 @@ test.describe("P1-CAL-DST", () => {
     async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
       test.setTimeout(timeouts().isolatedJourney);
       const date = euSpringForwardSundayAfterLead();
+      const expectedEarlyIsos = organiserMidnightEarlySlotIsos(date, LONDON_TZ);
       const provisioned = await isolatedSundayEvent.provision({
         scheduleTimeZone: LONDON_TZ,
         overnight: true,
@@ -183,9 +183,9 @@ test.describe("P1-CAL-DST", () => {
         notBefore: BOOKING_NOTICE_EPOCH,
       });
       const earlyIsos = slots
-        .filter((slot) => (DST003_EARLY_SLOT_ISO as readonly string[]).includes(slot.iso))
+        .filter((slot) => expectedEarlyIsos.includes(slot.iso))
         .map((slot) => slot.iso);
-      expect(earlyIsos).toEqual([...DST003_EARLY_SLOT_ISO]);
+      expect(earlyIsos).toEqual([...expectedEarlyIsos]);
       test.fail(true, DST003_ISSUE);
       expect(actualLabels).toEqual(expectedLabels);
     },
@@ -202,6 +202,9 @@ test.describe("P1-CAL-DST", () => {
     },
     async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
       test.setTimeout(timeouts().isolatedJourney);
+      const euSpringForwardSunday = euSpringForwardSundayAfterLead();
+      const controlDate = euSpringForwardControlSunday(euSpringForwardSunday);
+      const expectedEarlyIsos = organiserMidnightEarlySlotIsos(euSpringForwardSunday, LONDON_TZ);
       const provisioned = await isolatedSundayEvent.provision({
         scheduleTimeZone: LONDON_TZ,
         overnight: true,
@@ -209,8 +212,8 @@ test.describe("P1-CAL-DST", () => {
       const guest = await guestBooker(SYDNEY_TZ);
       isolatedSundayEvent.trackGuest();
       await guest.booker.gotoUserEvent(dstOrganiser.username, provisioned.slug, {
-        month: monthParam(EU_CONTROL_SUNDAY),
-        date: civilDateToIso(EU_CONTROL_SUNDAY),
+        month: monthParam(controlDate),
+        date: civilDateToIso(controlDate),
       });
       await guest.booker.expectLoaded();
       const slots = await guest.booker.readSlots();
@@ -218,7 +221,7 @@ test.describe("P1-CAL-DST", () => {
       const expectedLabels = expectedSlotLabelsForViewerDay({
         organiserTimeZone: LONDON_TZ,
         viewerTimeZone: SYDNEY_TZ,
-        viewerDate: EU_CONTROL_SUNDAY,
+        viewerDate: controlDate,
         windows: [
           {
             days: [WEEKDAY.sunday],
@@ -230,7 +233,7 @@ test.describe("P1-CAL-DST", () => {
         notBefore: BOOKING_NOTICE_EPOCH,
       });
       const earlyIsos = slots
-        .filter((slot) => (DST003_EARLY_SLOT_ISO as readonly string[]).includes(slot.iso))
+        .filter((slot) => expectedEarlyIsos.includes(slot.iso))
         .map((slot) => slot.iso);
       expect(earlyIsos).toEqual([]);
       expect(actualLabels).toEqual(expectedLabels);
