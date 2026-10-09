@@ -47,7 +47,7 @@ TZ switcher persistence: `timePreferencesStore` writes `localStorage["timeOption
 
 TZ-003 (Kathmandu +05:45 / Adelaide): full-list `toEqual` against `expectedSlotLabelsForViewerDay`, uniqueness, 30-minute spacing **within each organiser-day group** (Adelaide spillover leaves a legitimate cross-day gap), and per-slot grid alignment vs Intl entries. Kathmandu calls **`test.fail` only after** slots are loaded (not during DB/setup). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
 
-**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back; `playwright/no-raw-locators` has a **rule gap** (only string literals are flagged), so the POM uses an inline comment rather than an unused `eslint-disable`. Next.js dev overlay uses `nextjs-portal` with one disable in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers use documented `nth(0)` / `nth(1)` on the range row because Cal LazySelect comboboxes have no accessible name (possible Cal a11y finding for P7). Event types **New** uses `getByRole("main").getByTestId("new-event-type")` (two unscoped matches on the page). Schedule delete uses `getByTestId("schedules")` → `listitem` filtered by schedule link name → `schedule-more`.
+**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back; `playwright/no-raw-locators` has a **rule gap** (only string literals are flagged), so the POM uses an inline comment rather than an unused `eslint-disable`. Next.js dev overlay uses `nextjs-portal` with one disable in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers use documented `nth(0)` / `nth(1)` on the range row because Cal LazySelect comboboxes have no accessible name (possible Cal a11y finding for P7). Event types **New** uses `getByRole("main").getByTestId("new-event-type").filter({ visible: true })` (Cal renders duplicate anchors in CI; the hidden copy is outside the visible main tree). **Set as default** on the schedule editor uses `getByRole("switch", { name: /set to default/i }).filter({ visible: true })` (Cal labels the control via `<Label htmlFor="hiddenSwitch">`; possible duplicate `id="hiddenSwitch"` on desktop vs mobile layouts — **unverified**, P7). Schedule delete uses `getByTestId("schedules")` → `listitem` filtered by schedule link name → `schedule-more`.
 
 ## Server-side oracle (TZ-002, DST-002)
 
@@ -62,7 +62,7 @@ Both must equal the **Intl-computed** expected instant for the chosen viewer day
 
 ## DST dates vs booking window
 
-`periodType=unlimited` means March 2027 is in range. `minimumBookingNotice=120` only drops slots inside the notice window; TZ-001 picks the first weekday at least **`MIN_LEAD_DAYS` (2)** ahead in the viewer TZ with no accepted/pending bookings (read-only booking query).
+`periodType=unlimited` means March 2027 is in range. `minimumBookingNotice=120` only drops slots inside the notice window; TZ-001 and TZ-002 pick the first weekday at least **`MIN_LEAD_DAYS` (2)** ahead (or the booking-window offset for TZ-002) in the viewer TZ with no organiser **busy time** in that viewer day: accepted/pending `Booking` rows plus unreleased `SelectedSlots` (`releaseAt > now()`, Cal slot hold ~5 minutes).
 
 DST transition dates use `nextTransitionStrictlyAfterLeadDays` (strictly after today + `MIN_LEAD_DAYS`), not “on or after today”.
 
@@ -78,7 +78,7 @@ Example transitions from 2026-10-08 with lead days applied in specs:
 
 DST-002 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-002: …" }`. The spec still asserts booking the **first** 1:30am slot (EDT instant from `fromZonedCivil`) and matching DB/success UI; observed on harness Cal `v6.2.0-sh`: both 1:30am instants list and `POST /api/book/event` returns HTTP 409 `no_available_users_found_error`. No fallback slots.
 
-DST-003 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-003: …" }` after slots load. Cal lists `2027-03-27T23:00:00.000Z` / `2027-03-27T23:30:00.000Z` on EU spring-forward Sunday (outside Sunday 00:00–17:00 London); control **P1-CAL-DST-003-control** on 2027-03-21 must pass. See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
+DST-003 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-003: …" }` after slots load. Early-slot evidence ISOs are derived from organiser local midnight on the computed EU spring-forward Sunday minus 60/30 minutes (`organiserMidnightEarlySlotIsos`); for 2027-03-28 that is `2027-03-27T23:00:00.000Z` / `2027-03-27T23:30:00.000Z` (outside Sunday 00:00–17:00 London). Control **P1-CAL-DST-003-control** uses the Sunday one week earlier (`euSpringForwardControlSunday`). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
 
 ## Data isolation
 

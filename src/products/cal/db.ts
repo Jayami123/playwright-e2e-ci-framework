@@ -216,13 +216,13 @@ export async function readBookingStartUtc(uid: string): Promise<Date> {
   });
 }
 
-export async function organiserHasBlockingBookingsBetween(
+export async function organiserHasBusyTimeBetween(
   email: string,
   rangeStartUtc: Date,
   rangeEndUtc: Date,
 ): Promise<boolean> {
   return withCalPool(async (pool) => {
-    const result = await pool.query<{ count: string }>(
+    const bookingResult = await pool.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
        FROM "Booking" b
        JOIN users u ON b."userId" = u.id
@@ -232,11 +232,25 @@ export async function organiserHasBlockingBookingsBetween(
          AND b."startTime" < $3`,
       [email, rangeStartUtc.toISOString(), rangeEndUtc.toISOString()],
     );
-    const count = result.rows[0]?.count;
-    if (count === undefined) {
+    const bookingCount = bookingResult.rows[0]?.count;
+    if (bookingCount === undefined) {
       throw new Error("Booking count query returned no row");
     }
-    return Number(count) > 0;
+    const slotResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM "SelectedSlots" ss
+       JOIN users u ON ss."userId" = u.id
+       WHERE u.email = $1
+         AND ss."releaseAt" > NOW()
+         AND ss."slotUtcStartDate" >= $2
+         AND ss."slotUtcStartDate" < $3`,
+      [email, rangeStartUtc.toISOString(), rangeEndUtc.toISOString()],
+    );
+    const slotCount = slotResult.rows[0]?.count;
+    if (slotCount === undefined) {
+      throw new Error("SelectedSlots count query returned no row");
+    }
+    return Number(bookingCount) > 0 || Number(slotCount) > 0;
   });
 }
 
@@ -283,17 +297,13 @@ export async function firstViewerWeekdayWithoutBookings(options: {
       continue;
     }
     const { startUtc, endUtc } = viewerWeekdayUtcRange(cursor, options.viewerTimeZone);
-    const blocked = await organiserHasBlockingBookingsBetween(
-      options.organiserEmail,
-      startUtc,
-      endUtc,
-    );
+    const blocked = await organiserHasBusyTimeBetween(options.organiserEmail, startUtc, endUtc);
     if (!blocked) {
       return cursor;
     }
     cursor = addDays(cursor, 1);
   }
   throw new Error(
-    `No weekday without accepted/pending bookings within ${String(options.maxAttempts)} attempts from lead ${String(options.minLeadDays)}`,
+    `No weekday without organiser busy time (bookings or held slots) within ${String(options.maxAttempts)} attempts from lead ${String(options.minLeadDays)}`,
   );
 }

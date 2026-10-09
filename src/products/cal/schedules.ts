@@ -11,8 +11,6 @@ export const SUNDAY_AVAILABILITY_END_MINUTES = 17 * 60;
 
 export const MIN_LEAD_DAYS = 2 as const;
 export const BOOKING_DATE_WINDOW_BASE_DAYS = 90 as const;
-/** Spread TZ-002 booking days across local re-runs (P1_SEED changes each Playwright invocation). */
-export const BOOKING_WINDOW_SEED_JITTER_MODULO = 14 as const;
 export const WEEKDAY_SEARCH_ATTEMPTS = 14 as const;
 export const SLOT_STEP_MINUTES = 30 as const;
 export const MINUTES_TO_MS = 60 * 1000;
