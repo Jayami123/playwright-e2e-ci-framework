@@ -131,11 +131,7 @@ export class AvailabilityPage extends BasePage {
   }
 
   private setAsDefaultSwitch(): Locator {
-    // Day toggles use `${Weekday}-switch`; the default switch has no data-testid (Cal harness UI).
-    // eslint-disable-next-line playwright/no-raw-locators -- only non-day switch in schedule editor main
-    return this.page
-      .getByRole("main")
-      .locator('button[role="switch"]:not([data-testid$="-switch"])');
+    return this.page.getByRole("switch", { name: /set to default/i }).filter({ visible: true });
   }
 
   private bulkScheduleUpdateDialog(): Locator {

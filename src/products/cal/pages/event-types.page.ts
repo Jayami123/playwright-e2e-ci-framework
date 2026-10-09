@@ -18,8 +18,10 @@ export class EventTypesPage extends BasePage {
     super(page);
     this.shell = new CalAppShell(page);
     this.heading = page.getByRole("heading", { name: /event types/i });
-    // eslint-disable-next-line playwright/no-raw-locators -- Cal `<main>` is not exposed as role=main in the a11y tree; unscoped test id matches twice in CI
-    this.newEventType = page.locator("main").getByTestId(CAL_TEST_IDS.newEventType);
+    this.newEventType = page
+      .getByRole("main")
+      .getByTestId(CAL_TEST_IDS.newEventType)
+      .filter({ visible: true });
     this.titleField = page.getByTestId(CAL_TEST_IDS.eventTypeQuickChat);
     this.durationField = page.getByLabel(/duration/i);
     this.continueButton = page.getByRole("button", { name: /continue/i });
