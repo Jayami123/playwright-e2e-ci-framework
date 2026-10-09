@@ -17,4 +17,11 @@ export const CAL_TEST_IDS = {
   updateEventType: "update-eventtype",
   scheduleMore: "schedule-more",
   deleteSchedule: "delete-schedule",
+  loginForm: "login-form",
+  loginSubtitle: "login-subtitle",
+  twoFactorSwitch: "two-factor-switch",
+  twoFactorSecret: "two-factor-secret",
+  gotoOtpScreen: "goto-otp-screen",
+  enable2fa: "enable-2fa",
+  backupCodesClose: "backup-codes-close",
 } as const;

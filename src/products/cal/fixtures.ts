@@ -24,6 +24,7 @@ import {
   teardownCalQaUserById,
 } from "./qa-user.js";
 import { EventTypesPage } from "./pages/event-types.page.js";
+import { TwoFactorSettingsPage } from "./pages/two-factor-settings.page.js";
 import { BookingsPage } from "./pages/bookings.page.js";
 import { BookerPage } from "./pages/booker.page.js";
 import { AvailabilityPage } from "./pages/availability.page.js";
@@ -98,21 +99,36 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
   twoFactorEnrol: ["api", { option: true }],
 
   twoFactorUser: async ({ page, twoFactorEnrol }, use, testInfo) => {
-    if (twoFactorEnrol === "ui") {
-      throw new Error("UI 2FA enrolment requires TwoFactorSettingsPage");
-    }
     const identity = qaCalUser(testInfo.parallelIndex);
     let userId: number | undefined;
     const teardownErrors: unknown[] = [];
+    let testError: unknown;
     try {
       const created = await createCalQaUser(identity);
       userId = created.id;
       await loginCalWithCredentials(page, created.email, identity.password);
       const epochMs = Date.now();
       assertTotpBudget({ epochMs, neededMs: 25_000 });
-      const setup = await setupCalTotpViaApi(page.request, identity.password);
-      const code = generateTotpCode(setup.secret, epochMs);
-      await enableCalTotpViaApi(page.request, code);
+      let secret: string;
+      let backupCodes: readonly string[];
+      if (twoFactorEnrol === "ui") {
+        const settings = new TwoFactorSettingsPage(page);
+        await settings.goto();
+        await settings.openEnableDialog();
+        await settings.confirmPasswordAndContinue(identity.password);
+        secret = await settings.readSecretFromDialog();
+        await settings.continueToOtpEntry();
+        const enrolCode = generateTotpCode(secret, epochMs);
+        await settings.enterEnrolmentTotp(enrolCode);
+        backupCodes = [];
+        await settings.closeBackupCodesDialog();
+      } else {
+        const setup = await setupCalTotpViaApi(page.request, identity.password);
+        secret = setup.secret;
+        backupCodes = setup.backupCodes;
+        const code = generateTotpCode(secret, epochMs);
+        await enableCalTotpViaApi(page.request, code);
+      }
       const dbState = await readTwoFactorState(created.id);
       if (!dbState.twoFactorEnabled) {
         throw new Error(`twoFactorUser fixture: twoFactorEnabled false for id=${String(created.id)}`);
@@ -123,10 +139,12 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
         username: created.username,
         name: created.name,
         password: identity.password,
-        secret: setup.secret,
-        backupCodes: setup.backupCodes,
+        secret,
+        backupCodes,
         formatBackupCode,
       });
+    } catch (error) {
+      testError = error;
     } finally {
       if (userId !== undefined) {
         try {
@@ -135,9 +153,12 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
           teardownErrors.push(error);
         }
       }
-      if (teardownErrors.length > 0) {
-        throw new AggregateError(teardownErrors, "twoFactorUser teardown failed");
-      }
+    }
+    if (teardownErrors.length > 0) {
+      throw new AggregateError(teardownErrors, "twoFactorUser teardown failed");
+    }
+    if (testError !== undefined) {
+      throw testError;
     }
   },
 
