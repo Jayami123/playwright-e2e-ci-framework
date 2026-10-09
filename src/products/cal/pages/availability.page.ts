@@ -6,7 +6,7 @@ import { CalAppShell } from "../app-shell.js";
 import { timeouts } from "../env.js";
 import { CAL_ROUTES } from "../routes.js";
 import { CAL_TEST_IDS } from "../testIds.js";
-import { readScheduleEditorPathByName } from "../db.js";
+import { readDefaultScheduleName, readScheduleEditorPathByName } from "../db.js";
 import { WORKING_HOURS_SCHEDULE_NAME } from "../schedules.js";
 
 export class AvailabilityPage extends BasePage {
@@ -140,15 +140,13 @@ export class AvailabilityPage extends BasePage {
   async setAsDefault(): Promise<void> {
     const toggle = this.setAsDefaultSwitch();
     await expect(toggle).toBeVisible({ timeout: timeouts().page });
-    const priorState = await toggle.getAttribute("data-state");
     await toggle.setChecked(true);
-    if (priorState === "unchecked") {
-      const update = this.page.getByRole("button", { name: /^update$/i });
-      await expect(update).toBeVisible({ timeout: timeouts().page });
-      await update.click();
-      await expect(update).toHaveCount(0, { timeout: timeouts().page });
-    }
     await expect(toggle).toBeChecked({ timeout: timeouts().page });
+    const update = this.page.getByRole("button", { name: /^update$/i });
+    await expect(update).toBeVisible({ timeout: timeouts().page });
+    await expect(update).toBeEnabled({ timeout: timeouts().page });
+    await update.click();
+    await expect(update).toHaveCount(0, { timeout: timeouts().page });
   }
 
   async save(): Promise<void> {
@@ -182,13 +180,12 @@ export class AvailabilityPage extends BasePage {
   }
 
   async promoteWorkingHoursDefault(ownerEmail: string): Promise<void> {
-    await this.openByName(WORKING_HOURS_SCHEDULE_NAME, { ownerEmail });
-    const saveButton = this.page.getByRole("button", { name: /^save$/i });
-    await expect(saveButton).toBeVisible({ timeout: timeouts().page });
-    if (await saveButton.isEnabled()) {
-      await this.setAsDefault();
-      await this.save();
+    const currentDefault = await readDefaultScheduleName(ownerEmail);
+    if (currentDefault === WORKING_HOURS_SCHEDULE_NAME) {
+      return;
     }
+    await this.openByName(WORKING_HOURS_SCHEDULE_NAME, { ownerEmail });
+    await this.setAsDefault();
   }
 
   async deleteByName(

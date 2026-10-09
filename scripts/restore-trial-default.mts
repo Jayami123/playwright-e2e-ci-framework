@@ -14,14 +14,10 @@ async function main(): Promise<void> {
     await installTimezoneHandler(page);
     await page.goto("/");
     await loginCalWithCredentials(page, dstEmail, dstPassword);
-    await page
-      .getByRole("button", { name: /don.?t update/i })
-      .click({ timeout: 5_000 })
-      .catch(() => undefined);
     await new CalAppShell(page).waitUntilReady();
     const availability = new AvailabilityPage(page);
-    await availability.deleteQaSchedules();
     await availability.promoteWorkingHoursDefault(dstEmail);
+    await availability.deleteQaSchedules();
     await context.close();
     console.log("Restored trial default schedule and removed sch-qa-* schedules.");
   } finally {

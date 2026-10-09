@@ -117,6 +117,28 @@ export async function readOrganiserAvailability(email: string): Promise<Organise
   });
 }
 
+export async function readDefaultScheduleName(email: string): Promise<string> {
+  return withCalPool(async (pool) => {
+    const result = await pool.query<{ name: string }>(
+      `SELECT s.name
+       FROM users u
+       JOIN "Schedule" s
+         ON s.id = COALESCE(
+           u."defaultScheduleId",
+           (SELECT s2.id FROM "Schedule" s2 WHERE s2."userId" = u.id ORDER BY s2.id ASC LIMIT 1)
+         )
+       WHERE u.email = $1
+       LIMIT 1`,
+      [email],
+    );
+    const name = result.rows[0]?.name;
+    if (name === undefined) {
+      throw new Error(`No default schedule found for ${email}`);
+    }
+    return name;
+  });
+}
+
 export async function readScheduleEditorPathByName(
   email: string,
   scheduleName: string,
