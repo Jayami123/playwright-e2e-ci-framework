@@ -8,7 +8,7 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 Cal.com / Cal.diy only today: auth `storageState`, FW plus timezone/DST booker tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
 
-**11 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`. Two TZ/DST cases are **`test.fail`** until known Cal issues are fixed (Kathmandu TZ-003, US fall-back DST-002); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md).
+**11 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`. Three TZ/DST cases are **`test.fail`** until known Cal issues are fixed (DST-002, DST-003, TZ-003 Kathmandu); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md).
 
 Later suites (not in this repo yet): Documenso, Medusa, Twenty; 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
 
@@ -84,12 +84,12 @@ npm run report
 
 ## Debug
 
-| Command                            | What it does                           |
-| ---------------------------------- | -------------------------------------- |
-| `npm run test:cal:headed`          | Chromium headed                        |
-| `npm run test:cal:debug`           | Playwright Inspector                   |
-| `npx playwright test --ui`         | UI mode                                |
-| `npx playwright show-trace <path>` | Trace viewer (`trace: on-first-retry`) |
+| Command                            | What it does                              |
+| ---------------------------------- | ----------------------------------------- |
+| `npm run test:cal:headed`          | Chromium headed                           |
+| `npm run test:cal:debug`           | Playwright Inspector                      |
+| `npx playwright test --ui`         | UI mode                                   |
+| `npx playwright show-trace <path>` | Trace viewer (`trace: retain-on-failure`) |
 
 ## Implemented P1 cases
 
@@ -115,12 +115,12 @@ npm run report
 
 **E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
 
-| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Set                       | `cal-chromium` shards 1–4 against that URL, then `merge Playwright HTML report`.                                                                                                                                                         |
-| Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed credentials from workflow env only). |
+| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Set                       | `cal-chromium` shards 1–4 against that URL, then merge Playwright HTML report (job names say they skip without `CAL_E2E_BASE_URL`).                                                                                                  |
+| Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed passwords only on the E2E step). |
 
-Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`.
+Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`. CI reporters are blob, github, list, JUnit (`test-results/junit.xml`), and JSON (`test-results/results.json`). A job-summary step (`if: ${{ !cancelled() }}`) writes passed / failed / flaky / expected-failure totals and lists known product bugs from that JSON.
 
 **Typical durations** (first run, cold caches; [run 37787015928](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/37787015928) `cal-self-hosted`): job 7m 9s; Cal yarn install 2m52s; DB migrate+seed 32s; tRPC types (turbo) 40s; next build ~83s (compiled 43s, TypeScript 36.3s, 88/88 static pages); 5 tests ~10s. Warm ([run 37792386085](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/37792386085) attempt 2, `cal-self-hosted`, `.next` cache hit): job 5m 23s; Cal yarn install 2m49s (Yarn cache hit); Postgres pull+start ~21s; DB migrate+seed 49s; tRPC types and next build skipped (`.next` cache hit, `harness-build.json` matched Cal HEAD); next start ready ~8s; 5 tests ~15s.
 

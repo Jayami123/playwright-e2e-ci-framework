@@ -12,10 +12,12 @@ import {
   WEEKDAY,
   type CivilDate,
 } from "../../../src/core/timezone.js";
+import { attachKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
 import { required } from "../../../src/core/required.js";
 import { timeouts } from "../../../src/products/cal/env.js";
 import { expect, test } from "../../../src/products/cal/fixtures.js";
 import {
+  BOOKING_SUCCESS_HTTP_STATUS,
   expectClickedSlotMatchesInstant,
   readBookingOracle,
 } from "../../../src/products/cal/oracle.js";
@@ -110,7 +112,7 @@ test.describe("P1-CAL-DST", () => {
         { type: "issue", description: DST002_ISSUE },
       ],
     },
-    async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
+    async ({ dstOrganiser, guestBooker, isolatedSundayEvent }, testInfo) => {
       test.setTimeout(timeouts().isolatedJourney);
       const date = usFallBackSundayAfterLead();
       const provisioned = await isolatedSundayEvent.provision({
@@ -129,9 +131,21 @@ test.describe("P1-CAL-DST", () => {
         .filter((slot) => normalizeSlotLabel(slot.label) === FALL_BACK_ONE_THIRTY_AM_LABEL)
         .slice()
         .sort((left, right) => left.iso.localeCompare(right.iso));
-      test.fail(true, DST002_ISSUE);
-      expect(oneThirty.length).toBeGreaterThan(0);
       const edtInstant = fromZonedCivil(NEW_YORK_TZ, { ...date, hour: 1, minute: 30 });
+      expect(oneThirty.length).toBeGreaterThan(0);
+      await attachKnownBugEvidence(guest.page, testInfo, {
+        issue: DST002_ISSUE,
+        observed: {
+          oneThirtyIsos: oneThirty.map((slot) => slot.iso),
+          oneThirtyLabels: oneThirty.map((slot) => normalizeSlotLabel(slot.label)),
+          slotCount: slots.length,
+        },
+        expected: {
+          firstOneThirtyIso: edtInstant.toISOString(),
+          bookingHttpStatus: BOOKING_SUCCESS_HTTP_STATUS,
+        },
+      });
+      test.fail(true, DST002_ISSUE);
       const first = required(oneThirty[0], "missing first 1:30am slot");
       expectClickedSlotMatchesInstant(first.iso, edtInstant);
       await guest.booker.selectSlotByIso(first.iso);
@@ -151,7 +165,7 @@ test.describe("P1-CAL-DST", () => {
         { type: "issue", description: DST003_ISSUE },
       ],
     },
-    async ({ dstOrganiser, guestBooker, isolatedSundayEvent }) => {
+    async ({ dstOrganiser, guestBooker, isolatedSundayEvent }, testInfo) => {
       test.setTimeout(timeouts().isolatedJourney);
       const date = euSpringForwardSundayAfterLead();
       const expectedEarlyIsos = organiserMidnightEarlySlotIsos(date, LONDON_TZ);
@@ -185,7 +199,18 @@ test.describe("P1-CAL-DST", () => {
       const earlyIsos = slots
         .filter((slot) => expectedEarlyIsos.includes(slot.iso))
         .map((slot) => slot.iso);
-      expect(earlyIsos).toEqual([...expectedEarlyIsos]);
+      await attachKnownBugEvidence(guest.page, testInfo, {
+        issue: DST003_ISSUE,
+        observed: {
+          slotIsos: slots.map((slot) => slot.iso),
+          slotLabels: actualLabels,
+          earlyIsos,
+        },
+        expected: {
+          slotLabels: [...expectedLabels],
+          earlyIsos: [],
+        },
+      });
       test.fail(true, DST003_ISSUE);
       expect(actualLabels).toEqual(expectedLabels);
     },

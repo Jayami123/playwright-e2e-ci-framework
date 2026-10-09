@@ -15,7 +15,10 @@ import {
   toZonedLabel,
   WEEKDAY,
 } from "../../src/core/timezone.js";
-import { organiserMidnightEarlySlotIsos } from "../../src/products/cal/dst-dates.js";
+import {
+  euSpringForwardControlSunday,
+  organiserMidnightEarlySlotIsos,
+} from "../../src/products/cal/dst-dates.js";
 import { BOOKING_NOTICE_EPOCH, MIN_LEAD_DAYS } from "../../src/products/cal/schedules.js";
 import {
   ADELAIDE_TZ,
@@ -69,6 +72,11 @@ test.describe("timezone helpers", () => {
       ]);
     },
   );
+
+  test("derives DST-003 control Sunday for 2027 as 2027-03-21", { tag: ["@unit", "@tz"] }, () => {
+    const euSpringForward2027 = lastWeekdayOfMonth(2027, 3, WEEKDAY.sunday);
+    expect(civilDateToIso(euSpringForwardControlSunday(euSpringForward2027))).toBe("2027-03-21");
+  });
 
   test("when today is the DST Sunday, transition is next year", { tag: ["@unit", "@tz"] }, () => {
     const fallBackSunday = { year: 2026, month: 11, day: 1 };

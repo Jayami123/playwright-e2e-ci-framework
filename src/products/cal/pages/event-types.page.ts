@@ -135,8 +135,10 @@ export class EventTypesPage extends BasePage {
   ): Promise<void> {
     await this.goto();
     const link = this.eventTypeLink(title);
-    if (options?.tolerateMissing === true && !(await link.isVisible())) {
-      return;
+    if (options?.tolerateMissing === true) {
+      if ((await link.count()) === 0) {
+        return;
+      }
     }
     await expect(link, `Event type "${title}" not found for delete`).toBeVisible({
       timeout: timeouts().page,

@@ -78,11 +78,6 @@ export class BookerPage extends BasePage {
     await expect(this.container).toBeVisible({ timeout: timeouts().page });
   }
 
-  async reload(): Promise<void> {
-    await this.page.reload({ waitUntil: "domcontentloaded" });
-    await this.expectLoaded();
-  }
-
   async readSlots(): Promise<readonly SlotView[]> {
     await expect(this.slotButtons()).not.toHaveCount(0, { timeout: timeouts().page });
     const slots = await this.slotButtons().evaluateAll((elements: readonly SlotDom[]) =>

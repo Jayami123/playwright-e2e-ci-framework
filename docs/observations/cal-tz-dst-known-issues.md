@@ -1,6 +1,6 @@
 # Cal TZ/DST known product issues (Phase 2a)
 
-Recorded for portfolio test cases P1-CAL-TZ-003 (Kathmandu) and P1-CAL-DST-002 (US fall-back 01:30). These are marked with Playwright `test.fail` and `{ type: "issue" }` annotations, not silent observations.
+Recorded for portfolio test cases P1-CAL-DST-002 (US fall-back 01:30), P1-CAL-DST-003 (EU spring-forward cross-hemisphere labels), and P1-CAL-TZ-003 (Kathmandu). These are marked with Playwright `test.fail` and `{ type: "issue" }` annotations, not silent observations. Each attaches a full-page screenshot and observed-vs-expected JSON before the strict assertion.
 
 ## P7-OBS-CAL-TZ-003
 
