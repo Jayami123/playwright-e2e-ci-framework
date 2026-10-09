@@ -10,7 +10,7 @@ Phase 2c runs P1-CAL-TZ-001..004 and P1-CAL-2FA-001..003 on Firefox and WebKit i
 ## Decision
 
 - **Playwright projects:** `cal-firefox` (`Desktop Firefox`) and `cal-webkit` (`Desktop Safari`), both `dependencies: ["cal-setup"]`, `testDir: ./tests/cal`, `grep: /@tz|@2fa/`, same Chrome-issued `storageState` as `cal-chromium` when the harness is live. One `cal-setup` avoids triple seed login; cookies are origin-scoped to `127.0.0.1`.
-- **Scripts:** `npm run test:cal:firefox`, `test:cal:webkit`, `test:cal:matrix` (both matrix projects locally).
+- **Scripts:** `npm run test:cal:firefox`, `test:cal:webkit`, `test:cal:matrix` (Firefox + WebKit; nightly/dispatch on Linux). **Windows local hard gate:** `test:cal` then `test:cal:firefox` only — skip WebKit on Windows.
 - **TZ-002 isolation:** `BOOKING_WINDOW_OFFSET_BY_PROJECT` adds `cal-firefox: 7` and `cal-webkit: 14` days on the shared 90-day booking window so three TZ-002 bookings in one nightly job do not collide on `SelectedSlots`.
 - **Flaky policy:** `failOnFlakyTests: Boolean(process.env.CI)` on PR and nightly. A retry-then-pass is a red step when `CI` is set.
 - **CI artifacts:** When `run_browser_matrix` is true, each engine sets `P1_PW_REPORT_ID` (`chromium`, `firefox`, `webkit`) so JSON/JUnit/blob paths are suffixed; job summary headings include browser label and wall-clock seconds; uploads are `playwright-report-<id>` and `playwright-test-results-<id>`. Unset `P1_PW_REPORT_ID` keeps PR artifact names unchanged.
@@ -31,7 +31,9 @@ Playwright **1.63.0**. Firefox 155 (`firefox-1543`) and WebKit 26.6 (`webkit-235
 | Slot `getByTestId("time")`                                   | 14 on fixed Oct 2026 day (prior probe)                     | not verified                       | not verified                       |
 | 2FA OTP focus after Submit                                   | `keyboard.type` path ([ADR 0007](0007-cal-2fa-testing.md)) | not verified                       | not verified                       |
 
-**Caveat:** Local probes on a fixed `?date=` booker URL timed out on Windows; dynamic `openFirstAvailabilitySlot` in specs is the authoritative booker path. **Linux CI WebKit** may differ from Windows Playwright WebKit; treat dispatch logs as source of truth for nightly.
+**Windows WebKit (2026-10-09):** Playwright WebKit on **win32** cannot render Cal’s booker — `getByTestId('booker-container')` stayed hidden for 60s+ on `/pro/30min` while Chromium/Firefox on the same host were fine. Treat as **environment** (Windows WebKit build), not a Cal product defect. **WebKit is verified only on Linux CI** (`test:cal:webkit` / matrix dispatch); do not gate Windows PRs on WebKit.
+
+**Caveat:** Dynamic `openFirstAvailabilitySlot` in specs is the authoritative booker path. Treat nightly/dispatch logs as source of truth for WebKit.
 
 ## Consequences
 
