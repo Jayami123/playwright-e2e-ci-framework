@@ -1,0 +1,5 @@
+# Default review for all paths
+* @Jayami123
+
+# CI and governance files affect every merge; request review explicitly
+/.github/ @Jayami123
