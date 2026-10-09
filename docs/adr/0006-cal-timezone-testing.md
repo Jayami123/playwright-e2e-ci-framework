@@ -47,7 +47,7 @@ TZ switcher persistence: `timePreferencesStore` writes `localStorage["timeOption
 
 TZ-003 (Kathmandu +05:45 / Adelaide): full-list `toEqual` against `expectedSlotLabelsForViewerDay`, uniqueness, 30-minute spacing **within each organiser-day group** (Adelaide spillover leaves a legitimate cross-day gap), and per-slot grid alignment vs Intl entries. Kathmandu calls **`test.fail` only after** slots are loaded (not during DB/setup). See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
 
-**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back, with an explicit `eslint-disable-next-line playwright/no-raw-locators` (rule gap: only string literals are checked). Next.js dev overlay uses `nextjs-portal` with one disable in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers are LazySelect controls without an accessible name, so the POM opens options via the visible `9:00am`-style label text inside the day row. Schedule delete uses `getByTestId("schedules")` → `listitem` filtered by schedule link name → `schedule-more`.
+**Locator exceptions (brief-rule):** booker `selectSlotByIso` uses a dynamic `` `[data-time="…"]` `` filter when labels duplicate on fall-back; `playwright/no-raw-locators` has a **rule gap** (only string literals are flagged), so the POM uses an inline comment rather than an unused `eslint-disable`. Next.js dev overlay uses `nextjs-portal` with one disable in `app-shell.ts`. ESLint enforces `playwright/no-nth-methods`, `playwright/no-raw-locators`, `playwright/no-wait-for-timeout`, and `playwright/require-tags` (tags on test `tag` options, not titles). Availability day rows use Cal `data-testid="<Weekday>"` and `${dayName}-switch`; hour pickers use documented `nth(0)` / `nth(1)` on the range row because Cal LazySelect comboboxes have no accessible name (possible Cal a11y finding for P7). Event types **New** uses `getByRole("main").getByTestId("new-event-type")` (two unscoped matches on the page). Schedule delete uses `getByTestId("schedules")` → `listitem` filtered by schedule link name → `schedule-more`.
 
 ## Server-side oracle (TZ-002, DST-002)
 
@@ -78,6 +78,8 @@ Example transitions from 2026-10-08 with lead days applied in specs:
 
 DST-002 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-002: …" }`. The spec still asserts booking the **first** 1:30am slot (EDT instant from `fromZonedCivil`) and matching DB/success UI; observed on harness Cal `v6.2.0-sh`: both 1:30am instants list and `POST /api/book/event` returns HTTP 409 `no_available_users_found_error`. No fallback slots.
 
+DST-003 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-003: …" }` after slots load. Cal lists `2027-03-27T23:00:00.000Z` / `2027-03-27T23:30:00.000Z` on EU spring-forward Sunday (outside Sunday 00:00–17:00 London); control **P1-CAL-DST-003-control** on 2027-03-21 must pass. See [cal-tz-dst-known-issues.md](../observations/cal-tz-dst-known-issues.md).
+
 ## Data isolation
 
 - FW specs keep using seed `pro` and `/pro/30min` for read-only TZ-001/003/004.
@@ -86,16 +88,14 @@ DST-002 is **`test.fail`** with `{ type: "issue", description: "P7-OBS-CAL-DST-0
 - `isolatedSundayEvent` fixture: create schedule → create event type → assign schedule on the event type → assert Sunday row; teardown cancel booking → delete event type → delete schedule (schedule delete failure is **not** tolerated).
 - TZ-002 booking dates use `bookingWindowOffsetDays(testInfo)` (`BOOKING_WINDOW_OFFSET_BY_PROJECT` + worker index) so parallel workers do not double-book `pro`.
 - Guest booker flows use an empty `storageState` so the public page is not the organiser session.
-- Local harness cleanup: `npm run cal:restore-trial` (idempotent: promote **Working Hours** only when not already default; deletes `sch-qa-*`; UI only).
+- Local harness cleanup: `npm run cal:restore-trial` (idempotent: promote **Working Hours** when DB default name is not Working Hours, then delete `sch-qa-*` via UI; uses `readDefaultScheduleName` gate).
 
 ## Timezone in Playwright
 
 Per-describe `test.use({ timezoneId })` (context option). Expected labels are computed with `Intl` in `src/core` (`toZonedLabel`, `expectedSlotEntriesForViewerDay`, DST date helpers). TZ-001 compares the full label list for one viewer date in the spec body. Pure helpers use the **`unit`** project (`npm run test:unit`; `npm_lifecycle_event=test:unit` skips harness `globalSetup`).
 
-Cross-hemisphere booker on an organiser midnight window (`startMinutes === 0`): Cal can list two 30-minute slots immediately before organiser local midnight when those instants still fall on the viewer civil date (for example EU spring-forward Sunday `Europe/London` viewed as `Australia/Sydney`). `expectedSlotEntriesForViewerDay` adds `ORGANISER_MIDNIGHT_VIEWER_LEAD_IN_STEPS` (2) lead-in instants when organiser and viewer IANA zones differ.
-
 The existing auto `timezoneHandler` dismisses Cal’s “Don’t update” dialog so FW tests are not blocked.
 
 ## Tags and CI
 
-Specs use `@tz` / `@dst` plus priority annotations (`P0`/`P1`/`P2`). Two cases are expected failures until the product issues are fixed (TZ-003 Kathmandu, DST-002). PR project remains `cal-chromium` only (webkit/firefox is Phase 2c).
+Specs use `@tz` / `@dst` plus priority annotations (`P0`/`P1`/`P2`). Three cases are expected failures until the product issues are fixed (TZ-003 Kathmandu, DST-002, DST-003). PR project remains `cal-chromium` only (webkit/firefox is Phase 2c).
