@@ -22,7 +22,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.1"
+    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
