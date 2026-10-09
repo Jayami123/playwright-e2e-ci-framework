@@ -1,8 +1,12 @@
 # playwright-e2e-ci-framework
 
+[![P1 E2E](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/p1-e2e.yml/badge.svg?branch=main)](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/p1-e2e.yml)
+[![CodeQL](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.1`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.2`.
 
 ## Scope
 
@@ -109,7 +113,7 @@ npm run report
 
 ## CI
 
-[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (optional `cal_ref` input for the Cal fork pin). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
+[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch`. It calls reusable [`e2e.yml`](.github/workflows/e2e.yml), which checks out [Jayami123/cal](https://github.com/Jayami123/cal) at `CAL_REF` (`main` in workflow env). Cal build caches are saved only on pushes to `main`. Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
 
 **Always:** `lint` (actionlint, ESLint, Prettier, and `npm run test:unit`) and `typecheck (always)`.
 
@@ -127,5 +131,9 @@ Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (N
 **Download the HTML report:** open the workflow run on GitHub → **Artifacts** → `playwright-report` → unzip → open `index.html`.
 
 External-path blob shards retain 3 days; merged HTML and self-hosted artifacts retain 14 days.
+
+**Governance and supply chain:** [`pr-title.yml`](.github/workflows/pr-title.yml) enforces Conventional Commits on PR titles (and on single-commit PR bodies). [`codeql.yml`](.github/workflows/codeql.yml) scans TypeScript and workflow Actions weekly and on PRs. [Dependabot](.github/dependabot.yml) opens grouped npm and GitHub Actions update PRs (no secrets on those PRs, so CI uses the self-hosted Cal path per [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Third-party and first-party `uses:` refs are pinned to full commit SHAs; Dependabot bumps them on the weekly schedule.
+
+**Security:** see [SECURITY.md](SECURITY.md). **License:** [MIT](LICENSE).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, PR, and commit rules.

@@ -4,13 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      cal_ref:
-        description: Git ref for Jayami123/cal (self-hosted job only)
-        required: false
-        default: main
-        type: string
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +16,4 @@ permissions:
 jobs:
   e2e:
     uses: ./.github/workflows/e2e.yml
-    with:
-      cal_ref: ${{ inputs.cal_ref || 'main' }}
     secrets: inherit
