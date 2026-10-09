@@ -11,18 +11,10 @@ import {
   type SundayOrganiser,
   type SundayProvisionOptions,
 } from "./dst-provisioning.js";
-import {
-  enableCalTotpViaApi,
-  loginCalWithCredentials,
-  setupCalTotpViaApi,
-} from "./auth.js";
+import { enableCalTotpViaApi, loginCalWithCredentials, setupCalTotpViaApi } from "./auth.js";
 import { assertTotpBudget, generateTotpCode } from "../../core/totp.js";
 import { qaCalUser, qaEventTitle, qaScheduleName } from "./factories.js";
-import {
-  createCalQaUser,
-  readTwoFactorState,
-  teardownCalQaUserById,
-} from "./qa-user.js";
+import { createCalQaUser, readTwoFactorState, teardownCalQaUserById } from "./qa-user.js";
 import { EventTypesPage } from "./pages/event-types.page.js";
 import { TwoFactorSettingsPage } from "./pages/two-factor-settings.page.js";
 import { BookingsPage } from "./pages/bookings.page.js";
@@ -131,7 +123,9 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
       }
       const dbState = await readTwoFactorState(created.id);
       if (!dbState.twoFactorEnabled) {
-        throw new Error(`twoFactorUser fixture: twoFactorEnabled false for id=${String(created.id)}`);
+        throw new Error(
+          `twoFactorUser fixture: twoFactorEnabled false for id=${String(created.id)}`,
+        );
       }
       await use({
         id: created.id,
