@@ -12,7 +12,7 @@ import {
   type SundayProvisionOptions,
 } from "./dst-provisioning.js";
 import { enableCalTotpViaApi, loginCalWithCredentials, setupCalTotpViaApi } from "./auth.js";
-import { assertTotpBudget, generateTotpCode } from "../../core/totp.js";
+import { generateTotpCodeForTyping } from "../../core/totp.js";
 import { qaCalUser, qaEventTitle, qaScheduleName } from "./factories.js";
 import { createCalQaUser, readTwoFactorState, teardownCalQaUserById } from "./qa-user.js";
 import { EventTypesPage } from "./pages/event-types.page.js";
@@ -100,7 +100,6 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
       userId = created.id;
       await loginCalWithCredentials(page, created.email, identity.password);
       const epochMs = Date.now();
-      assertTotpBudget({ epochMs, neededMs: 25_000 });
       let secret: string;
       let backupCodes: readonly string[];
       if (twoFactorEnrol === "ui") {
@@ -110,7 +109,7 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
         await settings.confirmPasswordAndContinue(identity.password);
         secret = await settings.readSecretFromDialog();
         await settings.continueToOtpEntry();
-        const enrolCode = generateTotpCode(secret, epochMs);
+        const enrolCode = generateTotpCodeForTyping(secret, epochMs);
         await settings.enterEnrolmentTotp(enrolCode);
         backupCodes = [];
         await settings.closeBackupCodesDialog();
@@ -118,7 +117,7 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
         const setup = await setupCalTotpViaApi(page.request, identity.password);
         secret = setup.secret;
         backupCodes = setup.backupCodes;
-        const code = generateTotpCode(secret, epochMs);
+        const code = generateTotpCodeForTyping(secret, epochMs);
         await enableCalTotpViaApi(page.request, code);
       }
       const dbState = await readTwoFactorState(created.id);

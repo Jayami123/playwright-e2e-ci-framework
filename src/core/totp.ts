@@ -28,14 +28,31 @@ export function totpMsRemainingInCurrentStep(epochMs: number): number {
   return stepEndMs - epochMs;
 }
 
+/** Minimum ms left in the current step before typing a TOTP code in Cal E2E flows. */
+export const TOTP_TYPING_BUDGET_MS = 25_000 as const;
+
+/**
+ * Epoch to mint a TOTP code when the test needs `neededMs` of typing time in the current step.
+ * If the current step is too short, uses the start of the next step (no sleep, no regenerate loop).
+ */
+export function resolveTotpTypingEpochMs(options: {
+  readonly epochMs: number;
+  readonly neededMs: number;
+}): number {
+  if (totpMsRemainingInCurrentStep(options.epochMs) >= options.neededMs) {
+    return options.epochMs;
+  }
+  return (totpStepIndex(options.epochMs) + 1) * TOTP_STEP_MS;
+}
+
 export function assertTotpBudget(options: {
   readonly epochMs: number;
   readonly neededMs: number;
 }): void {
-  const remainingMs = totpCodeValidForMs(options.epochMs);
+  const remainingMs = totpMsRemainingInCurrentStep(options.epochMs);
   if (remainingMs < options.neededMs) {
     throw new Error(
-      `TOTP step budget too small: ${String(remainingMs)}ms remaining in window, need ${String(options.neededMs)}ms`,
+      `TOTP step budget too small: ${String(remainingMs)}ms remaining in current step, need ${String(options.neededMs)}ms`,
     );
   }
 }
@@ -50,4 +67,13 @@ function authenticatorAtEpoch(epochMs: number): ReturnType<typeof authenticator.
 
 export function generateTotpCode(secret: string, epochMs: number): string {
   return authenticatorAtEpoch(epochMs).generate(secret);
+}
+
+export function generateTotpCodeForTyping(
+  secret: string,
+  epochMs: number,
+  neededMs: number = TOTP_TYPING_BUDGET_MS,
+): string {
+  const mintEpochMs = resolveTotpTypingEpochMs({ epochMs, neededMs });
+  return generateTotpCode(secret, mintEpochMs);
 }
