@@ -5,6 +5,7 @@ import {
   csrfTokenFromCookies,
   parseCalCredentialsCallback,
   sessionHasUser,
+  wrongPasswordCallbackFailed,
 } from "../../src/products/cal/auth.js";
 
 test.describe("Cal credentials callback parsing", () => {
@@ -27,6 +28,22 @@ test.describe("Cal credentials callback parsing", () => {
   test("treats an error field as failure", { tag: ["@unit"] }, () => {
     const body = parseCalCredentialsCallback({ error: "CredentialsSignin" });
     expect(credentialsCallbackFailed(body)).toBe(true);
+    expect(wrongPasswordCallbackFailed(body)).toBe(true);
+  });
+
+  test("CSRF bounce is not a wrong-password signal", { tag: ["@unit"] }, () => {
+    const body = parseCalCredentialsCallback({
+      url: "http://127.0.0.1:3000/api/auth/signin?csrf=true",
+    });
+    expect(credentialsCallbackFailed(body)).toBe(true);
+    expect(wrongPasswordCallbackFailed(body)).toBe(false);
+  });
+
+  test("Cal wrong password error in callback url", { tag: ["@unit"] }, () => {
+    const body = parseCalCredentialsCallback({
+      url: "http://127.0.0.1:3000/api/auth/error?error=incorrect-email-password",
+    });
+    expect(wrongPasswordCallbackFailed(body)).toBe(true);
   });
 });
 

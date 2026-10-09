@@ -2,9 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  credentialsCallbackFailed,
   loginCalWithCredentials,
   postCalCredentials,
+  wrongPasswordCallbackFailed,
 } from "../../../src/products/cal/auth.js";
 import { loadConfig } from "../../../src/products/cal/env.js";
 import { expect, test } from "../../../src/products/cal/fixtures.js";
@@ -68,10 +68,10 @@ test.describe("Credentials login", () => {
     },
     async ({ page, bookings }) => {
       const { email } = loadConfig();
-      const result = await postCalCredentials(page, email, "this-password-is-wrong");
+      const result = await postCalCredentials(page.request, email, "this-password-is-wrong");
       expect(
-        credentialsCallbackFailed({ url: result.url, error: result.error }),
-        "Wrong password must not create a session (callback url/error or missing session)",
+        wrongPasswordCallbackFailed({ url: result.url, error: result.error }),
+        "Wrong password must signal incorrect-email-password (not CSRF) in the callback url/error",
       ).toBeTruthy();
       await bookings.gotoUpcoming();
       await bookings.expectLoginRedirect();
