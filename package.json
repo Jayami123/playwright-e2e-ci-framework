@@ -30,7 +30,7 @@
     "@types/node": "^22",
     "@types/pg": "^8.23.1",
     "dotenv": "^16",
-    "eslint": "^9.36.0",
+    "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-playwright": "^2.2.2",
     "prettier": "^3.6.2",
