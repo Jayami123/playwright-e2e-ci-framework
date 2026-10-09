@@ -1,5 +1,9 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
 import { normalizeBaseUrl, parsePositiveInt } from "./src/core/config.js";
+import {
+  PLAYWRIGHT_JSON_REPORT_FILE,
+  PLAYWRIGHT_JUNIT_REPORT_FILE,
+} from "./src/core/playwright-json-summary.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
@@ -32,7 +36,13 @@ export default defineConfig({
   // Default 1: CAL_WEB_MODE=dev webpack serializes compiles; extra workers time out CSRF.
   workers: parsePositiveInt(process.env.PW_WORKERS, 1),
   reporter: process.env.CI
-    ? [["blob"], ["github"], ["list"]]
+    ? ([
+        ["blob"],
+        ["github"],
+        ["list"],
+        ["junit", { outputFile: PLAYWRIGHT_JUNIT_REPORT_FILE }],
+        ["json", { outputFile: PLAYWRIGHT_JSON_REPORT_FILE }],
+      ] satisfies ReporterDescription[])
     : [["html", { open: "never" }], ["list"]],
   timeout: TIMEOUTS[webMode].test,
   expect: { timeout: TIMEOUTS[webMode].expect },
@@ -41,7 +51,7 @@ export default defineConfig({
     ...(baseURL === undefined ? {} : { baseURL }),
     navigationTimeout: TIMEOUTS[webMode].navigation,
     actionTimeout: TIMEOUTS[webMode].action,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
   },

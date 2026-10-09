@@ -42,9 +42,7 @@ defaults:
 env:
   CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
   CAL_DEFAULT_E2E_EMAIL: pro@example.com
-  CAL_DEFAULT_E2E_PASSWORD: pro
   CAL_DEFAULT_DST_EMAIL: trial@example.com
-  CAL_DEFAULT_DST_PASSWORD: trial
   ACTIONLINT_VERSION: v1.7.12
 
 jobs:
@@ -102,7 +100,7 @@ jobs:
           fi
 
   cal-chromium:
-    name: cal-chromium shard ${{ matrix.shard }}
+    name: cal-chromium shard ${{ matrix.shard }} (live Cal only, skipped without CAL_E2E_BASE_URL)
     needs: [lint, structural]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -138,7 +136,7 @@ jobs:
           retention-days: 3
 
   merge-reports:
-    name: merge Playwright HTML report
+    name: merge Playwright HTML report (live Cal only, skipped without CAL_E2E_BASE_URL)
     needs: [structural, cal-chromium]
     if: ${{ !cancelled() && needs.structural.outputs.has_live_url == 'true' }}
     runs-on: ubuntu-24.04
@@ -156,7 +154,14 @@ jobs:
       - name: Merge blob reports into HTML
         run: |
           set -euo pipefail
-          npx playwright merge-reports --reporter html ./all-blob-reports
+          mkdir -p test-results
+          npx playwright merge-reports --config playwright.merge.config.ts ./all-blob-reports
+      - name: Write Playwright job summary
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results.json
       - uses: actions/upload-artifact@v5
         with:
           name: playwright-report
@@ -252,14 +257,22 @@ jobs:
           CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
           CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
           CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
-          CAL_E2E_PASSWORD: ${{ env.CAL_DEFAULT_E2E_PASSWORD }}
+          CAL_E2E_PASSWORD: pro
           CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
-          CAL_DST_PASSWORD: ${{ env.CAL_DEFAULT_DST_PASSWORD }}
+          CAL_DST_PASSWORD: trial
           PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
         run: |
           set -euo pipefail
           # Harness up() owns Postgres, seed, tRPC types, and next build.
           npm run test:cal
+
+      - name: Write Playwright job summary
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results.json
 
       - name: Merge blob reports into HTML
         if: ${{ !cancelled() }}
