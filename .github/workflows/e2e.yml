@@ -16,6 +16,10 @@ on:
           consuming the 90-minute cal-self-hosted job.
         type: number
         default: 10
+      run_browser_matrix:
+        description: Run Chromium then Firefox matrix suites on self-hosted Cal
+        type: boolean
+        default: false
     secrets:
       CAL_E2E_BASE_URL:
         required: false
@@ -269,8 +273,10 @@ jobs:
         timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
         with:
           working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+          install_firefox_webkit: ${{ inputs.run_browser_matrix }}
 
       - name: Run Cal E2E suite
+        if: ${{ !inputs.run_browser_matrix }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
           CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
@@ -285,8 +291,122 @@ jobs:
           # Harness up() owns Postgres, seed, tRPC types, and next build.
           npm run test:cal
 
+      - name: Run Cal E2E suite (matrix Chromium)
+        if: ${{ inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
+          CAL_E2E_PASSWORD: pro
+          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
+          CAL_DST_PASSWORD: trial
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          P1_PW_REPORT_ID: chromium
+        run: |
+          set -euo pipefail
+          SECONDS=0
+          npm run test:cal
+          echo "P1_MATRIX_CHROMIUM_ELAPSED=$SECONDS" >> "$GITHUB_ENV"
+
+      - name: Write Playwright job summary (matrix Chromium)
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_MATRIX_CHROMIUM_ELAPSED: ${{ env.P1_MATRIX_CHROMIUM_ELAPSED }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results-chromium.json chromium "${P1_MATRIX_CHROMIUM_ELAPSED:-}"
+
+      - name: Merge blob reports (matrix Chromium)
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ -d blob-report-chromium ] && [ -n "$(find blob-report-chromium -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-chromium
+            rm -rf playwright-report-chromium
+            mv playwright-report playwright-report-chromium
+          else
+            echo "No blob report to merge for chromium."
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        with:
+          name: playwright-report-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-chromium
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        with:
+          name: playwright-test-results-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Run Cal E2E suite (matrix Firefox)
+        if: ${{ inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
+          CAL_E2E_PASSWORD: pro
+          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
+          CAL_DST_PASSWORD: trial
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          P1_PW_REPORT_ID: firefox
+        run: |
+          set -euo pipefail
+          SECONDS=0
+          npm run test:cal:firefox
+          echo "P1_MATRIX_FIREFOX_ELAPSED=$SECONDS" >> "$GITHUB_ENV"
+
+      - name: Write Playwright job summary (matrix Firefox)
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_MATRIX_FIREFOX_ELAPSED: ${{ env.P1_MATRIX_FIREFOX_ELAPSED }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results-firefox.json firefox "${P1_MATRIX_FIREFOX_ELAPSED:-}"
+
+      - name: Merge blob reports (matrix Firefox)
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ -d blob-report-firefox ] && [ -n "$(find blob-report-firefox -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-firefox
+            rm -rf playwright-report-firefox
+            mv playwright-report playwright-report-firefox
+          else
+            echo "No blob report to merge for firefox."
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        with:
+          name: playwright-report-firefox
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-firefox
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ inputs.run_browser_matrix && !cancelled() }}
+        with:
+          name: playwright-test-results-firefox
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Write Playwright job summary
-        if: ${{ !cancelled() }}
+        if: ${{ !inputs.run_browser_matrix && !cancelled() }}
         timeout-minutes: 2
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
@@ -294,7 +414,7 @@ jobs:
           npx tsx scripts/write-ci-job-summary.mts test-results/results.json
 
       - name: Merge blob reports into HTML
-        if: ${{ !cancelled() }}
+        if: ${{ !inputs.run_browser_matrix && !cancelled() }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
           set -euo pipefail
@@ -341,7 +461,7 @@ jobs:
           ' "$LOG_DST"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ !cancelled() }}
+        if: ${{ !inputs.run_browser_matrix && !cancelled() }}
         with:
           name: playwright-report
           path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report
@@ -349,7 +469,7 @@ jobs:
           retention-days: 14
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ !cancelled() }}
+        if: ${{ !inputs.run_browser_matrix && !cancelled() }}
         with:
           name: playwright-test-results
           path: ${{ env.P1_WORKING_DIRECTORY }}/test-results

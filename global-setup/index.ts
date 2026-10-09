@@ -2,8 +2,10 @@ import { getAdapter } from "qa-portfolio-harness";
 import { normalizeBaseUrl } from "../src/core/config.js";
 import {
   bulkDeleteTrialQaArtifacts,
+  countCalQaBookings,
   countTrialQaArtifacts,
   firstEventTypeId,
+  sweepCalQaBookings,
 } from "../src/products/cal/db.js";
 import { countCalQaUsers, sweepCalQaUsers } from "../src/products/cal/qa-user.js";
 import { loadConfig, skipLiveCal, timeouts } from "../src/products/cal/env.js";
@@ -82,6 +84,12 @@ async function sweepLocalCalQaUsers(): Promise<void> {
   const after = await countCalQaUsers();
   console.log(
     `Local Cal qa-user sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)})`,
+  );
+  const bookingsBefore = await countCalQaBookings();
+  const deletedBookings = await sweepCalQaBookings();
+  const bookingsAfter = await countCalQaBookings();
+  console.log(
+    `Local Cal qa-booking sweep (before=${String(bookingsBefore)}, deleted=${String(deletedBookings)}, after=${String(bookingsAfter)})`,
   );
 }
 

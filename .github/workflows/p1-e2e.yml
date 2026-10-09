@@ -4,10 +4,17 @@ on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      browser_matrix:
+        description: Run Chromium and Firefox on self-hosted Cal
+        type: boolean
+        default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -16,4 +23,7 @@ permissions:
 jobs:
   e2e:
     uses: ./.github/workflows/e2e.yml
+    with:
+      run_browser_matrix: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix) }}
+      playwright_browsers_timeout_minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix)) && 20 || 10 }}
     secrets: inherit

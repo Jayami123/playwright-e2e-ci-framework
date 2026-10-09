@@ -159,6 +159,23 @@ export function sessionHasEmail(payload: unknown, email: string): boolean {
   return user.email === email;
 }
 
+function isTransientNetworkError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const record = error as { code?: unknown; message?: unknown };
+  if (record.code === "ECONNRESET" || record.code === "ECONNREFUSED") {
+    return true;
+  }
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof record.message === "string"
+        ? record.message
+        : "";
+  return message.includes("ECONNRESET") || message.includes("ECONNREFUSED");
+}
+
 export async function readCalSessionPayload(http: APIRequestContext): Promise<unknown> {
   const response = await http.get(CAL_ROUTES.session, { timeout: timeouts().csrf });
   expect(
@@ -172,8 +189,15 @@ export async function pollSessionHasEmail(http: APIRequestContext, email: string
   await expect
     .poll(
       async () => {
-        const payload = await readCalSessionPayload(http);
-        return sessionHasEmail(payload, email);
+        try {
+          const payload = await readCalSessionPayload(http);
+          return sessionHasEmail(payload, email);
+        } catch (error) {
+          if (isTransientNetworkError(error)) {
+            return false;
+          }
+          throw error;
+        }
       },
       {
         timeout: timeouts().page,

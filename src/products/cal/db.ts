@@ -460,6 +460,39 @@ export async function countTrialQaArtifacts(email: string): Promise<TrialQaArtif
   });
 }
 
+const QA_BOOKING_ATTENDEE_EMAIL_LIKE = "qa-%@qa.local" as const;
+
+export async function countCalQaBookings(): Promise<number> {
+  return withCalPool(async (pool) => {
+    const result = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count
+       FROM "Booking" b
+       JOIN "Attendee" a ON a."bookingId" = b.id
+       WHERE a.email LIKE $1 AND b.status IN ('accepted', 'pending')`,
+      [QA_BOOKING_ATTENDEE_EMAIL_LIKE],
+    );
+    const count = result.rows[0]?.count;
+    if (count === undefined) {
+      throw new Error("countCalQaBookings query returned no row");
+    }
+    return count;
+  });
+}
+
+export async function sweepCalQaBookings(): Promise<number> {
+  return withWritableCalPool(async (pool) => {
+    const result = await pool.query(
+      `DELETE FROM "Booking" b
+       WHERE b.id IN (
+         SELECT a."bookingId" FROM "Attendee" a WHERE a.email LIKE $1
+       )
+       AND b.status IN ('accepted', 'pending')`,
+      [QA_BOOKING_ATTENDEE_EMAIL_LIKE],
+    );
+    return result.rowCount ?? 0;
+  });
+}
+
 export async function readScheduleIdByName(email: string, scheduleName: string): Promise<number> {
   return withCalPool(async (pool) => {
     const result = await pool.query<{ id: number }>(

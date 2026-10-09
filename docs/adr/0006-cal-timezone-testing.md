@@ -102,4 +102,4 @@ The existing auto `timezoneHandler` dismisses Cal’s “Don’t update” dialo
 
 ## Tags and CI
 
-Specs use `@tz` / `@dst` plus priority annotations (`P0`/`P1`/`P2`). Three cases are expected failures until the product issues are fixed (DST-002, DST-003, TZ-003 Kathmandu). CI uses `trace: retain-on-failure` so those expected failures keep a trace without a retry. PR project remains `cal-chromium` only (webkit/firefox is Phase 2c).
+Specs use `@tz` / `@dst` plus priority annotations (`P0`/`P1`/`P2`). Three cases are expected failures until the product issues are fixed (DST-002, DST-003, TZ-003 Kathmandu). CI uses `trace: retain-on-failure` so those expected failures keep a trace without a retry. PR project remains `cal-chromium` only; Firefox and WebKit for `@tz` / `@2fa` are documented in [ADR 0008](0008-cal-browser-matrix.md).

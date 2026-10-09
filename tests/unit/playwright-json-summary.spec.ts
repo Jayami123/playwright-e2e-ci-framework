@@ -119,6 +119,14 @@ test.describe("Playwright JSON job summary", () => {
     );
   });
 
+  test("formats browser label and elapsed seconds in the heading", { tag: ["@unit"] }, () => {
+    const markdown = formatPlaywrightJobSummary(parsePlaywrightJsonReport(sampleReport), {
+      browserLabel: "Firefox",
+      elapsedSeconds: 142.6,
+    });
+    expect(markdown).toContain("## Playwright results (Firefox, 143s wall-clock)");
+  });
+
   test("does not list an expected failure that unexpectedly passed", { tag: ["@unit"] }, () => {
     const summary = parsePlaywrightJsonReport({
       suites: [
