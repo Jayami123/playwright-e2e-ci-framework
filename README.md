@@ -113,7 +113,7 @@ npm run report
 
 ## CI
 
-[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (optional `cal_ref` input for the Cal fork pin). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
+[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (Cal fork pin is always `main`; no dispatch inputs). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
 
 **Always:** `lint` (actionlint, ESLint, Prettier, and `npm run test:unit`) and `typecheck (always)`.
 
