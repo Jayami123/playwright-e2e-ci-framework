@@ -158,7 +158,10 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
       throw new AggregateError(teardownErrors, "twoFactorUser teardown failed");
     }
     if (testError !== undefined) {
-      throw testError;
+      if (testError instanceof Error) {
+        throw testError;
+      }
+      throw new Error("twoFactorUser fixture failed", { cause: testError });
     }
   },
 
