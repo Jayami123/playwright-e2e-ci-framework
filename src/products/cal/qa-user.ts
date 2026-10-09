@@ -1,4 +1,4 @@
-import { hashSync } from "bcryptjs";
+import bcrypt from "bcryptjs";
 import type { Pool } from "pg";
 import { withWritableCalPool } from "./db.js";
 
@@ -29,14 +29,14 @@ async function insertUserWithSchedule(
   client: Pool,
   input: CreateCalQaUserInput,
 ): Promise<CalQaUserRecord> {
-  const passwordHash = hashSync(input.password, BCRYPT_ROUNDS);
+  const passwordHash = bcrypt.hashSync(input.password, BCRYPT_ROUNDS);
   const dbClient = await client.connect();
   try {
     await dbClient.query("BEGIN");
     const userResult = await dbClient.query<{ id: number }>(
       `INSERT INTO users (
-         email, username, name, "emailVerified", "completedOnboarding", locale, "timeZone", locked
-       ) VALUES ($1, $2, $3, NOW(), true, 'en', 'Europe/London', false)
+         uuid, email, username, name, "emailVerified", "completedOnboarding", locale, "timeZone", locked
+       ) VALUES (gen_random_uuid(), $1, $2, $3, NOW(), true, 'en', 'Europe/London', false)
        RETURNING id`,
       [input.email, input.username, input.name],
     );
@@ -124,7 +124,9 @@ export async function teardownCalQaUserById(userId: number): Promise<void> {
       await client.query(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
       const deleted = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [userId]);
       if ((deleted.rowCount ?? 0) !== 1) {
-        throw new Error(`teardownCalQaUserById expected 1 user row, deleted ${String(deleted.rowCount ?? 0)}`);
+        throw new Error(
+          `teardownCalQaUserById expected 1 user row, deleted ${String(deleted.rowCount ?? 0)}`,
+        );
       }
       await client.query("COMMIT");
     } catch (error) {

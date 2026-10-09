@@ -1,5 +1,4 @@
-﻿
-# Phase 2b Cal 2FA login
+﻿# Phase 2b Cal 2FA login
 
 Plan ready after approval at [docs/plans/2026-10-09-phase-2b-cal-2fa.md](docs/plans/2026-10-09-phase-2b-cal-2fa.md) (Plan mode cannot write that path; first commit after approval is `docs(plan): phase 2b cal 2fa`).
 
@@ -237,3 +236,10 @@ The four plan conflicts are **decided** (see header). None blocking.
 Implementation-time only (not product choices): live OTP fill path, live replay confirm, leftover `qa-%@qa.local` count, `bcryptjs` pin from Cal lockfile.
 
 Plan ready at `docs/plans/2026-10-09-phase-2b-cal-2fa.md`. Waiting for approval.
+
+## Deviations (implementation 2026-10-09)
+
+- **P1-CAL-2FA-002 replay:** Live run on `http://127.0.0.1:3000` **verified** Cal accepts the same TOTP in a second context within the window; `test.fail` + `P7-OBS-CAL-2FA-002` kept (not dropped).
+- **QA user INSERT:** Added required `uuid` via `gen_random_uuid()` (Prisma schema).
+- **Sign-out flow:** Logout lands on `/auth/logout`; tests use `LoginPage.signOut` → `goto` login (not only `router.push`).
+- **`generateTotpCode`:** otplib v12 `generate(secret)` uses wall clock; `epochMs` drives `assertTotpBudget` at call sites.

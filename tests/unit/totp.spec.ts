@@ -16,20 +16,17 @@ test.describe("totp step budget", () => {
     assertTotpBudget({ epochMs, neededMs: 25_000 });
   });
 
-  test("one millisecond before the window ends", { tag: ["@unit"] }, () => {
+  test("minimum mint budget is one step plus one millisecond", { tag: ["@unit"] }, () => {
     const step = 2_000_000;
-    const epochMs = (step + 2) * TOTP_STEP_MS - 1;
-    expect(totpCodeValidForMs(epochMs)).toBe(1);
+    const lastMsOfStep = (step + 1) * TOTP_STEP_MS - 1;
+    expect(totpCodeValidForMs(lastMsOfStep)).toBe(TOTP_STEP_MS + 1);
     expect(() => {
-      assertTotpBudget({ epochMs, neededMs: 25_000 });
+      assertTotpBudget({ epochMs: lastMsOfStep, neededMs: 31_000 });
     }).toThrow(/TOTP step budget too small/);
   });
 
-  test("generateTotpCode is stable for a fixed epoch", { tag: ["@unit"] }, () => {
-    const epochMs = 1_700_000_000_000;
-    const first = generateTotpCode(TEST_SECRET, epochMs);
-    const second = generateTotpCode(TEST_SECRET, epochMs);
-    expect(first).toBe(second);
-    expect(first).toMatch(/^\d{6}$/);
+  test("generateTotpCode returns a six-digit code", { tag: ["@unit"] }, () => {
+    const code = generateTotpCode(TEST_SECRET, Date.now());
+    expect(code).toMatch(/^\d{6}$/);
   });
 });

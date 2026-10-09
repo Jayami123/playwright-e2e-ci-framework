@@ -18,8 +18,8 @@ export class LoginPage extends BasePage {
     this.emailField = this.form.getByRole("textbox", { name: "Email" });
     this.passwordField = this.form.getByRole("textbox", { name: "Password" });
     this.continueButton = this.form.getByRole("button", { name: "Continue" });
-    this.submitButton = this.form.getByRole("button", { name: "Submit" });
-    this.lostAccessButton = this.form.getByRole("button", { name: "Lost access" });
+    this.submitButton = page.getByRole("button", { name: "Submit" });
+    this.lostAccessButton = page.getByRole("button", { name: "Lost access" });
   }
 
   async goto(): Promise<void> {
@@ -51,11 +51,11 @@ export class LoginPage extends BasePage {
 
   async clickLostAccess(): Promise<void> {
     await this.lostAccessButton.click();
-    await expect(this.form.getByRole("textbox")).toBeVisible({ timeout: timeouts().page });
+    await expect(this.page.getByRole("textbox")).toBeVisible({ timeout: timeouts().page });
   }
 
   async fillBackupCode(formattedCode: string): Promise<void> {
-    await this.form.getByRole("textbox").fill(formattedCode);
+    await this.page.getByRole("textbox").fill(formattedCode);
   }
 
   async submitBackupCode(): Promise<void> {
@@ -63,17 +63,19 @@ export class LoginPage extends BasePage {
   }
 
   incorrectTotpAlert(): Locator {
-    return this.page.getByRole("alert").filter({
-      hasText: /incorrect.*two-factor|two-factor code.*please try again/i,
+    return this.page.getByRole("heading", {
+      name: /incorrect.*two-factor|two-factor code.*please try again/i,
     });
   }
 
   incorrectBackupAlert(): Locator {
-    return this.page.getByRole("alert").filter({ hasText: /backup code is incorrect/i });
+    return this.page.getByRole("heading", { name: "Backup code is incorrect." });
   }
 
   async signOut(userDisplayName: string): Promise<void> {
     await this.page.getByRole("button", { name: userDisplayName }).click();
     await this.page.getByRole("menuitem", { name: "Sign out" }).click();
+    await this.page.waitForURL(/\/auth\/logout/, { timeout: timeouts().page });
+    await this.goto();
   }
 }

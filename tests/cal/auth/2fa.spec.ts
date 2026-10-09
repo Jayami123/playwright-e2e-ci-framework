@@ -170,6 +170,11 @@ test.describe("P1-CAL-2FA-003 backup code", () => {
       const beforeCipher = (await readTwoFactorState(twoFactorUser.id)).backupCodesCiphertext;
 
       const login = new LoginPage(page);
+      await test.step("start from a logged-out session", async () => {
+        await page.goto(CAL_ROUTES.eventTypes, { waitUntil: "domcontentloaded" });
+        await login.signOut(twoFactorUser.name);
+      });
+
       await test.step("first backup-code login creates a session", async () => {
         await login.goto();
         await login.continueWithPassword(twoFactorUser.email, twoFactorUser.password);

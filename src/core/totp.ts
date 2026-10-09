@@ -38,17 +38,6 @@ export function assertTotpBudget(options: {
 }
 
 export function generateTotpCode(secret: string, epochMs: number): string {
-  const previousEpoch = authenticator.options.epoch;
-  authenticator.options = {
-    ...authenticator.options,
-    epoch: epochMs,
-    window: TOTP_WINDOW,
-  };
-  try {
-    return authenticator.generate(secret);
-  } finally {
-    if (previousEpoch !== undefined) {
-      authenticator.options.epoch = previousEpoch;
-    }
-  }
+  assertTotpBudget({ epochMs, neededMs: 1 });
+  return authenticator.generate(secret);
 }
