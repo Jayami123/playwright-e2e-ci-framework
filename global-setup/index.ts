@@ -5,6 +5,7 @@ import {
   countTrialQaArtifacts,
   firstEventTypeId,
 } from "../src/products/cal/db.js";
+import { countCalQaUsers, sweepCalQaUsers } from "../src/products/cal/qa-user.js";
 import { loadConfig, skipLiveCal, timeouts } from "../src/products/cal/env.js";
 import {
   CAL_ROUTES,
@@ -72,6 +73,18 @@ async function sweepLocalTrialQaLeavings(): Promise<void> {
   );
 }
 
+async function sweepLocalCalQaUsers(): Promise<void> {
+  if (process.env.CI) {
+    return;
+  }
+  const before = await countCalQaUsers();
+  const deleted = await sweepCalQaUsers();
+  const after = await countCalQaUsers();
+  console.log(
+    `Local Cal qa-user sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)})`,
+  );
+}
+
 export default async function globalSetup(): Promise<void> {
   if (skipLiveCal()) {
     console.log("Skipping Cal health check (CAL_E2E=0 or CI without CAL_E2E_BASE_URL).");
@@ -89,6 +102,7 @@ export default async function globalSetup(): Promise<void> {
     );
     await warmupCalPages(config.baseUrl);
     await sweepLocalTrialQaLeavings();
+    await sweepLocalCalQaUsers();
     return;
   }
 
@@ -111,6 +125,7 @@ export default async function globalSetup(): Promise<void> {
     console.log(`Cal healthy at ${adapter.baseUrl} (${adapter.productRoot})`);
     await warmupCalPages(adapter.baseUrl);
     await sweepLocalTrialQaLeavings();
+    await sweepLocalCalQaUsers();
   } catch (error) {
     throw new Error(
       "Cal did not become healthy. From qa-portfolio-harness run: node scripts/up.mjs cal",
