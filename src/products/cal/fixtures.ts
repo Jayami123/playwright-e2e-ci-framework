@@ -11,8 +11,12 @@ import {
   type SundayOrganiser,
   type SundayProvisionOptions,
 } from "./dst-provisioning.js";
-import { qaEventTitle, qaScheduleName } from "./factories.js";
+import { enableCalTotpViaApi, loginCalWithCredentials, setupCalTotpViaApi } from "./auth.js";
+import { assertTotpBudget, generateTotpCode } from "../../core/totp.js";
+import { qaCalUser, qaEventTitle, qaScheduleName } from "./factories.js";
+import { createCalQaUser, readTwoFactorState, teardownCalQaUserById } from "./qa-user.js";
 import { EventTypesPage } from "./pages/event-types.page.js";
+import { TwoFactorSettingsPage } from "./pages/two-factor-settings.page.js";
 import { BookingsPage } from "./pages/bookings.page.js";
 import { BookerPage } from "./pages/booker.page.js";
 import { AvailabilityPage } from "./pages/availability.page.js";
@@ -46,7 +50,22 @@ export interface IsolatedSundayEventFixture {
   trackBooking(uid: string): void;
 }
 
+export type TwoFactorEnrolMode = "ui" | "api";
+
+export interface TwoFactorUserHandle {
+  readonly id: number;
+  readonly email: string;
+  readonly username: string;
+  readonly name: string;
+  readonly password: string;
+  readonly secret: string;
+  readonly backupCodes: readonly string[];
+  formatBackupCode(raw: string): string;
+}
+
 interface CalFixtures {
+  twoFactorEnrol: TwoFactorEnrolMode;
+  twoFactorUser: TwoFactorUserHandle;
   timezoneHandler: undefined;
   consoleGuard: ConsoleGuard;
   eventTypes: EventTypesPage;
@@ -64,7 +83,79 @@ interface CalWorkerFixtures {
   factorySeed: number;
 }
 
+function formatBackupCode(raw: string): string {
+  return `${raw.slice(0, 5)}-${raw.slice(5, 10)}`;
+}
+
 export const test = base.extend<CalFixtures, CalWorkerFixtures>({
+  twoFactorEnrol: ["api", { option: true }],
+
+  twoFactorUser: async ({ page, twoFactorEnrol }, use, testInfo) => {
+    const identity = qaCalUser(testInfo.parallelIndex);
+    let userId: number | undefined;
+    const teardownErrors: unknown[] = [];
+    let testError: unknown;
+    try {
+      const created = await createCalQaUser(identity);
+      userId = created.id;
+      await loginCalWithCredentials(page, created.email, identity.password);
+      const epochMs = Date.now();
+      assertTotpBudget({ epochMs, neededMs: 25_000 });
+      let secret: string;
+      let backupCodes: readonly string[];
+      if (twoFactorEnrol === "ui") {
+        const settings = new TwoFactorSettingsPage(page);
+        await settings.goto();
+        await settings.openEnableDialog();
+        await settings.confirmPasswordAndContinue(identity.password);
+        secret = await settings.readSecretFromDialog();
+        await settings.continueToOtpEntry();
+        const enrolCode = generateTotpCode(secret, epochMs);
+        await settings.enterEnrolmentTotp(enrolCode);
+        backupCodes = [];
+        await settings.closeBackupCodesDialog();
+      } else {
+        const setup = await setupCalTotpViaApi(page.request, identity.password);
+        secret = setup.secret;
+        backupCodes = setup.backupCodes;
+        const code = generateTotpCode(secret, epochMs);
+        await enableCalTotpViaApi(page.request, code);
+      }
+      const dbState = await readTwoFactorState(created.id);
+      if (!dbState.twoFactorEnabled) {
+        throw new Error(
+          `twoFactorUser fixture: twoFactorEnabled false for id=${String(created.id)}`,
+        );
+      }
+      await use({
+        id: created.id,
+        email: created.email,
+        username: created.username,
+        name: created.name,
+        password: identity.password,
+        secret,
+        backupCodes,
+        formatBackupCode,
+      });
+    } catch (error) {
+      testError = error;
+    } finally {
+      if (userId !== undefined) {
+        try {
+          await teardownCalQaUserById(userId);
+        } catch (error) {
+          teardownErrors.push(error);
+        }
+      }
+    }
+    if (testError !== undefined) {
+      teardownErrors.unshift(testError);
+    }
+    if (teardownErrors.length > 0) {
+      throw new AggregateError(teardownErrors, "twoFactorUser fixture failed");
+    }
+  },
+
   factorySeed: [
     // eslint-disable-next-line no-empty-pattern -- Playwright worker fixture declares no upstream dependencies
     async ({}, use, workerInfo) => {

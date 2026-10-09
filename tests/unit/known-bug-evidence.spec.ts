@@ -32,6 +32,37 @@ test.describe("known-bug evidence", () => {
     });
   });
 
+  test("redacts totp backup and otp keys in the JSON body", { tag: ["@unit"] }, () => {
+    const json = serializeKnownBugEvidence({
+      issue: "P7-OBS-CAL-2FA-002",
+      observed: {
+        totpCode: "123456",
+        backupCode: "abcde-12345",
+        otpSecret: "JBSWY3DPEHPK3PXP",
+        sessionUserOnB: true,
+      },
+      expected: {
+        callbackError: "incorrect-two-factor-code",
+      },
+    });
+    expect(json).not.toContain("123456");
+    expect(json).not.toContain("abcde");
+    expect(json).not.toContain("JBSWY3DPEHPK3PXP");
+    const parsed: unknown = JSON.parse(json);
+    expect(parsed).toEqual({
+      issue: "P7-OBS-CAL-2FA-002",
+      observed: {
+        totpCode: "[redacted]",
+        backupCode: "[redacted]",
+        otpSecret: "[redacted]",
+        sessionUserOnB: true,
+      },
+      expected: {
+        callbackError: "incorrect-two-factor-code",
+      },
+    });
+  });
+
   test("redacts secret-looking keys in the JSON body", { tag: ["@unit"] }, () => {
     const json = serializeKnownBugEvidence({
       issue: "P7-OBS-example",

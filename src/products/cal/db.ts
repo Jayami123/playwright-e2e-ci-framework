@@ -28,7 +28,7 @@ export interface EventTypeBookingRules {
   readonly lengthMinutes: number;
 }
 
-async function withCalPool<T>(
+export async function withCalPool<T>(
   run: (pool: ReturnType<typeof createPgClient>) => Promise<T>,
 ): Promise<T> {
   const adapter = getAdapter("cal");
@@ -40,7 +40,7 @@ async function withCalPool<T>(
   }
 }
 
-async function withWritableCalPool<T>(run: (pool: Pool) => Promise<T>): Promise<T> {
+export async function withWritableCalPool<T>(run: (pool: Pool) => Promise<T>): Promise<T> {
   // createPgClient sets default_transaction_read_only=on; restore must UPDATE users.
   const adapter = getAdapter("cal");
   const pool = new Pool({
