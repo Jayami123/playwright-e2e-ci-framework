@@ -163,11 +163,16 @@ function isTransientNetworkError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) {
     return false;
   }
-  const code = (error as { code?: unknown }).code;
-  if (code === "ECONNRESET" || code === "ECONNREFUSED") {
+  const record = error as { code?: unknown; message?: unknown };
+  if (record.code === "ECONNRESET" || record.code === "ECONNREFUSED") {
     return true;
   }
-  const message = error instanceof Error ? error.message : String(error);
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof record.message === "string"
+        ? record.message
+        : "";
   return message.includes("ECONNRESET") || message.includes("ECONNREFUSED");
 }
 
