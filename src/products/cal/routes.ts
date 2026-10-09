@@ -1,6 +1,7 @@
 export const CAL_ROUTES = {
   login: "/auth/login",
   csrf: "/api/auth/csrf",
+  session: "/api/auth/session",
   cancelCsrf: "/api/csrf?sameSite=none",
   cancelBooking: "/api/cancel",
   credentialsCallback: "/api/auth/callback/credentials",
