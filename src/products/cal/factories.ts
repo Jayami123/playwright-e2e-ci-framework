@@ -41,9 +41,9 @@ export interface QaCalUserIdentity {
 
 const QA_USERNAME_MAX = 32;
 
-export function qaCalUser(workerIndex: number): QaCalUserIdentity {
+export function qaCalUser(parallelIndex: number): QaCalUserIdentity {
   const person = fakePerson();
-  const token = `${runId()}-w${String(workerIndex)}-${person.firstName}${person.lastName}`
+  const token = `${runId()}-w${String(parallelIndex)}-${person.firstName}${person.lastName}`
     .replace(/\s+/g, "")
     .toLowerCase();
   const email = `qa-${token}@qa.local`;

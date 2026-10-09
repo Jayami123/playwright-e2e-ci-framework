@@ -264,16 +264,10 @@ async function waitForCalSessionUser(page: Page): Promise<void> {
     .toBe(true);
 }
 
-export interface CalCredentialFactors {
-  readonly totpCode?: string;
-  readonly backupCode?: string;
-}
-
 export async function postCalCredentials(
   http: APIRequestContext,
   email: string,
   password: string,
-  factors: CalCredentialFactors = {},
 ): Promise<CalLoginResult> {
   const started = Date.now();
   const config = loadConfig();
@@ -287,12 +281,6 @@ export async function postCalCredentials(
     redirect: "false",
     json: "true",
   };
-  if (factors.totpCode !== undefined) {
-    form.totpCode = factors.totpCode;
-  }
-  if (factors.backupCode !== undefined) {
-    form.backupCode = factors.backupCode;
-  }
 
   const loginResponse = await http.post(CAL_ROUTES.credentialsCallback, {
     form,

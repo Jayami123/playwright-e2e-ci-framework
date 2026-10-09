@@ -7,7 +7,7 @@ import {
   readCalSessionPayload,
   sessionHasEmail,
 } from "../../../src/products/cal/auth.js";
-import { assertTotpBudget, generateTotpCode } from "../../../src/core/totp.js";
+import { generateTotpCode } from "../../../src/core/totp.js";
 import { attachKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
 import { required } from "../../../src/core/required.js";
 import { expect, test } from "../../../src/products/cal/fixtures.js";
@@ -43,9 +43,7 @@ test.describe("P1-CAL-2FA-001 UI enrol", () => {
         await login.goto();
         await login.continueWithPassword(twoFactorUser.email, twoFactorUser.password);
         await login.waitForTwoFactorStep();
-        const epochMs = Date.now();
-        assertTotpBudget({ epochMs, neededMs: 25_000 });
-        const code = generateTotpCode(twoFactorUser.secret, epochMs);
+        const code = generateTotpCode(twoFactorUser.secret, Date.now());
         await login.fillTotpCode(code);
         await login.submitTotp();
       });
@@ -93,9 +91,7 @@ test.describe("P1-CAL-2FA-002 replay", () => {
           await loginB.waitForTwoFactorStep();
         });
 
-        const epochMs = Date.now();
-        assertTotpBudget({ epochMs, neededMs: 25_000 });
-        const sharedCode = generateTotpCode(twoFactorUser.secret, epochMs);
+        const sharedCode = generateTotpCode(twoFactorUser.secret, Date.now());
 
         await test.step("context A succeeds with the shared code", async () => {
           await loginA.fillTotpCode(sharedCode);
