@@ -234,6 +234,7 @@ test.describe("P1-CAL-TZ-002 booked instant", () => {
           event: slug,
           testInfo,
         });
+        expectSlotLabelsMatch(actualSlotLabels(opened.slots), opened.expectedLabels);
         const first = opened.first;
         const expectedInstant = opened.expectedFirstInstant;
 
