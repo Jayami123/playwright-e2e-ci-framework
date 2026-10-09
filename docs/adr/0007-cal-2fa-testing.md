@@ -15,7 +15,9 @@ Phase 2b adds P1-CAL-2FA-001..003 against self-hosted Cal v6 at `http://127.0.0.
 - **TOTP budget:** `assertTotpBudget({ neededMs: 25_000 })` before minting; `generateTotpCode` shares the same epoch argument at call sites. No sleeps or server clock mocking.
 - **002 replay:** Strict assert B has no session and callback error is `incorrect-two-factor-code`. Live run **verified** Cal accepts replay in the same window; keep `test.fail` + `P7-OBS-CAL-2FA-002` ([cal-2fa-known-issues.md](../observations/cal-2fa-known-issues.md)).
 - **001 storageState:** No persisted `pro-2fa` file; empty `storageState` per test. Traces stay `retain-on-failure`; ephemeral users are deleted in fixture teardown so secrets in traces are dead.
-- **Locators:** Login TOTP via `keyboard.type` after Submit is visible; Lost access / backup field are page-scoped (outside `login-form`). Settings enable dialog located by heading inside `dialog`. OTP six-box a11y gap noted for P7 (WCAG 4.1.2).
+- **Locators:** Login TOTP via `keyboard.type` after Submit is visible; backup field scoped with `login-form` filter on visible “Backup code” text (Cal `BackupCode.tsx` uses `label=""`). Settings enable dialog located by heading inside `dialog`.
+- **A11y (P7):** `data-testid="two-factor-switch"` is a `role=switch` with no accessible name (`two-factor-auth-view.tsx`). Login OTP uses six `name="2faN"` inputs with a sibling `Label` that has no `htmlFor` (`TwoFactor.tsx`, WCAG 4.1.2). See [cal-2fa-known-issues.md](../observations/cal-2fa-known-issues.md).
+- **Local sweep:** `global-setup/index.ts` runs `countCalQaUsers` / `sweepCalQaUsers` before local runs (same CI guard as trial QA sweep).
 
 ## Consequences
 
