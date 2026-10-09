@@ -13,7 +13,7 @@ import { required } from "../../core/required.js";
 import {
   availabilityWindowsFromOrganiser,
   earliestBookableInstant,
-  firstViewerWeekdayWithoutBookings,
+  firstViewerWeekdayWithoutBusyTime,
   readEventTypeBookingRules,
   type OrganiserAvailability,
 } from "./db.js";
@@ -143,7 +143,7 @@ export async function openFirstAvailabilitySlot(options: {
   readonly user: string;
   readonly event: string;
 }): Promise<OpenViewerDaySlots> {
-  const viewerDate = await firstViewerWeekdayWithoutBookings({
+  const viewerDate = await firstViewerWeekdayWithoutBusyTime({
     organiserEmail: options.organiser.email,
     viewerTimeZone: options.viewerTimeZone,
     minLeadDays: MIN_LEAD_DAYS,
@@ -160,7 +160,7 @@ export async function openBookingAvailabilitySlot(options: {
   readonly event: string;
   readonly testInfo: TestInfo;
 }): Promise<OpenViewerDaySlots> {
-  const viewerDate = await firstViewerWeekdayWithoutBookings({
+  const viewerDate = await firstViewerWeekdayWithoutBusyTime({
     organiserEmail: options.organiser.email,
     viewerTimeZone: options.viewerTimeZone,
     minLeadDays: bookingWindowOffsetDays(options.testInfo),
@@ -176,7 +176,7 @@ export async function openWeekdaySlots(options: {
   readonly user: string;
   readonly event: string;
 }): Promise<OpenViewerDaySlots> {
-  const viewerDate = await firstViewerWeekdayWithoutBookings({
+  const viewerDate = await firstViewerWeekdayWithoutBusyTime({
     organiserEmail: options.organiser.email,
     viewerTimeZone: options.viewerTimeZone,
     minLeadDays: MIN_LEAD_DAYS,

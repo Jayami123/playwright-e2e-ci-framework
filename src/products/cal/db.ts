@@ -282,7 +282,7 @@ export function earliestBookableInstant(minimumBookingNoticeMinutes: number): Da
   return new Date(Date.now() + minimumBookingNoticeMinutes * MINUTES_TO_MS);
 }
 
-export async function firstViewerWeekdayWithoutBookings(options: {
+export async function firstViewerWeekdayWithoutBusyTime(options: {
   readonly organiserEmail: string;
   readonly viewerTimeZone: string;
   readonly minLeadDays: number;
