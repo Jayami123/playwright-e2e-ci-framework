@@ -132,6 +132,7 @@ test.describe("P1-CAL-DST", () => {
         .slice()
         .sort((left, right) => left.iso.localeCompare(right.iso));
       const edtInstant = fromZonedCivil(NEW_YORK_TZ, { ...date, hour: 1, minute: 30 });
+      expect(oneThirty.length).toBeGreaterThan(0);
       await attachKnownBugEvidence(guest.page, testInfo, {
         issue: DST002_ISSUE,
         observed: {
@@ -145,7 +146,6 @@ test.describe("P1-CAL-DST", () => {
         },
       });
       test.fail(true, DST002_ISSUE);
-      expect(oneThirty.length).toBeGreaterThan(0);
       const first = required(oneThirty[0], "missing first 1:30am slot");
       expectClickedSlotMatchesInstant(first.iso, edtInstant);
       await guest.booker.selectSlotByIso(first.iso);

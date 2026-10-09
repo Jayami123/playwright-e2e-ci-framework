@@ -210,11 +210,13 @@ test.describe("P1-CAL-TZ booker timezone", () => {
           });
           await booker.expectLoaded();
           await expect(booker.timezoneSelectRoot).toContainText(/America\/New_York|New York/i);
-          const afterReload = await booker.readSlots();
+          const afterSameDayReopen = await booker.readSlots();
           const expectedNy = toZonedLabel(opened.expectedFirstInstant, NEW_YORK_TZ);
-          expect(normalizeSlotLabel(required(afterReload[0], "no slots after reload").label)).toBe(
-            expectedNy,
-          );
+          expect(
+            normalizeSlotLabel(
+              required(afterSameDayReopen[0], "no slots after same-day reopen").label,
+            ),
+          ).toBe(expectedNy);
         });
       },
     );
