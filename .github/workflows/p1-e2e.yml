@@ -27,3 +27,104 @@ jobs:
       run_browser_matrix: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix) }}
       playwright_browsers_timeout_minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix)) && 20 || 10 }}
     secrets: inherit
+
+  nightly-alert:
+    name: nightly-alert
+    needs: e2e
+    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix)) }}
+    concurrency: nightly-alert
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    env:
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      E2E_RESULT: ${{ needs.e2e.result }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-p1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        timeout-minutes: 5
+        with:
+          pattern: playwright-test-results-*
+          path: matrix-results
+          merge-multiple: false
+      - name: Open or update nightly failure issue
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh label create nightly-failure \
+            --description "Open while a scheduled or browser_matrix E2E run is red" \
+            --color B60205 || true
+
+          find_json() {
+            local base="$1"
+            find matrix-results -name "$base" -type f 2>/dev/null | head -1 || true
+          }
+
+          browser_summary() {
+            local file="$1"
+            local label="$2"
+            local path
+            path="$(find_json "$file")"
+            if [ -z "$path" ]; then
+              path="/tmp/missing-${label}.json"
+            fi
+            npx tsx scripts/write-ci-job-summary.mts "$path" "$label"
+          }
+
+          CHROMIUM_MD="$(browser_summary results-chromium.json chromium)"
+          FIREFOX_MD="$(browser_summary results-firefox.json firefox)"
+
+          case "$E2E_RESULT" in
+            cancelled|skipped)
+              echo "E2E job was ${E2E_RESULT}; no issue updates."
+              exit 0
+              ;;
+            failure)
+              ;;
+            success)
+              ;;
+            *)
+              echo "::error::Unexpected e2e job result: ${E2E_RESULT}"
+              exit 1
+              ;;
+          esac
+
+          OPEN_ISSUE="$(gh issue list --label nightly-failure --state open --limit 1 --json number --jq '.[0].number // empty')"
+
+          if [ "$E2E_RESULT" = "success" ]; then
+            if [ -z "$OPEN_ISSUE" ]; then
+              echo "Nightly E2E passed; no open nightly-failure issue."
+              exit 0
+            fi
+            gh issue comment "$OPEN_ISSUE" --body "Recovered in ${RUN_URL}"
+            gh issue close "$OPEN_ISSUE"
+            exit 0
+          fi
+
+          FAILURE_DATE="$(date -u -d "${{ github.run_started_at }}" +%Y-%m-%d)"
+          BODY_FILE="$(mktemp)"
+          {
+            echo "Workflow run: ${RUN_URL}"
+            echo ""
+            echo "$CHROMIUM_MD"
+            echo "$FIREFOX_MD"
+          } > "$BODY_FILE"
+
+          if [ -n "$OPEN_ISSUE" ]; then
+            gh issue comment "$OPEN_ISSUE" --body-file "$BODY_FILE"
+          else
+            gh issue create \
+              --title "Nightly E2E failed: ${FAILURE_DATE}" \
+              --label nightly-failure \
+              --body-file "$BODY_FILE"
+          fi
