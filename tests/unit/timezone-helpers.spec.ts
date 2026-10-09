@@ -183,25 +183,6 @@ test.describe("timezone helpers", () => {
     );
   });
 
-  test(
-    "EU spring-forward Sunday lists Sydney lead-in before organiser midnight",
-    {
-      tag: ["@unit", "@tz"],
-    },
-    () => {
-      const viewerDate = { year: 2027, month: 3, day: 28 };
-      const labels = expectedSlotLabelsForViewerDay({
-        organiserTimeZone: LONDON_TZ,
-        viewerTimeZone: "Australia/Sydney",
-        viewerDate,
-        windows: [{ days: [WEEKDAY.sunday], startMinutes: 0, endMinutes: 17 * 60 }],
-        stepMinutes: 30,
-        notBefore: BOOKING_NOTICE_EPOCH,
-      });
-      expect(labels.slice(0, 4)).toEqual(["10:00am", "10:30am", "11:00am", "11:30am"]);
-    },
-  );
-
   test("US spring-forward Sunday label list skips phantom hour", { tag: ["@unit", "@tz"] }, () => {
     const viewerDate = { year: 2027, month: 3, day: 14 };
     const labels = expectedSlotLabelsForViewerDay({

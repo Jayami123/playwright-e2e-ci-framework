@@ -344,56 +344,9 @@ export interface AvailabilityWindow {
 /** Days before/after the viewer date to probe organiser civil dates (cross-midnight TZ). */
 export const ORGANISER_DATE_PROBE_DAYS = 2 as const;
 
-/**
- * When the organiser window starts at local midnight, Cal can list step slots immediately
- * before that instant if they still fall on the viewer civil date (cross-hemisphere booker).
- */
-export const ORGANISER_MIDNIGHT_VIEWER_LEAD_IN_STEPS = 2 as const;
-
 export interface ViewerDaySlotEntry {
   readonly instant: Date;
   readonly label: string;
-}
-
-function pushViewerDaySlot(
-  labelled: ViewerDaySlotEntry[],
-  seenInstants: Set<string>,
-  instant: Date,
-  viewerTimeZone: string,
-  viewerDate: CivilDate,
-  notBefore: Date,
-): void {
-  if (instant.getTime() <= notBefore.getTime()) {
-    return;
-  }
-  const viewerCivil = civilDateFromInstant(instant, viewerTimeZone);
-  if (compareCivilDate(viewerCivil, viewerDate) !== 0) {
-    return;
-  }
-  const iso = instant.toISOString();
-  if (seenInstants.has(iso)) {
-    return;
-  }
-  seenInstants.add(iso);
-  labelled.push({ instant, label: toZonedLabel(instant, viewerTimeZone) });
-}
-
-function midnightWindowLeadInInstants(options: {
-  readonly organiserTimeZone: string;
-  readonly organiserDate: CivilDate;
-  readonly stepMinutes: number;
-}): readonly Date[] {
-  const dayStart = fromZonedCivil(options.organiserTimeZone, {
-    ...options.organiserDate,
-    hour: 0,
-    minute: 0,
-  });
-  const stepMs = options.stepMinutes * 60_000;
-  const instants: Date[] = [];
-  for (let step = 1; step <= ORGANISER_MIDNIGHT_VIEWER_LEAD_IN_STEPS; step += 1) {
-    instants.push(new Date(dayStart.getTime() - step * stepMs));
-  }
-  return instants;
 }
 
 function uniqueOrganiserDatesForViewerDay(
@@ -448,34 +401,19 @@ export function expectedSlotEntriesForViewerDay(options: {
         stepMinutes: options.stepMinutes,
       });
       for (const instant of instants) {
-        pushViewerDaySlot(
-          labelled,
-          seenInstants,
-          instant,
-          options.viewerTimeZone,
-          options.viewerDate,
-          options.notBefore,
-        );
-      }
-      if (
-        window.startMinutes === 0 &&
-        options.organiserTimeZone !== options.viewerTimeZone &&
-        instants.length > 0
-      ) {
-        for (const leadIn of midnightWindowLeadInInstants({
-          organiserTimeZone: options.organiserTimeZone,
-          organiserDate,
-          stepMinutes: options.stepMinutes,
-        })) {
-          pushViewerDaySlot(
-            labelled,
-            seenInstants,
-            leadIn,
-            options.viewerTimeZone,
-            options.viewerDate,
-            options.notBefore,
-          );
+        if (instant.getTime() <= options.notBefore.getTime()) {
+          continue;
         }
+        const viewerCivil = civilDateFromInstant(instant, options.viewerTimeZone);
+        if (compareCivilDate(viewerCivil, options.viewerDate) !== 0) {
+          continue;
+        }
+        const iso = instant.toISOString();
+        if (seenInstants.has(iso)) {
+          continue;
+        }
+        seenInstants.add(iso);
+        labelled.push({ instant, label: toZonedLabel(instant, options.viewerTimeZone) });
       }
     }
   }
