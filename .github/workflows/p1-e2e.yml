@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       browser_matrix:
-        description: Run Firefox and WebKit as well as Chromium on self-hosted Cal
+        description: Run Chromium and Firefox on self-hosted Cal
         type: boolean
         default: false
 

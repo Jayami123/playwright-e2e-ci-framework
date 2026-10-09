@@ -35,8 +35,18 @@ Playwright **1.63.0**. Firefox 155 (`firefox-1543`) and WebKit 26.6 (`webkit-235
 
 **Caveat:** Dynamic `openFirstAvailabilitySlot` in specs is the authoritative booker path. Treat nightly/dispatch logs as source of truth for WebKit.
 
+## Decision update 2026-10-10
+
+WebKit was dropped from the Linux CI nightly and `browser_matrix` dispatch path as well as Windows.
+
+Evidence: GitHub Actions [run 37965740735](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/37965740735) (`browser_matrix` dispatch). Chromium 16 passed / 4 expected failures. Firefox 10 passed / 2 expected failures. WebKit 10 of 10 failed: slot `data-testid="time"` never renders, the 2FA switch and the account-name button never become clickable, ~1.2 minutes per attempt, and the job hung for 20+ minutes. Same failure pattern as Windows WebKit.
+
+Label: ENVIRONMENT (Cal does not work in Playwright WebKit), not a test bug.
+
+Nightly matrix is Chromium + Firefox. `cal-webkit`, `test:cal:webkit`, the WebKit CI run/report steps, and the `cal-webkit` booking-window offset are removed. Revisit when Cal or Playwright WebKit changes. Safari coverage is a known gap.
+
 ## Consequences
 
-- Nightly self-hosted job runs up to three sequential matrix legs (Chromium full suite is still run first on matrix nights to keep one harness `up()`).
+- Nightly self-hosted job runs two sequential matrix legs (Chromium full suite first, then Firefox `@tz`/`@2fa`) so one harness `up()` serves both.
 - PR duration unchanged (Chromium only).
 - See [0006](0006-cal-timezone-testing.md) for TZ oracle detail; matrix does not change oracles.

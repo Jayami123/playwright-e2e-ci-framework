@@ -94,8 +94,7 @@ npm run report
 | ---------------------------------- | ----------------------------------------- |
 | `npm run test:cal:headed`          | Chromium headed                           |
 | `npm run test:cal:firefox`         | Firefox `@tz` and `@2fa` only             |
-| `npm run test:cal:webkit`          | WebKit `@tz` and `@2fa` only              |
-| `npm run test:cal:matrix`          | Firefox + WebKit matrix (CI nightly)      |
+| `npm run test:cal:matrix`          | Chromium + Firefox matrix (CI nightly)    |
 | `npm run test:cal:debug`           | Playwright Inspector                      |
 | `npx playwright test --ui`         | UI mode                                   |
 | `npx playwright show-trace <path>` | Trace viewer (`trace: retain-on-failure`) |
@@ -127,20 +126,19 @@ npm run report
 
 **E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
 
-| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Set                       | `cal-chromium` shards 1–4 against that URL, then merge Playwright HTML report (job names say they skip without `CAL_E2E_BASE_URL`).                                                                                                                                                                                                                                                          |
-| Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed passwords only on the E2E step). Schedule and `workflow_dispatch` with `browser_matrix: true` also run `test:cal:firefox` and `test:cal:webkit` sequentially with per-browser artifacts. |
+| Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set                       | `cal-chromium` shards 1–4 against that URL, then merge Playwright HTML report (job names say they skip without `CAL_E2E_BASE_URL`).                                                                                                                                                                                                                                    |
+| Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed passwords only on the E2E step). Schedule and `workflow_dispatch` with `browser_matrix: true` also run `test:cal:firefox` sequentially with per-browser artifacts. |
 
 **Browser coverage (`@tz` / `@2fa` matrix cases only)**
 
-**Local hard gate (Windows):** `npm run test:cal` then `npm run test:cal:firefox`. Do not run `test:cal:webkit` or `test:cal:matrix` on Windows ([ADR 0008](docs/adr/0008-cal-browser-matrix.md)).
+**Local hard gate (Windows):** Chromium + Firefox. `npm run test:cal` then `npm run test:cal:firefox` ([ADR 0008](docs/adr/0008-cal-browser-matrix.md)). Safari/WebKit is a known gap.
 
 | Engine   | Local gate (Windows)           | Nightly / dispatch (Ubuntu)  |
 | -------- | ------------------------------ | ---------------------------- |
 | Chromium | `test:cal`                     | Same as PR on matrix nights  |
 | Firefox  | `test:cal:firefox` (with gate) | `test:cal:firefox` on matrix |
-| WebKit   | not verified (Linux CI only)   | `test:cal:webkit` on matrix  |
 
 Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`. CI reporters are blob, github, list, JUnit (`test-results/junit.xml`), and JSON (`test-results/results.json`). A job-summary step (`if: ${{ !cancelled() }}`) writes passed / failed / flaky / expected-failure totals and lists known product bugs from that JSON.
 

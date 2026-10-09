@@ -92,15 +92,5 @@ export default defineConfig({
         ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
       },
     },
-    {
-      name: "cal-webkit",
-      dependencies: ["cal-setup"],
-      testDir: "./tests/cal",
-      grep: /@tz|@2fa/,
-      use: {
-        ...devices["Desktop Safari"],
-        ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
-      },
-    },
   ],
 });

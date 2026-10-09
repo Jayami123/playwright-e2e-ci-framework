@@ -17,7 +17,7 @@ on:
         type: number
         default: 10
       run_browser_matrix:
-        description: Run Chromium then Firefox and WebKit matrix suites on self-hosted Cal
+        description: Run Chromium then Firefox matrix suites on self-hosted Cal
         type: boolean
         default: false
     secrets:
@@ -401,63 +401,6 @@ jobs:
         if: ${{ inputs.run_browser_matrix && !cancelled() }}
         with:
           name: playwright-test-results-firefox
-          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Run Cal E2E suite (matrix WebKit)
-        if: ${{ inputs.run_browser_matrix }}
-        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
-        env:
-          CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
-          CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
-          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
-          CAL_E2E_PASSWORD: pro
-          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
-          CAL_DST_PASSWORD: trial
-          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
-          P1_PW_REPORT_ID: webkit
-        run: |
-          set -euo pipefail
-          SECONDS=0
-          npm run test:cal:webkit
-          echo "P1_MATRIX_WEBKIT_ELAPSED=$SECONDS" >> "$GITHUB_ENV"
-
-      - name: Write Playwright job summary (matrix WebKit)
-        if: ${{ inputs.run_browser_matrix && !cancelled() }}
-        timeout-minutes: 2
-        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
-        env:
-          P1_MATRIX_WEBKIT_ELAPSED: ${{ env.P1_MATRIX_WEBKIT_ELAPSED }}
-        run: |
-          set -euo pipefail
-          npx tsx scripts/write-ci-job-summary.mts test-results/results-webkit.json webkit "${P1_MATRIX_WEBKIT_ELAPSED:-}"
-
-      - name: Merge blob reports (matrix WebKit)
-        if: ${{ inputs.run_browser_matrix && !cancelled() }}
-        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
-        run: |
-          set -euo pipefail
-          if [ -d blob-report-webkit ] && [ -n "$(find blob-report-webkit -type f -print -quit)" ]; then
-            npx playwright merge-reports --reporter html ./blob-report-webkit
-            rm -rf playwright-report-webkit
-            mv playwright-report playwright-report-webkit
-          else
-            echo "No blob report to merge for webkit."
-          fi
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ inputs.run_browser_matrix && !cancelled() }}
-        with:
-          name: playwright-report-webkit
-          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-webkit
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ inputs.run_browser_matrix && !cancelled() }}
-        with:
-          name: playwright-test-results-webkit
           path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
           if-no-files-found: ignore
           retention-days: 14

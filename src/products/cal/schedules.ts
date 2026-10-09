@@ -29,7 +29,6 @@ export const FALL_BACK_ONE_THIRTY_AM_LABEL = "1:30am" as const;
 export const BOOKING_WINDOW_OFFSET_BY_PROJECT: Readonly<Record<string, number>> = {
   "cal-chromium": 0,
   "cal-firefox": 7,
-  "cal-webkit": 14,
   "cal-setup": 0,
   unit: 0,
 };
