@@ -18,7 +18,7 @@ export class EventTypesPage extends BasePage {
     super(page);
     this.shell = new CalAppShell(page);
     this.heading = page.getByRole("heading", { name: /event types/i });
-    this.newEventType = page.getByTestId(CAL_TEST_IDS.newEventType);
+    this.newEventType = page.getByRole("main").getByTestId(CAL_TEST_IDS.newEventType);
     this.titleField = page.getByTestId(CAL_TEST_IDS.eventTypeQuickChat);
     this.durationField = page.getByLabel(/duration/i);
     this.continueButton = page.getByRole("button", { name: /continue/i });
@@ -76,7 +76,6 @@ export class EventTypesPage extends BasePage {
   async assignAvailabilitySchedule(scheduleName: string): Promise<void> {
     const editor = new URL(this.page.url());
     await this.gotoPath(`${editor.pathname}?tabName=availability`);
-    await this.page.reload({ waitUntil: "domcontentloaded" });
     await this.shell.waitUntilReady();
     await expect(this.page.getByRole("link", { name: /edit availability/i })).toBeVisible({
       timeout: timeouts().page,
