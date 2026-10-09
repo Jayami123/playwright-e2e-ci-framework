@@ -12,9 +12,9 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 Cal.com / Cal.diy only today: auth `storageState`, FW plus timezone/DST booker tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
 
-**11 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`. Three TZ/DST cases are **`test.fail`** until known Cal issues are fixed (DST-002, DST-003, TZ-003 Kathmandu); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md).
+**14 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`, `P1-CAL-2FA-001`–`003`. Four cases use **`test.fail`** for known Cal issues (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
 
-Later suites (not in this repo yet): Documenso, Medusa, Twenty; 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
+Later suites (not in this repo yet): Documenso, Medusa, Twenty; WebKit/Firefox, visual, axe, Slack, GitHub Pages.
 
 ## Prerequisites
 
@@ -31,6 +31,7 @@ src/core/                     product-agnostic config, BasePage, console guard, 
 src/products/cal/             Cal env, routes, test ids, auth, db, oracle, app shell, pages, fixtures
 tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/cal/journeys/           FW-001..004
+tests/cal/auth/               2FA-001..003
 tests/cal/tz-i18n/            TZ-001..004, DST-001..003
 tests/unit/                   Intl/timezone helper unit project (no cal-setup)
 global-setup/                 harness up + health + optional dev warmup
@@ -110,6 +111,9 @@ npm run report
 | P1-CAL-DST-001 | Spring-forward day shows no phantom 02:00–02:59 slot         |
 | P1-CAL-DST-002 | Fall-back 01:30 EDT booking vs DB/UI (`test.fail` known 409) |
 | P1-CAL-DST-003 | Cross-hemisphere viewer labels on EU spring-forward Sunday   |
+| P1-CAL-2FA-001 | TOTP login with an otplib-generated code                     |
+| P1-CAL-2FA-002 | Same TOTP code replayed in a second context (`test.fail`)    |
+| P1-CAL-2FA-003 | Backup code works once                                       |
 
 ## CI
 
