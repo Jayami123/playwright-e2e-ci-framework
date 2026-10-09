@@ -1,13 +1,15 @@
 import {
   CAL_INCORRECT_BACKUP_CODE,
   CAL_INCORRECT_TWO_FACTOR_CODE,
-  loginCallbackErrorParam,
+  credentialsCallbackErrorParam,
   parseCalCredentialsCallback,
+  pollSessionHasEmail,
   readCalSessionPayload,
   sessionHasEmail,
 } from "../../../src/products/cal/auth.js";
 import { assertTotpBudget, generateTotpCode } from "../../../src/core/totp.js";
 import { attachKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
+import { required } from "../../../src/core/required.js";
 import { expect, test } from "../../../src/products/cal/fixtures.js";
 import { installTimezoneHandler } from "../../../src/products/cal/app-shell.js";
 import { readTwoFactorState } from "../../../src/products/cal/qa-user.js";
@@ -30,13 +32,13 @@ test.describe("P1-CAL-2FA-001 UI enrol", () => {
       ],
     },
     async ({ page, twoFactorUser, eventTypes }) => {
+      const login = new LoginPage(page);
+
       await test.step("sign out the enrolled QA user", async () => {
         await eventTypes.goto();
-        const login = new LoginPage(page);
         await login.signOut(twoFactorUser.name);
       });
 
-      const login = new LoginPage(page);
       await test.step("log in with email, password, and a fresh TOTP code", async () => {
         await login.goto();
         await login.continueWithPassword(twoFactorUser.email, twoFactorUser.password);
@@ -49,12 +51,7 @@ test.describe("P1-CAL-2FA-001 UI enrol", () => {
       });
 
       await test.step("session and event-types oracle", async () => {
-        await expect
-          .poll(async () => {
-            const payload = await readCalSessionPayload(page.request);
-            return sessionHasEmail(payload, twoFactorUser.email);
-          })
-          .toBe(true);
+        await pollSessionHasEmail(page.request, twoFactorUser.email);
         await page.goto(CAL_ROUTES.eventTypes, { waitUntil: "domcontentloaded" });
         await expect(eventTypes.heading).toBeVisible();
       });
@@ -103,12 +100,7 @@ test.describe("P1-CAL-2FA-002 replay", () => {
         await test.step("context A succeeds with the shared code", async () => {
           await loginA.fillTotpCode(sharedCode);
           await loginA.submitTotp();
-          await expect
-            .poll(async () => {
-              const payload = await readCalSessionPayload(pageA.request);
-              return sessionHasEmail(payload, twoFactorUser.email);
-            })
-            .toBe(true);
+          await pollSessionHasEmail(pageA.request, twoFactorUser.email);
         });
 
         await test.step("context B replays the same code", async () => {
@@ -119,19 +111,17 @@ test.describe("P1-CAL-2FA-002 replay", () => {
           const callbackBody = parseCalCredentialsCallback(await response.json());
           const sessionOnB = await readCalSessionPayload(pageB.request);
           const sessionUserOnB = sessionHasEmail(sessionOnB, twoFactorUser.email);
-          const callbackError = loginCallbackErrorParam(callbackBody);
+          const callbackError = credentialsCallbackErrorParam(callbackBody);
 
-          if (sessionUserOnB) {
-            await attachKnownBugEvidence(pageB, testInfo, {
-              issue: REPLAY_ISSUE,
-              observed: { sessionUserOnB, callbackError: callbackError ?? null },
-              expected: {
-                sessionUserOnB: false,
-                callbackError: CAL_INCORRECT_TWO_FACTOR_CODE,
-              },
-            });
-            test.fail(true, REPLAY_ISSUE);
-          }
+          await attachKnownBugEvidence(pageB, testInfo, {
+            issue: REPLAY_ISSUE,
+            observed: { sessionUserOnB, callbackError: callbackError ?? null },
+            expected: {
+              sessionUserOnB: false,
+              callbackError: CAL_INCORRECT_TWO_FACTOR_CODE,
+            },
+          });
+          test.fail(true, REPLAY_ISSUE);
 
           expect(sessionUserOnB, "RFC 6238 replay must not create a session on context B").toBe(
             false,
@@ -162,10 +152,10 @@ test.describe("P1-CAL-2FA-003 backup code", () => {
       ],
     },
     async ({ page, twoFactorUser, eventTypes }) => {
-      const rawBackup = twoFactorUser.backupCodes[0];
-      if (rawBackup === undefined) {
-        throw new Error("twoFactorUser fixture did not return backup codes");
-      }
+      const rawBackup = required(
+        twoFactorUser.backupCodes[0],
+        "twoFactorUser fixture must return backup codes",
+      );
       const formattedBackup = twoFactorUser.formatBackupCode(rawBackup);
       const beforeCipher = (await readTwoFactorState(twoFactorUser.id)).backupCodesCiphertext;
 
@@ -182,12 +172,7 @@ test.describe("P1-CAL-2FA-003 backup code", () => {
         await login.clickLostAccess();
         await login.fillBackupCode(formattedBackup);
         await login.submitBackupCode();
-        await expect
-          .poll(async () => {
-            const payload = await readCalSessionPayload(page.request);
-            return sessionHasEmail(payload, twoFactorUser.email);
-          })
-          .toBe(true);
+        await pollSessionHasEmail(page.request, twoFactorUser.email);
       });
 
       await test.step("backup ciphertext changes after use", async () => {
@@ -207,7 +192,7 @@ test.describe("P1-CAL-2FA-003 backup code", () => {
         await login.submitBackupCode();
         const response = await responsePromise;
         const callbackBody = parseCalCredentialsCallback(await response.json());
-        const callbackError = loginCallbackErrorParam(callbackBody);
+        const callbackError = credentialsCallbackErrorParam(callbackBody);
         expect(callbackError).toBe(CAL_INCORRECT_BACKUP_CODE);
         await expect(login.incorrectBackupAlert()).toBeVisible();
         const payload = await readCalSessionPayload(page.request);
