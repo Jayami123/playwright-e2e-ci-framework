@@ -4,7 +4,18 @@ import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/
 
 process.env.P1_SEED ??= String(Date.now());
 
-const live = !skipLiveCal();
+/** Set by `npm run test:unit` so globalSetup does not start the Cal harness. */
+function shouldStartCalHarness(): boolean {
+  if (process.env.P1_PLAYWRIGHT_HARNESS === "0") {
+    return false;
+  }
+  if (process.env.npm_lifecycle_event === "test:unit") {
+    return false;
+  }
+  return true;
+}
+
+const live = !skipLiveCal() && shouldStartCalHarness();
 const webMode = live ? loadConfig().webMode : parseWebMode(process.env.CAL_WEB_MODE);
 const rawBase = process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL;
 const baseURL = live
@@ -39,7 +50,12 @@ export default defineConfig({
       name: "cal-setup",
       testDir: "./tests/setup",
       testMatch: /cal\.setup\.ts/,
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], trace: "off" },
+    },
+    {
+      name: "unit",
+      testDir: "./tests/unit",
+      testMatch: /.*\.spec\.ts/,
     },
     {
       name: "cal-chromium",
@@ -47,7 +63,7 @@ export default defineConfig({
       testDir: "./tests/cal",
       use: {
         ...devices["Desktop Chrome"],
-        ...(live ? { storageState: loadConfig().authStatePath } : {}),
+        ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
       },
     },
   ],

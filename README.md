@@ -6,9 +6,11 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 ## Scope
 
-Cal.com / Cal.diy only today: auth `storageState`, four FW tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
+Cal.com / Cal.diy only today: auth `storageState`, FW plus timezone/DST booker tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
 
-Later suites (not in this repo yet): Documenso, Medusa, Twenty; TZ/DST, 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
+**11 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`. Two TZ/DST cases are **`test.fail`** until known Cal issues are fixed (Kathmandu TZ-003, US fall-back DST-002); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md).
+
+Later suites (not in this repo yet): Documenso, Medusa, Twenty; 2FA, WebKit/Firefox, visual, axe, Slack, GitHub Pages.
 
 ## Prerequisites
 
@@ -21,10 +23,12 @@ Later suites (not in this repo yet): Documenso, Medusa, Twenty; TZ/DST, 2FA, Web
 ## Folder structure
 
 ```
-src/core/                     product-agnostic config, BasePage, console guard
-src/products/cal/             Cal env, routes, test ids, auth, db, app shell, pages, fixtures
-tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json
+src/core/                     product-agnostic config, BasePage, console guard, Intl TZ helpers
+src/products/cal/             Cal env, routes, test ids, auth, db, oracle, app shell, pages, fixtures
+tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/cal/journeys/           FW-001..004
+tests/cal/tz-i18n/            TZ-001..004, DST-001..003
+tests/unit/                   Intl/timezone helper unit project (no cal-setup)
 global-setup/                 harness up + health + optional dev warmup
 .github/workflows/            lint, typecheck, secret-gated live shards
 docs/adr/                     architecture decisions
@@ -70,6 +74,7 @@ Then from this repo:
 ```powershell
 npm run lint
 npm run typecheck
+npm run test:unit
 npm run test:cal
 npm run test:smoke
 npm run report
@@ -86,20 +91,27 @@ npm run report
 | `npx playwright test --ui`         | UI mode                                |
 | `npx playwright show-trace <path>` | Trace viewer (`trace: on-first-retry`) |
 
-## FW tests
+## Implemented P1 cases
 
-| ID            | Title                                         |
-| ------------- | --------------------------------------------- |
-| P1-CAL-FW-001 | API login produces a reusable storageState    |
-| P1-CAL-FW-002 | wrong password does not create a session      |
-| P1-CAL-FW-003 | creates and deletes an isolated event type    |
-| P1-CAL-FW-004 | booker and bookings pages emit no page errors |
+| ID             | Title                                                        |
+| -------------- | ------------------------------------------------------------ |
+| P1-CAL-FW-001  | API login produces a reusable storageState                   |
+| P1-CAL-FW-002  | wrong password does not create a session                     |
+| P1-CAL-FW-003  | creates and deletes an isolated event type                   |
+| P1-CAL-FW-004  | booker and bookings pages emit no page errors                |
+| P1-CAL-TZ-001  | Slot labels follow the browser timezone                      |
+| P1-CAL-TZ-002  | Booked instant equals the clicked slot                       |
+| P1-CAL-TZ-003  | Half-hour and 45-minute offsets (Kathmandu, Adelaide)        |
+| P1-CAL-TZ-004  | Booker timezone switcher overrides the browser TZ            |
+| P1-CAL-DST-001 | Spring-forward day shows no phantom 02:00–02:59 slot         |
+| P1-CAL-DST-002 | Fall-back 01:30 EDT booking vs DB/UI (`test.fail` known 409) |
+| P1-CAL-DST-003 | Cross-hemisphere viewer labels on EU spring-forward Sunday   |
 
 ## CI
 
 [`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, and `workflow_dispatch` (optional `cal_ref` input for the Cal fork pin). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml). Concurrency cancels in-progress runs for PRs only. Permissions: `contents: read`.
 
-**Always:** `lint` (actionlint on workflows, then ESLint + Prettier check) and `typecheck (always)`.
+**Always:** `lint` (actionlint, ESLint, Prettier, and `npm run test:unit`) and `typecheck (always)`.
 
 **E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
 

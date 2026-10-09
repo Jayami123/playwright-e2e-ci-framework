@@ -27,6 +27,10 @@ on:
         required: false
       CAL_E2E_PASSWORD:
         required: false
+      CAL_DST_EMAIL:
+        required: false
+      CAL_DST_PASSWORD:
+        required: false
 
 permissions:
   contents: read
@@ -39,6 +43,8 @@ env:
   CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
   CAL_DEFAULT_E2E_EMAIL: pro@example.com
   CAL_DEFAULT_E2E_PASSWORD: pro
+  CAL_DEFAULT_DST_EMAIL: trial@example.com
+  CAL_DEFAULT_DST_PASSWORD: trial
   ACTIONLINT_VERSION: v1.7.12
 
 jobs:
@@ -66,6 +72,9 @@ jobs:
       - run: |
           set -euo pipefail
           npm run format:check
+      - run: |
+          set -euo pipefail
+          npm run test:unit
 
   structural:
     name: typecheck (always)
@@ -107,6 +116,8 @@ jobs:
       CAL_BASE_URL: ${{ secrets.CAL_E2E_BASE_URL }}
       CAL_E2E_EMAIL: ${{ secrets.CAL_E2E_EMAIL }}
       CAL_E2E_PASSWORD: ${{ secrets.CAL_E2E_PASSWORD }}
+      CAL_DST_EMAIL: ${{ secrets.CAL_DST_EMAIL }}
+      CAL_DST_PASSWORD: ${{ secrets.CAL_DST_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -242,6 +253,8 @@ jobs:
           CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
           CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
           CAL_E2E_PASSWORD: ${{ env.CAL_DEFAULT_E2E_PASSWORD }}
+          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
+          CAL_DST_PASSWORD: ${{ env.CAL_DEFAULT_DST_PASSWORD }}
           PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
         run: |
           set -euo pipefail

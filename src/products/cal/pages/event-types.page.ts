@@ -1,15 +1,11 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
+import { escapeRegExp } from "../../../core/regex.js";
 import { CalAppShell } from "../app-shell.js";
 import { timeouts } from "../env.js";
 import { DEFAULT_EVENT_DURATION_MINUTES } from "../factories.js";
 import { CAL_ROUTES, isEventTypeEditorPath } from "../routes.js";
 import { CAL_TEST_IDS } from "../testIds.js";
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 export class EventTypesPage extends BasePage {
   private readonly shell: CalAppShell;
   readonly heading: Locator;
@@ -22,7 +18,10 @@ export class EventTypesPage extends BasePage {
     super(page);
     this.shell = new CalAppShell(page);
     this.heading = page.getByRole("heading", { name: /event types/i });
-    this.newEventType = page.getByTestId(CAL_TEST_IDS.newEventType);
+    this.newEventType = page
+      .getByRole("main")
+      .getByTestId(CAL_TEST_IDS.newEventType)
+      .filter({ visible: true });
     this.titleField = page.getByTestId(CAL_TEST_IDS.eventTypeQuickChat);
     this.durationField = page.getByLabel(/duration/i);
     this.continueButton = page.getByRole("button", { name: /continue/i });
@@ -41,7 +40,7 @@ export class EventTypesPage extends BasePage {
   }
 
   private listEventLinks(): Locator {
-    return this.page.getByRole("main").locator(`a[href*="${CAL_ROUTES.eventTypes}/"]`);
+    return this.page.getByRole("main").getByRole("link");
   }
 
   private async waitForListHydrated(): Promise<void> {
@@ -70,6 +69,61 @@ export class EventTypesPage extends BasePage {
     });
   }
 
+  private availabilityCombobox(): Locator {
+    return this.page
+      .getByRole("main")
+      .filter({ has: this.page.getByRole("link", { name: /edit availability/i }) })
+      .getByRole("combobox");
+  }
+
+  async assignAvailabilitySchedule(scheduleName: string): Promise<void> {
+    const editor = new URL(this.page.url());
+    await this.gotoPath(`${editor.pathname}?tabName=availability`);
+    await this.shell.waitUntilReady();
+    await expect(this.page.getByRole("link", { name: /edit availability/i })).toBeVisible({
+      timeout: timeouts().page,
+    });
+    const combo = this.availabilityCombobox();
+    await expect(combo).toBeVisible({ timeout: timeouts().page });
+    await combo.scrollIntoViewIfNeeded();
+    await combo.focus();
+    await this.page.keyboard.press("Enter");
+    await this.page.keyboard.press("ArrowDown");
+    await this.page.keyboard.type(scheduleName);
+    const option = this.page.getByRole("option", {
+      name: new RegExp(escapeRegExp(scheduleName)),
+    });
+    await expect(option).toBeVisible({ timeout: timeouts().page });
+    await option.click();
+    const save = this.page.getByTestId(CAL_TEST_IDS.updateEventType);
+    await expect(save).toBeEnabled({ timeout: timeouts().page });
+    const saved = this.page.waitForResponse(
+      (response) =>
+        response.url().includes(CAL_ROUTES.eventTypesHeavyUpdate) &&
+        response.request().method() === "POST" &&
+        response.ok(),
+      { timeout: timeouts().page },
+    );
+    await save.click();
+    await saved;
+  }
+
+  async expectSundayAvailabilityRow(): Promise<void> {
+    await expect(this.page.getByRole("main").getByText(/^Sunday\b/i)).toBeVisible({
+      timeout: timeouts().page,
+    });
+  }
+
+  async createdSlug(): Promise<string> {
+    const slugField = this.page.getByRole("textbox", { name: /url|slug/i });
+    await expect(slugField).toBeVisible({ timeout: timeouts().page });
+    const value = (await slugField.inputValue()).trim();
+    if (value === "") {
+      throw new Error("Event type slug field is empty after create");
+    }
+    return value;
+  }
+
   async expectListed(title: string): Promise<void> {
     await this.goto();
     await expect(this.eventTypeLink(title)).toBeVisible({ timeout: timeouts().page });
@@ -81,7 +135,7 @@ export class EventTypesPage extends BasePage {
   ): Promise<void> {
     await this.goto();
     const link = this.eventTypeLink(title);
-    if (options?.tolerateMissing === true && (await link.count()) === 0) {
+    if (options?.tolerateMissing === true && !(await link.isVisible())) {
       return;
     }
     await expect(link, `Event type "${title}" not found for delete`).toBeVisible({

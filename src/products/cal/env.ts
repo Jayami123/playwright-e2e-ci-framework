@@ -14,6 +14,7 @@ export interface TimeoutBudget {
   readonly editor: number;
   readonly test: number;
   readonly journey: number;
+  readonly isolatedJourney: number;
   readonly expect: number;
   readonly navigation: number;
   readonly action: number;
@@ -30,6 +31,7 @@ export const TIMEOUTS = {
     editor: 30_000,
     test: 60_000,
     journey: 60_000,
+    isolatedJourney: 300_000,
     expect: 5_000,
     navigation: 30_000,
     action: 10_000,
@@ -44,6 +46,7 @@ export const TIMEOUTS = {
     editor: 600_000,
     test: 180_000,
     journey: 600_000,
+    isolatedJourney: 600_000,
     expect: 20_000,
     navigation: 180_000,
     action: 60_000,
@@ -61,11 +64,15 @@ export interface CalE2EConfig {
   readonly password: string;
   readonly webMode: CalWebMode;
   readonly productsRoot: string;
-  readonly authStatePath: string;
+  readonly proAuthStatePath: string;
+  readonly dstEmail: string;
+  readonly dstPassword: string;
+  readonly trialAuthStatePath: string;
 }
 
 const DEFAULT_PRODUCTS_ROOT = "../products";
-const AUTH_STATE_RELATIVE = path.join(".auth", "cal-pro.json");
+const PRO_AUTH_STATE_RELATIVE = path.join(".auth", "cal-pro.json");
+const TRIAL_AUTH_STATE_RELATIVE = path.join(".auth", "cal-trial.json");
 
 let cached: CalE2EConfig | undefined;
 
@@ -90,10 +97,14 @@ export function loadConfig(): CalE2EConfig {
 
   const email = process.env.CAL_E2E_EMAIL?.trim() ?? "";
   const password = process.env.CAL_E2E_PASSWORD ?? "";
+  const dstEmail = process.env.CAL_DST_EMAIL?.trim() ?? "";
+  const dstPassword = process.env.CAL_DST_PASSWORD ?? "";
   const baseUrlRaw = (process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL)?.trim() ?? "";
   const missing = collectMissingEnv({
     CAL_E2E_EMAIL: email,
     CAL_E2E_PASSWORD: password,
+    CAL_DST_EMAIL: dstEmail,
+    CAL_DST_PASSWORD: dstPassword,
     "CAL_E2E_BASE_URL or CAL_BASE_URL": baseUrlRaw,
   });
   failOnMissingEnv(missing);
@@ -107,7 +118,10 @@ export function loadConfig(): CalE2EConfig {
     password,
     webMode: parseWebMode(process.env.CAL_WEB_MODE),
     productsRoot,
-    authStatePath: path.join(repoRoot(), AUTH_STATE_RELATIVE),
+    proAuthStatePath: path.join(repoRoot(), PRO_AUTH_STATE_RELATIVE),
+    dstEmail,
+    dstPassword,
+    trialAuthStatePath: path.join(repoRoot(), TRIAL_AUTH_STATE_RELATIVE),
   };
   return cached;
 }

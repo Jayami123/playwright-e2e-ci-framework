@@ -17,5 +17,5 @@
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src", "tests", "global-setup", "playwright.config.ts"]
+  "include": ["src", "tests", "scripts", "global-setup", "playwright.config.ts"]
 }
