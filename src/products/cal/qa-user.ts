@@ -175,11 +175,11 @@ export async function sweepCalQaUsers(): Promise<number> {
   return withWritableCalPool(async (pool) => {
     const client = await pool.connect();
     try {
+      await client.query("BEGIN");
       const listed = await client.query<{ id: number }>(
         `SELECT id FROM users WHERE email LIKE $1 ORDER BY id ASC`,
         [QA_EMAIL_LIKE],
       );
-      await client.query("BEGIN");
       for (const row of listed.rows) {
         await deleteCalQaUserInTransaction(client, row.id);
       }
