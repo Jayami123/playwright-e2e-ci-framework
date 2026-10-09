@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { withCalPool, withWritableCalPool } from "./db.js";
 import { LONDON_TZ } from "./timezones.js";
 
@@ -112,37 +112,41 @@ export async function readTwoFactorState(userId: number): Promise<TwoFactorDbSta
   });
 }
 
+async function deleteCalQaUserInTransaction(client: PoolClient, userId: number): Promise<void> {
+  const availability = await client.query(
+    `DELETE FROM "Availability"
+     WHERE "userId" = $1
+        OR "scheduleId" IN (SELECT id FROM "Schedule" WHERE "userId" = $1)`,
+    [userId],
+  );
+  const schedules = await client.query(`DELETE FROM "Schedule" WHERE "userId" = $1`, [userId]);
+  await client.query(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
+  const deleted = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [userId]);
+  if ((deleted.rowCount ?? 0) !== 1) {
+    throw new Error(
+      `teardownCalQaUserById expected 1 user row, deleted ${String(deleted.rowCount ?? 0)}`,
+    );
+  }
+  const availabilityRows = availability.rowCount ?? 0;
+  if (availabilityRows !== WEEKDAY_AVAILABILITY_ROWS) {
+    throw new Error(
+      `teardownCalQaUserById expected ${String(WEEKDAY_AVAILABILITY_ROWS)} Availability rows, deleted ${String(availabilityRows)}`,
+    );
+  }
+  const scheduleRows = schedules.rowCount ?? 0;
+  if (scheduleRows !== 1) {
+    throw new Error(
+      `teardownCalQaUserById expected 1 Schedule row, deleted ${String(scheduleRows)}`,
+    );
+  }
+}
+
 export async function teardownCalQaUserById(userId: number): Promise<void> {
   await withWritableCalPool(async (pool) => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const availability = await client.query(
-        `DELETE FROM "Availability"
-         WHERE "userId" = $1
-            OR "scheduleId" IN (SELECT id FROM "Schedule" WHERE "userId" = $1)`,
-        [userId],
-      );
-      const schedules = await client.query(`DELETE FROM "Schedule" WHERE "userId" = $1`, [userId]);
-      await client.query(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
-      const deleted = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [userId]);
-      if ((deleted.rowCount ?? 0) !== 1) {
-        throw new Error(
-          `teardownCalQaUserById expected 1 user row, deleted ${String(deleted.rowCount ?? 0)}`,
-        );
-      }
-      const availabilityRows = availability.rowCount ?? 0;
-      if (availabilityRows !== WEEKDAY_AVAILABILITY_ROWS) {
-        throw new Error(
-          `teardownCalQaUserById expected ${String(WEEKDAY_AVAILABILITY_ROWS)} Availability rows, deleted ${String(availabilityRows)}`,
-        );
-      }
-      const scheduleRows = schedules.rowCount ?? 0;
-      if (scheduleRows !== 1) {
-        throw new Error(
-          `teardownCalQaUserById expected 1 Schedule row, deleted ${String(scheduleRows)}`,
-        );
-      }
+      await deleteCalQaUserInTransaction(client, userId);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -169,13 +173,23 @@ export async function countCalQaUsers(): Promise<number> {
 
 export async function sweepCalQaUsers(): Promise<number> {
   return withWritableCalPool(async (pool) => {
-    const listed = await pool.query<{ id: number }>(
-      `SELECT id FROM users WHERE email LIKE $1 ORDER BY id ASC`,
-      [QA_EMAIL_LIKE],
-    );
-    for (const row of listed.rows) {
-      await teardownCalQaUserById(row.id);
+    const client = await pool.connect();
+    try {
+      const listed = await client.query<{ id: number }>(
+        `SELECT id FROM users WHERE email LIKE $1 ORDER BY id ASC`,
+        [QA_EMAIL_LIKE],
+      );
+      await client.query("BEGIN");
+      for (const row of listed.rows) {
+        await deleteCalQaUserInTransaction(client, row.id);
+      }
+      await client.query("COMMIT");
+      return listed.rows.length;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-    return listed.rows.length;
   });
 }
