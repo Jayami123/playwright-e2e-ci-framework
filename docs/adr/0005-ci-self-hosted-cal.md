@@ -24,13 +24,13 @@ Fork and Dependabot pull requests use the same rule: without the secret, they al
 
 The structural job still sets `has_live_url` by injecting the secret into step env (not job-level `secrets.*` in `if:`).
 
-**Checkouts** (all `persist-credentials: false`): this repo into `p1/`; [Jayami123/cal](https://github.com/Jayami123/cal) at `inputs.cal_ref` (default `main`, overridable via `workflow_dispatch`) into `products/cal`. Job env `PRODUCTS_ROOT` is `${{ github.workspace }}/products`. P1 steps use `working-directory: p1`.
+**Checkouts** (all `persist-credentials: false`): this repo into `p1/`; [Jayami123/cal](https://github.com/Jayami123/cal) at workflow env `CAL_REF` (`main`) into `products/cal`. Job env `PRODUCTS_ROOT` is `${{ github.workspace }}/products`. P1 steps use `working-directory: p1`.
 
 **Harness boundary**: CI runs `yarn install --immutable` in `products/cal` and creates ephemeral product `.env` from `products/cal/.env.example` (`NEXTAUTH_SECRET`, `CALENDSO_ENCRYPTION_KEY` generated in shell, `::add-mask::` before any other use, validated non-empty). URLs normalized to `127.0.0.1:3000`. Compose, seed, tRPC types, and `next build` / `next start` stay in harness `up()`—not reimplemented in YAML.
 
 **Run**: `npm run test:cal` (from `p1/`) with step-level env only: `CAL_E2E_BASE_URL` / `CAL_BASE_URL` = `CAL_E2E_LOCAL_BASE_URL` (`http://127.0.0.1:3000`), `CAL_E2E_EMAIL` from workflow env (`pro@example.com`), `CAL_E2E_PASSWORD` / `CAL_DST_PASSWORD` only on **Run Cal E2E suite** (public seed `pro` / `trial`). Those passwords are not workflow-level env, so they do not appear in every step's env header. Repository secrets for E2E credentials are **not** used on this path (seeded DB accepts only the seed user; custom passwords must not reach traces or artifacts). The public seed values are intentionally **not** `::add-mask::`'d (masking `pro` / `trial` would redact unrelated log text).
 
-**Caching** (exact keys, no `restore-keys`): Cal Yarn on `products/cal/yarn.lock`; Next output (including `harness-build.json`) via `actions/cache/restore@v4` + conditional `actions/cache/save@v4` with key `${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}` when `required-server-files.json` exists; Playwright browsers via composite action.
+**Caching** (exact keys, no `restore-keys`): Cal Yarn on `products/cal/yarn.lock`; Next output (including `harness-build.json`) via `actions/cache/restore@v4` + conditional `actions/cache/save@v4` with key `${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}` when `required-server-files.json` exists (save steps run only on pushes to `main`, not on pull requests); Playwright browsers via composite action.
 
 **Sharding**: Single job for self-hosted. Four matrix jobs would each pay for Postgres, seed, and `next build`. External URL path keeps four shards because the app is already up and global setup skips `up()` when CSRF is healthy.
 
@@ -50,6 +50,6 @@ Live-only jobs keep their `if:` gates and are named `(live Cal only, skipped wit
 
 - First self-hosted runs are long (Yarn install + optional `next build`); a warm `.next` cache for the same Cal commit SHA lets the harness skip rebuild when `harness-build.json` matches `HEAD`.
 - Requires Docker on the runner (default on `ubuntu-24.04`).
-- Fork pin via `cal_ref` dispatch input; default `main` may break tests until pin is updated.
+- Cal checkout tracks workflow env `CAL_REF` (`main` today); bump it in `e2e.yml` when tests need a different fork revision.
 - Teams that want self-hosted on every PR must leave `CAL_E2E_BASE_URL` unset; setting the secret selects the external path exclusively.
 - [ADR 0003](0003-ci-secret-gating.md) external path is unchanged when the secret is present.
