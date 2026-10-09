@@ -19,6 +19,9 @@
     "report": "playwright show-report",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
+    "prelint:actions": "tsx scripts/actionlint.mts --install-only",
+    "lint:actions": "actionlint",
+    "check": "npm run lint && npx prettier --check . && npm run typecheck && npm run lint:actions",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
