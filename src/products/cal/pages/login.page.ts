@@ -38,9 +38,7 @@ export class LoginPage extends BasePage {
   }
 
   async fillTotpCode(code: string): Promise<void> {
-    if (!/^\d{6}$/.test(code)) {
-      throw new Error("TOTP code must be exactly six digits");
-    }
+    expect(code, "TOTP code must be exactly six digits").toMatch(/^\d{6}$/);
     await this.waitForTwoFactorStep();
     await this.page.keyboard.type(code);
   }
@@ -51,21 +49,19 @@ export class LoginPage extends BasePage {
 
   async clickLostAccess(): Promise<void> {
     await this.lostAccessButton.click();
-    await expect(this.page.getByRole("textbox")).toBeVisible({ timeout: timeouts().page });
+    await expect(this.backupCodeField()).toBeVisible({ timeout: timeouts().page });
+  }
+
+  backupCodeField(): Locator {
+    return this.form.filter({ hasText: "Backup code" }).getByRole("textbox");
   }
 
   async fillBackupCode(formattedCode: string): Promise<void> {
-    await this.page.getByRole("textbox").fill(formattedCode);
+    await this.backupCodeField().fill(formattedCode);
   }
 
   async submitBackupCode(): Promise<void> {
     await this.submitButton.click();
-  }
-
-  incorrectTotpAlert(): Locator {
-    return this.page.getByRole("heading", {
-      name: /incorrect.*two-factor|two-factor code.*please try again/i,
-    });
   }
 
   incorrectBackupAlert(): Locator {
