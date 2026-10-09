@@ -24,6 +24,15 @@ export class AvailabilityPage extends BasePage {
     await this.gotoPath(CAL_ROUTES.availability);
     await this.shell.waitUntilReady();
     await expect(this.heading).toBeVisible({ timeout: timeouts().page });
+    await this.waitForScheduleListLoaded();
+  }
+
+  private async waitForScheduleListLoaded(): Promise<void> {
+    const schedules = this.page.getByTestId(CAL_TEST_IDS.schedules);
+    await expect(schedules).toBeVisible({ timeout: timeouts().page });
+    await expect(schedules.getByRole("listitem")).not.toHaveCount(0, {
+      timeout: timeouts().page,
+    });
   }
 
   scheduleRow(name: string): Locator {
@@ -165,8 +174,10 @@ export class AvailabilityPage extends BasePage {
   ): Promise<void> {
     await this.goto();
     const item = this.scheduleListItem(name);
-    if (options?.tolerateMissing === true && (await item.count()) === 0) {
-      return;
+    if (options?.tolerateMissing === true) {
+      if ((await item.count()) === 0) {
+        return;
+      }
     }
     const more = item.getByTestId(CAL_TEST_IDS.scheduleMore).filter({ visible: true });
     await expect(more, `Schedule "${name}" has no delete menu (still default?)`).toBeVisible({
@@ -176,18 +187,5 @@ export class AvailabilityPage extends BasePage {
     await this.page.getByTestId(CAL_TEST_IDS.deleteSchedule).click();
     await this.page.getByRole("dialog").getByTestId(CAL_TEST_IDS.dialogConfirmation).click();
     await expect(this.scheduleListItem(name)).toHaveCount(0);
-  }
-
-  async deleteQaSchedules(): Promise<void> {
-    await this.goto();
-    const names = (
-      await this.page
-        .getByTestId(CAL_TEST_IDS.schedules)
-        .getByText(/^sch-qa-/)
-        .allInnerTexts()
-    ).map((name) => name.trim());
-    for (const name of names) {
-      await this.deleteByName(name, { tolerateMissing: true });
-    }
   }
 }
