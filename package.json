@@ -29,7 +29,7 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^22",
     "@types/pg": "^8.23.1",
-    "dotenv": "^16",
+    "dotenv": "^18",
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-playwright": "^2.2.2",
