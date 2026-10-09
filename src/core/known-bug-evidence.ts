@@ -3,8 +3,7 @@ import type { Page, TestInfo } from "@playwright/test";
 export const KNOWN_BUG_SCREENSHOT_ATTACHMENT = "known-bug-screenshot";
 export const KNOWN_BUG_JSON_ATTACHMENT = "known-bug-evidence";
 
-const SECRET_KEY =
-  /password|secret|token|authorization|cookie|credential|api[_-]?key|totp|backup|otp/i;
+const SECRET_KEY = /password|secret|token|authorization|cookie|credential|api[_-]?key|backup|otp/i;
 const REDACTED = "[redacted]";
 
 export type JsonValue =
