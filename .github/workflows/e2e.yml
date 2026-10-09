@@ -43,7 +43,8 @@ env:
   CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
   CAL_DEFAULT_E2E_EMAIL: pro@example.com
   CAL_DEFAULT_DST_EMAIL: trial@example.com
-  ACTIONLINT_VERSION: v1.7.12
+  ACTIONLINT_VERSION: "1.7.12"
+  ACTIONLINT_INSTALLER_SHA: 914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
 
 jobs:
   lint:
@@ -51,14 +52,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install actionlint
         run: |
           set -euo pipefail
-          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/${ACTIONLINT_VERSION}/scripts/download-actionlint.bash")
-          ./actionlint -version
+          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/${ACTIONLINT_INSTALLER_SHA}/scripts/download-actionlint.bash") "${ACTIONLINT_VERSION}"
+          version_out="$(./actionlint -version)"
+          echo "$version_out"
+          case "$version_out" in
+            *1.7.12*) ;;
+            *) echo "::error::Expected actionlint 1.7.12, got: ${version_out}"; exit 1 ;;
+          esac
       - name: Lint workflows
         run: |
           set -euo pipefail
@@ -81,7 +87,7 @@ jobs:
     outputs:
       has_live_url: ${{ steps.live.outputs.has_live_url }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-p1
@@ -117,7 +123,7 @@ jobs:
       CAL_DST_EMAIL: ${{ secrets.CAL_DST_EMAIL }}
       CAL_DST_PASSWORD: ${{ secrets.CAL_DST_PASSWORD }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-p1
@@ -127,7 +133,7 @@ jobs:
         run: |
           set -euo pipefail
           npx playwright test --project=cal-chromium --shard=${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: blob-report-${{ matrix.shard }}
@@ -142,11 +148,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-p1
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: blob-report-*
           path: all-blob-reports
@@ -162,7 +168,7 @@ jobs:
         run: |
           set -euo pipefail
           npx tsx scripts/write-ci-job-summary.mts test-results/results.json
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
           path: playwright-report
@@ -180,14 +186,14 @@ jobs:
       CAL_CHECKOUT_PATH: products/cal
       PRODUCTS_ROOT: ${{ github.workspace }}/products
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           path: ${{ env.P1_WORKING_DIRECTORY }}
 
       - name: Checkout Cal fork
         id: checkout_cal
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Jayami123/cal
           ref: ${{ inputs.cal_ref }}
@@ -204,12 +210,12 @@ jobs:
         with:
           working-directory: ${{ env.P1_WORKING_DIRECTORY }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/.yarn/cache
           key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: cal_next
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
@@ -321,7 +327,7 @@ jobs:
             s/\Q$p\E/[REDACTED]/g if length $p;
           ' "$LOG_DST"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
@@ -329,7 +335,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: playwright-test-results
@@ -337,14 +343,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: cal-server-log
           path: cal-web-redacted.log
           retention-days: 14
 
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: >-
           ${{ steps.cal_next.outputs.cache-hit != 'true'
           && hashFiles(format('{0}/apps/web/.next/required-server-files.json', env.CAL_CHECKOUT_PATH)) != '' }}
