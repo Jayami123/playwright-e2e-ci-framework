@@ -43,7 +43,7 @@ const QA_USERNAME_MAX = 32;
 
 export function qaCalUser(workerIndex: number): QaCalUserIdentity {
   const person = fakePerson();
-  const token = `${runId()}-w${String(workerIndex)}-${person.firstName}`
+  const token = `${runId()}-w${String(workerIndex)}-${person.firstName}${person.lastName}`
     .replace(/\s+/g, "")
     .toLowerCase();
   const email = `qa-${token}@qa.local`;

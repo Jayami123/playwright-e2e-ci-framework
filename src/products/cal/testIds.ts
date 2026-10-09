@@ -18,7 +18,6 @@ export const CAL_TEST_IDS = {
   scheduleMore: "schedule-more",
   deleteSchedule: "delete-schedule",
   loginForm: "login-form",
-  loginSubtitle: "login-subtitle",
   twoFactorSwitch: "two-factor-switch",
   twoFactorSecret: "two-factor-secret",
   gotoOtpScreen: "goto-otp-screen",

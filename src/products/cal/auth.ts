@@ -32,7 +32,6 @@ const CALLBACK_FAILURE_URL =
 export const CREDENTIALS_SIGNIN_ERROR = "CredentialsSignin" as const;
 /** Cal v6 self-hosted maps failed password checks to this NextAuth error query param (not CSRF). */
 export const CAL_INCORRECT_EMAIL_PASSWORD_ERROR = "incorrect-email-password" as const;
-export const CAL_SECOND_FACTOR_REQUIRED = "second-factor-required" as const;
 export const CAL_INCORRECT_TWO_FACTOR_CODE = "incorrect-two-factor-code" as const;
 export const CAL_INCORRECT_BACKUP_CODE = "incorrect-backup-code" as const;
 
@@ -89,7 +88,9 @@ export function parseCalCredentialsCallback(payload: unknown): CalCredentialsCal
   };
 }
 
-function callbackErrorParam(body: CalCredentialsCallbackBody): string | undefined {
+export function credentialsCallbackErrorParam(
+  body: CalCredentialsCallbackBody,
+): string | undefined {
   if (body.error !== undefined && body.error.length > 0) {
     return body.error;
   }
@@ -105,7 +106,7 @@ function callbackErrorParam(body: CalCredentialsCallbackBody): string | undefine
 }
 
 export function wrongPasswordCallbackFailed(body: CalCredentialsCallbackBody): boolean {
-  const errorParam = callbackErrorParam(body);
+  const errorParam = credentialsCallbackErrorParam(body);
   return errorParam !== undefined && WRONG_PASSWORD_CALLBACK_ERRORS.has(errorParam);
 }
 
@@ -158,16 +159,28 @@ export function sessionHasEmail(payload: unknown, email: string): boolean {
   return user.email === email;
 }
 
-export function loginCallbackErrorParam(body: CalCredentialsCallbackBody): string | undefined {
-  return callbackErrorParam(body);
-}
-
 export async function readCalSessionPayload(http: APIRequestContext): Promise<unknown> {
   const response = await http.get(CAL_ROUTES.session, { timeout: timeouts().csrf });
-  if (!response.ok()) {
-    return {};
-  }
+  expect(
+    response.ok(),
+    `GET /api/auth/session failed (HTTP ${String(response.status())})`,
+  ).toBeTruthy();
   return response.json();
+}
+
+export async function pollSessionHasEmail(http: APIRequestContext, email: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const payload = await readCalSessionPayload(http);
+        return sessionHasEmail(payload, email);
+      },
+      {
+        timeout: timeouts().page,
+        message: `GET /api/auth/session did not return user email ${email}`,
+      },
+    )
+    .toBe(true);
 }
 
 export interface CalTotpSetupPayload {

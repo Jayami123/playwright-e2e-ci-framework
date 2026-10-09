@@ -8,7 +8,6 @@ export const CAL_ROUTES = {
   twoFactorSettings: "/settings/security/two-factor-auth",
   totpSetup: "/api/auth/two-factor/totp/setup",
   totpEnable: "/api/auth/two-factor/totp/enable",
-  logout: "/auth/logout",
   bookingsUpcoming: "/bookings/upcoming",
   eventTypes: "/event-types",
   eventTypeEditor: (id: string): string => `/event-types/${id}`,

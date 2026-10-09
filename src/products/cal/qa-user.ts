@@ -1,10 +1,13 @@
 import bcrypt from "bcryptjs";
 import type { Pool } from "pg";
-import { withWritableCalPool } from "./db.js";
+import { withCalPool, withWritableCalPool } from "./db.js";
+import { LONDON_TZ } from "./timezones.js";
 
 const BCRYPT_ROUNDS = 12 as const;
 const QA_EMAIL_SUFFIX = "@qa.local" as const;
+const QA_EMAIL_LIKE = `qa-%${QA_EMAIL_SUFFIX}` as const;
 const WORKING_HOURS = "Working Hours" as const;
+const WEEKDAY_AVAILABILITY_ROWS = 5 as const;
 
 export interface CalQaUserRecord {
   readonly id: number;
@@ -29,16 +32,16 @@ async function insertUserWithSchedule(
   client: Pool,
   input: CreateCalQaUserInput,
 ): Promise<CalQaUserRecord> {
-  const passwordHash = bcrypt.hashSync(input.password, BCRYPT_ROUNDS);
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   const dbClient = await client.connect();
   try {
     await dbClient.query("BEGIN");
     const userResult = await dbClient.query<{ id: number }>(
       `INSERT INTO users (
          uuid, email, username, name, "emailVerified", "completedOnboarding", locale, "timeZone", locked
-       ) VALUES (gen_random_uuid(), $1, $2, $3, NOW(), true, 'en', 'Europe/London', false)
+       ) VALUES (gen_random_uuid(), $1, $2, $3, NOW(), true, 'en', $4, false)
        RETURNING id`,
-      [input.email, input.username, input.name],
+      [input.email, input.username, input.name, LONDON_TZ],
     );
     const userId = userResult.rows[0]?.id;
     if (userId === undefined) {
@@ -52,9 +55,9 @@ async function insertUserWithSchedule(
 
     const scheduleResult = await dbClient.query<{ id: number }>(
       `INSERT INTO "Schedule" ("userId", name, "timeZone")
-       VALUES ($1, $2, 'Europe/London')
+       VALUES ($1, $2, $3)
        RETURNING id`,
-      [userId, WORKING_HOURS],
+      [userId, WORKING_HOURS, LONDON_TZ],
     );
     const scheduleId = scheduleResult.rows[0]?.id;
     if (scheduleId === undefined) {
@@ -89,7 +92,7 @@ export async function createCalQaUser(input: CreateCalQaUserInput): Promise<CalQ
 }
 
 export async function readTwoFactorState(userId: number): Promise<TwoFactorDbState> {
-  return withWritableCalPool(async (pool) => {
+  return withCalPool(async (pool) => {
     const result = await pool.query<{
       two_factor_enabled: boolean;
       backup_codes: string | null;
@@ -114,18 +117,30 @@ export async function teardownCalQaUserById(userId: number): Promise<void> {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query(
+      const availability = await client.query(
         `DELETE FROM "Availability"
          WHERE "userId" = $1
             OR "scheduleId" IN (SELECT id FROM "Schedule" WHERE "userId" = $1)`,
         [userId],
       );
-      await client.query(`DELETE FROM "Schedule" WHERE "userId" = $1`, [userId]);
+      const schedules = await client.query(`DELETE FROM "Schedule" WHERE "userId" = $1`, [userId]);
       await client.query(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
       const deleted = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [userId]);
       if ((deleted.rowCount ?? 0) !== 1) {
         throw new Error(
           `teardownCalQaUserById expected 1 user row, deleted ${String(deleted.rowCount ?? 0)}`,
+        );
+      }
+      const availabilityRows = availability.rowCount ?? 0;
+      if (availabilityRows !== WEEKDAY_AVAILABILITY_ROWS) {
+        throw new Error(
+          `teardownCalQaUserById expected ${String(WEEKDAY_AVAILABILITY_ROWS)} Availability rows, deleted ${String(availabilityRows)}`,
+        );
+      }
+      const scheduleRows = schedules.rowCount ?? 0;
+      if (scheduleRows !== 1) {
+        throw new Error(
+          `teardownCalQaUserById expected 1 Schedule row, deleted ${String(scheduleRows)}`,
         );
       }
       await client.query("COMMIT");
@@ -139,10 +154,10 @@ export async function teardownCalQaUserById(userId: number): Promise<void> {
 }
 
 export async function countCalQaUsers(): Promise<number> {
-  return withWritableCalPool(async (pool) => {
+  return withCalPool(async (pool) => {
     const result = await pool.query<{ leftover: number }>(
       `SELECT count(*)::int AS leftover FROM users WHERE email LIKE $1`,
-      [`qa-%${QA_EMAIL_SUFFIX}`],
+      [QA_EMAIL_LIKE],
     );
     const count = result.rows[0]?.leftover;
     if (count === undefined) {
@@ -156,7 +171,7 @@ export async function sweepCalQaUsers(): Promise<number> {
   return withWritableCalPool(async (pool) => {
     const listed = await pool.query<{ id: number }>(
       `SELECT id FROM users WHERE email LIKE $1 ORDER BY id ASC`,
-      [`qa-%${QA_EMAIL_SUFFIX}`],
+      [QA_EMAIL_LIKE],
     );
     for (const row of listed.rows) {
       await teardownCalQaUserById(row.id);
