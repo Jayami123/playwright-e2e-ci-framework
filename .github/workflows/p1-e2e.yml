@@ -4,8 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # No workflow_dispatch inputs: untrusted cal_ref + default-branch cache scope is
-  # CodeQL actions/cache-poisoning/poisonable-step (see e2e.yml cal-self-hosted caches).
   workflow_dispatch: {}
 
 concurrency:
@@ -18,6 +16,4 @@ permissions:
 jobs:
   e2e:
     uses: ./.github/workflows/e2e.yml
-    with:
-      cal_ref: main
     secrets: inherit
