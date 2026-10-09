@@ -14,16 +14,12 @@ function playwrightReportSuffix(): string | undefined {
 
 export function resolvePlaywrightJsonReportFile(): string {
   const suffix = playwrightReportSuffix();
-  return suffix === undefined
-    ? PLAYWRIGHT_JSON_REPORT_FILE
-    : `test-results/results-${suffix}.json`;
+  return suffix === undefined ? PLAYWRIGHT_JSON_REPORT_FILE : `test-results/results-${suffix}.json`;
 }
 
 export function resolvePlaywrightJUnitReportFile(): string {
   const suffix = playwrightReportSuffix();
-  return suffix === undefined
-    ? PLAYWRIGHT_JUNIT_REPORT_FILE
-    : `test-results/junit-${suffix}.xml`;
+  return suffix === undefined ? PLAYWRIGHT_JUNIT_REPORT_FILE : `test-results/junit-${suffix}.xml`;
 }
 
 export function resolvePlaywrightBlobReportDir(): string {
