@@ -79,11 +79,8 @@ export function expectUniformSpacingWithinOrganiserDays(options: {
 
 export function bookingWindowOffsetDays(testInfo: TestInfo): number {
   const projectOffset = BOOKING_WINDOW_OFFSET_BY_PROJECT[testInfo.project.name] ?? 0;
-  const runJitter =
-    parsePositiveInt(process.env.P1_SEED, 0) % BOOKING_WINDOW_SEED_JITTER_MODULO;
-  return (
-    BOOKING_DATE_WINDOW_BASE_DAYS + testInfo.parallelIndex * 7 + projectOffset + runJitter
-  );
+  const runJitter = parsePositiveInt(process.env.P1_SEED, 0) % BOOKING_WINDOW_SEED_JITTER_MODULO;
+  return BOOKING_DATE_WINDOW_BASE_DAYS + testInfo.parallelIndex * 7 + projectOffset + runJitter;
 }
 
 async function buildExpectedEntriesForViewerDay(options: {
