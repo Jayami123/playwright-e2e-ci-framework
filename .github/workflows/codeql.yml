@@ -21,7 +21,7 @@ jobs:
       contents: read
       security-events: write
     concurrency:
-      group: codeql-${{ github.ref }}
+      group: codeql-${{ github.ref }}-${{ matrix.language }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     strategy:
       fail-fast: false

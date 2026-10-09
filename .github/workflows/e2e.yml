@@ -70,6 +70,10 @@ jobs:
           set -euo pipefail
           ./actionlint
       - uses: ./.github/actions/setup-p1
+      - name: npm audit
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high
       - run: |
           set -euo pipefail
           npm run lint
@@ -185,6 +189,9 @@ jobs:
       P1_WORKING_DIRECTORY: p1
       CAL_CHECKOUT_PATH: products/cal
       PRODUCTS_ROOT: ${{ github.workspace }}/products
+      # CodeQL actions/cache-poisoning/poisonable-step: workflow_dispatch can pass
+      # untrusted cal_ref; do not restore or save caches that feed yarn / next build.
+      CAL_SELF_HOSTED_USE_BUILD_CACHE: ${{ github.event_name != 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -210,13 +217,18 @@ jobs:
         with:
           working-directory: ${{ env.P1_WORKING_DIRECTORY }}
 
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore Cal Yarn cache
+        if: ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true' }}
+        id: cal_yarn
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/.yarn/cache
           key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
 
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore Cal Next.js build cache
+        if: ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true' }}
         id: cal_next
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
@@ -227,6 +239,15 @@ jobs:
           set -euo pipefail
           corepack enable
           yarn install --immutable
+
+      - name: Save Cal Yarn cache
+        if: >-
+          ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true'
+          && steps.cal_yarn.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CAL_CHECKOUT_PATH }}/.yarn/cache
+          key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
 
       - name: Prepare Cal product .env
         env:
@@ -350,10 +371,12 @@ jobs:
           path: cal-web-redacted.log
           retention-days: 14
 
-      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Save Cal Next.js build cache
         if: >-
-          ${{ steps.cal_next.outputs.cache-hit != 'true'
+          ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true'
+          && steps.cal_next.outputs.cache-hit != 'true'
           && hashFiles(format('{0}/apps/web/.next/required-server-files.json', env.CAL_CHECKOUT_PATH)) != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
