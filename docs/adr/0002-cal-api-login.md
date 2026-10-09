@@ -5,7 +5,7 @@
 
 ## Context
 
-Cal.diy's own Playwright fixture posts to `GET /api/auth/csrf` then `POST /api/auth/callback/credentials`. Stock Cal login UI is not patched. Seed user `pro@example.com` is documented in the fork README; the password is not stored in git. For the ephemeral self-hosted CI instance only, the matching seed password is set in reusable workflow env (`CAL_DEFAULT_E2E_PASSWORD`) on the **Run Cal E2E suite** step—not in application source.
+Cal.diy's own Playwright fixture posts to `GET /api/auth/csrf` then `POST /api/auth/callback/credentials`. Stock Cal login UI is not patched. Seed user `pro@example.com` is documented in the fork README; the password is not stored in git. For the ephemeral self-hosted CI instance only, the matching seed password is set as step env `CAL_E2E_PASSWORD` on **Run Cal E2E suite** only, not as workflow-level env and not in application source.
 
 ## Decision
 
