@@ -131,22 +131,28 @@ export class AvailabilityPage extends BasePage {
   }
 
   private setAsDefaultSwitch(): Locator {
+    // Day toggles use `${Weekday}-switch`; the default switch has no data-testid (Cal harness UI).
+    // eslint-disable-next-line playwright/no-raw-locators -- only non-day switch in schedule editor main
     return this.page
       .getByRole("main")
-      .filter({ has: this.page.getByText(/^set as default$/i) })
-      .getByRole("switch");
+      .locator('button[role="switch"]:not([data-testid$="-switch"])');
+  }
+
+  private bulkScheduleUpdateDialog(): Locator {
+    return this.page.getByRole("dialog").filter({
+      has: this.page.getByRole("heading", { name: /bulk update existing event types/i }),
+    });
   }
 
   async setAsDefault(): Promise<void> {
     const toggle = this.setAsDefaultSwitch();
     await expect(toggle).toBeVisible({ timeout: timeouts().page });
     await toggle.setChecked(true);
+    const bulkDialog = this.bulkScheduleUpdateDialog();
+    await expect(bulkDialog).toBeVisible({ timeout: timeouts().page });
+    await bulkDialog.getByRole("button", { name: /^update$/i }).click();
+    await expect(bulkDialog).toHaveCount(0, { timeout: timeouts().page });
     await expect(toggle).toBeChecked({ timeout: timeouts().page });
-    const update = this.page.getByRole("button", { name: /^update$/i });
-    await expect(update).toBeVisible({ timeout: timeouts().page });
-    await expect(update).toBeEnabled({ timeout: timeouts().page });
-    await update.click();
-    await expect(update).toHaveCount(0, { timeout: timeouts().page });
   }
 
   async save(): Promise<void> {

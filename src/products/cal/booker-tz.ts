@@ -9,6 +9,7 @@ import {
   type CivilDate,
   type ViewerDaySlotEntry,
 } from "../../core/timezone.js";
+import { parsePositiveInt } from "../../core/config.js";
 import { required } from "../../core/required.js";
 import {
   availabilityWindowsFromOrganiser,
@@ -20,6 +21,7 @@ import {
 import {
   BOOKING_DATE_WINDOW_BASE_DAYS,
   BOOKING_WINDOW_OFFSET_BY_PROJECT,
+  BOOKING_WINDOW_SEED_JITTER_MODULO,
   MIN_LEAD_DAYS,
   SLOT_STEP_MINUTES,
   WEEKDAY_SEARCH_ATTEMPTS,
@@ -77,7 +79,11 @@ export function expectUniformSpacingWithinOrganiserDays(options: {
 
 export function bookingWindowOffsetDays(testInfo: TestInfo): number {
   const projectOffset = BOOKING_WINDOW_OFFSET_BY_PROJECT[testInfo.project.name] ?? 0;
-  return BOOKING_DATE_WINDOW_BASE_DAYS + testInfo.parallelIndex * 7 + projectOffset;
+  const runJitter =
+    parsePositiveInt(process.env.P1_SEED, 0) % BOOKING_WINDOW_SEED_JITTER_MODULO;
+  return (
+    BOOKING_DATE_WINDOW_BASE_DAYS + testInfo.parallelIndex * 7 + projectOffset + runJitter
+  );
 }
 
 async function buildExpectedEntriesForViewerDay(options: {
