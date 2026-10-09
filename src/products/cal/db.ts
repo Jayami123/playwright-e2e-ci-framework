@@ -1,3 +1,4 @@
+import { Pool } from "pg";
 import { createPgClient, getAdapter } from "qa-portfolio-harness";
 import {
   addDays,
@@ -32,6 +33,22 @@ async function withCalPool<T>(
 ): Promise<T> {
   const adapter = getAdapter("cal");
   const pool = createPgClient(adapter.dbUrl);
+  try {
+    return await run(pool);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function withWritableCalPool<T>(run: (pool: Pool) => Promise<T>): Promise<T> {
+  // createPgClient sets default_transaction_read_only=on; restore must UPDATE users.
+  const adapter = getAdapter("cal");
+  const pool = new Pool({
+    connectionString: adapter.dbUrl,
+    max: 2,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  });
   try {
     return await run(pool);
   } finally {
@@ -136,6 +153,37 @@ export async function readDefaultScheduleName(email: string): Promise<string> {
       throw new Error(`No default schedule found for ${email}`);
     }
     return name;
+  });
+}
+
+export async function setDefaultScheduleByName(
+  email: string,
+  scheduleName: string,
+): Promise<number> {
+  return withWritableCalPool(async (pool) => {
+    const result = await pool.query(
+      `UPDATE users AS u
+       SET "defaultScheduleId" = s.id
+       FROM "Schedule" AS s
+       WHERE u.email = $1
+         AND s."userId" = u.id
+         AND s.name = $2
+         AND s.id = (
+           SELECT s2.id
+           FROM "Schedule" AS s2
+           WHERE s2."userId" = u.id AND s2.name = $2
+           ORDER BY s2.id ASC
+           LIMIT 1
+         )`,
+      [email, scheduleName],
+    );
+    const updated = result.rowCount ?? 0;
+    if (updated === 0) {
+      throw new Error(
+        `setDefaultScheduleByName updated 0 rows (email=${email}, schedule=${scheduleName})`,
+      );
+    }
+    return updated;
   });
 }
 
