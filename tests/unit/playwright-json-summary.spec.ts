@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   formatPlaywrightJobSummary,
   parsePlaywrightJsonReport,
+  totalTestsInSummary,
 } from "../../src/core/playwright-json-summary.js";
 
 const sampleReport = {
@@ -102,6 +103,7 @@ test.describe("Playwright JSON job summary", () => {
       expectedFailures: 3,
       skipped: 1,
     });
+    expect(totalTestsInSummary(summary)).toBe(8);
     expect(summary.knownProductBugs.map((row) => `${row.title} (${row.issueId})`)).toEqual([
       "P1-CAL-DST-002 Fall-back day: the duplicated hour is unambiguous (P7-OBS-CAL-DST-002)",
       "P1-CAL-DST-003 Cross-hemisphere viewer on DST day (P7-OBS-CAL-DST-003)",

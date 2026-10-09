@@ -152,6 +152,11 @@ export function parsePlaywrightJsonReport(raw: unknown): PlaywrightJobSummary {
   return { totals, knownProductBugs };
 }
 
+export function totalTestsInSummary(summary: PlaywrightJobSummary): number {
+  const { totals } = summary;
+  return totals.passed + totals.failed + totals.flaky + totals.expectedFailures + totals.skipped;
+}
+
 export function formatPlaywrightJobSummary(summary: PlaywrightJobSummary): string {
   const { totals, knownProductBugs } = summary;
   const compact =
