@@ -136,11 +136,11 @@ npm run report
 
 **Local hard gate (Windows):** `npm run test:cal` then `npm run test:cal:firefox`. Do not run `test:cal:webkit` or `test:cal:matrix` on Windows ([ADR 0008](docs/adr/0008-cal-browser-matrix.md)).
 
-| Engine   | Local gate (Windows)              | Nightly / dispatch (Ubuntu)   |
-| -------- | --------------------------------- | ----------------------------- |
-| Chromium | `test:cal`                        | Same as PR on matrix nights   |
-| Firefox  | `test:cal:firefox` (with gate)    | `test:cal:firefox` on matrix  |
-| WebKit   | not verified (Linux CI only)      | `test:cal:webkit` on matrix   |
+| Engine   | Local gate (Windows)           | Nightly / dispatch (Ubuntu)  |
+| -------- | ------------------------------ | ---------------------------- |
+| Chromium | `test:cal`                     | Same as PR on matrix nights  |
+| Firefox  | `test:cal:firefox` (with gate) | `test:cal:firefox` on matrix |
+| WebKit   | not verified (Linux CI only)   | `test:cal:webkit` on matrix  |
 
 Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (Next.js does not pick P1's lockfile as the Cal workspace). The harness generates Cal tRPC types, runs `next build` + `next start`, and skips rebuild when `apps/web/.next/harness-build.json` `gitSha` matches Cal `HEAD`. The job caches Cal Yarn and that Next output, uploads HTML report (`playwright-report`), `playwright-test-results` on every completed run, and a redacted `cal-server-log`. CI reporters are blob, github, list, JUnit (`test-results/junit.xml`), and JSON (`test-results/results.json`). A job-summary step (`if: ${{ !cancelled() }}`) writes passed / failed / flaky / expected-failure totals and lists known product bugs from that JSON.
 
