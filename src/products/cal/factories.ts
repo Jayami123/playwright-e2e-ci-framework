@@ -32,6 +32,31 @@ export function qaAttendee(): QaAttendee {
   };
 }
 
+export interface QaCalUserIdentity {
+  readonly email: string;
+  readonly username: string;
+  readonly name: string;
+  readonly password: string;
+}
+
+const QA_USERNAME_MAX = 32;
+
+export function qaCalUser(workerIndex: number): QaCalUserIdentity {
+  const person = fakePerson();
+  const token = `${runId()}-w${String(workerIndex)}-${person.firstName}`
+    .replace(/\s+/g, "")
+    .toLowerCase();
+  const email = `qa-${token}@qa.local`;
+  const username = `qa${token}`.replace(/[^a-z0-9]/gi, "").slice(0, QA_USERNAME_MAX);
+  const password = `Qa-${token}-9!`;
+  return {
+    email,
+    username,
+    name: person.fullName,
+    password,
+  };
+}
+
 export function eventSlugFromTitle(title: string): string {
   return title
     .toLowerCase()

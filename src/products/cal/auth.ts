@@ -32,6 +32,9 @@ const CALLBACK_FAILURE_URL =
 export const CREDENTIALS_SIGNIN_ERROR = "CredentialsSignin" as const;
 /** Cal v6 self-hosted maps failed password checks to this NextAuth error query param (not CSRF). */
 export const CAL_INCORRECT_EMAIL_PASSWORD_ERROR = "incorrect-email-password" as const;
+export const CAL_SECOND_FACTOR_REQUIRED = "second-factor-required" as const;
+export const CAL_INCORRECT_TWO_FACTOR_CODE = "incorrect-two-factor-code" as const;
+export const CAL_INCORRECT_BACKUP_CODE = "incorrect-backup-code" as const;
 
 const WRONG_PASSWORD_CALLBACK_ERRORS: ReadonlySet<string> = new Set([
   CREDENTIALS_SIGNIN_ERROR,
@@ -144,6 +147,81 @@ export function sessionHasUser(payload: unknown): boolean {
   return typeof user.email === "string" && user.email.length > 0;
 }
 
+export function sessionHasEmail(payload: unknown, email: string): boolean {
+  if (!isRecord(payload)) {
+    return false;
+  }
+  const user = payload.user;
+  if (!isRecord(user)) {
+    return false;
+  }
+  return user.email === email;
+}
+
+export function loginCallbackErrorParam(body: CalCredentialsCallbackBody): string | undefined {
+  return callbackErrorParam(body);
+}
+
+export async function readCalSessionPayload(http: APIRequestContext): Promise<unknown> {
+  const response = await http.get(CAL_ROUTES.session, { timeout: timeouts().csrf });
+  if (!response.ok()) {
+    return {};
+  }
+  return response.json();
+}
+
+export interface CalTotpSetupPayload {
+  readonly secret: string;
+  readonly backupCodes: readonly string[];
+}
+
+function parseTotpSetupPayload(payload: unknown): CalTotpSetupPayload {
+  if (!isRecord(payload)) {
+    throw new Error("Cal TOTP setup JSON must be an object");
+  }
+  const secret = payload.secret;
+  const backupCodes = payload.backupCodes;
+  if (typeof secret !== "string" || secret.length !== 32) {
+    throw new Error("Cal TOTP setup secret must be a 32-character string");
+  }
+  if (!Array.isArray(backupCodes) || backupCodes.some((code) => typeof code !== "string")) {
+    throw new Error("Cal TOTP setup backupCodes must be a string array");
+  }
+  return { secret, backupCodes };
+}
+
+export async function setupCalTotpViaApi(
+  http: APIRequestContext,
+  password: string,
+): Promise<CalTotpSetupPayload> {
+  const response = await http.post(CAL_ROUTES.totpSetup, {
+    data: { password },
+    headers: { "Content-Type": "application/json" },
+    timeout: timeouts().csrf,
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok()) {
+    throw new Error(`Cal TOTP setup failed (HTTP ${String(response.status())})`, {
+      cause: payload,
+    });
+  }
+  return parseTotpSetupPayload(payload);
+}
+
+export async function enableCalTotpViaApi(http: APIRequestContext, code: string): Promise<void> {
+  const response = await http.post(CAL_ROUTES.totpEnable, {
+    data: { code },
+    headers: { "Content-Type": "application/json" },
+    timeout: timeouts().csrf,
+  });
+  if (!response.ok()) {
+    const payload: unknown = await response.json().catch(() => undefined);
+    throw new Error(`Cal TOTP enable failed (HTTP ${String(response.status())})`, {
+      cause: payload,
+    });
+  }
+}
+
 async function csrfTokenForCredentials(http: APIRequestContext): Promise<string> {
   const csrfResponse = await http.get(CAL_ROUTES.csrf, { timeout: timeouts().csrf });
   expect(
@@ -173,24 +251,38 @@ async function waitForCalSessionUser(page: Page): Promise<void> {
     .toBe(true);
 }
 
+export interface CalCredentialFactors {
+  readonly totpCode?: string;
+  readonly backupCode?: string;
+}
+
 export async function postCalCredentials(
   http: APIRequestContext,
   email: string,
   password: string,
+  factors: CalCredentialFactors = {},
 ): Promise<CalLoginResult> {
   const started = Date.now();
   const config = loadConfig();
   const csrfToken = await csrfTokenForCredentials(http);
 
+  const form: Record<string, string> = {
+    email,
+    password,
+    csrfToken,
+    callbackURL: config.baseUrl,
+    redirect: "false",
+    json: "true",
+  };
+  if (factors.totpCode !== undefined) {
+    form.totpCode = factors.totpCode;
+  }
+  if (factors.backupCode !== undefined) {
+    form.backupCode = factors.backupCode;
+  }
+
   const loginResponse = await http.post(CAL_ROUTES.credentialsCallback, {
-    form: {
-      email,
-      password,
-      csrfToken,
-      callbackURL: config.baseUrl,
-      redirect: "false",
-      json: "true",
-    },
+    form,
   });
 
   let payload: unknown;

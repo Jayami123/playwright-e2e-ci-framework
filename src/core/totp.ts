@@ -4,7 +4,7 @@ import { authenticator } from "otplib";
 export const TOTP_STEP_MS = 30_000 as const;
 
 /** Past and future steps Cal accepts: `[1, 0]`. */
-export const TOTP_WINDOW: readonly [number, number] = [1, 0];
+export const TOTP_WINDOW: [number, number] = [1, 0];
 
 authenticator.options = {
   ...authenticator.options,
@@ -38,5 +38,17 @@ export function assertTotpBudget(options: {
 }
 
 export function generateTotpCode(secret: string, epochMs: number): string {
-  return authenticator.generate(secret, { epoch: epochMs });
+  const previousEpoch = authenticator.options.epoch;
+  authenticator.options = {
+    ...authenticator.options,
+    epoch: epochMs,
+    window: TOTP_WINDOW,
+  };
+  try {
+    return authenticator.generate(secret);
+  } finally {
+    if (previousEpoch !== undefined) {
+      authenticator.options.epoch = previousEpoch;
+    }
+  }
 }
