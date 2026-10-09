@@ -111,7 +111,7 @@ jobs:
             exit 0
           fi
 
-          FAILURE_DATE="$(date -u -d "${{ github.run_started_at }}" +%Y-%m-%d)"
+          date_utc="$(date -u +%F)"
           BODY_FILE="$(mktemp)"
           {
             echo "Workflow run: ${RUN_URL}"
@@ -124,7 +124,7 @@ jobs:
             gh issue comment "$OPEN_ISSUE" --body-file "$BODY_FILE"
           else
             gh issue create \
-              --title "Nightly E2E failed: ${FAILURE_DATE}" \
+              --title "Nightly E2E failed: ${date_utc}" \
               --label nightly-failure \
               --body-file "$BODY_FILE"
           fi
