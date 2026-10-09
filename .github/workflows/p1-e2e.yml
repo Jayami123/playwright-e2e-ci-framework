@@ -4,13 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      cal_ref:
-        description: Git ref for Jayami123/cal (self-hosted job only)
-        required: false
-        default: main
-        type: string
+  # No workflow_dispatch inputs: untrusted cal_ref + default-branch cache scope is
+  # CodeQL actions/cache-poisoning/poisonable-step (see e2e.yml cal-self-hosted caches).
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,5 +19,5 @@ jobs:
   e2e:
     uses: ./.github/workflows/e2e.yml
     with:
-      cal_ref: ${{ inputs.cal_ref || 'main' }}
+      cal_ref: main
     secrets: inherit

@@ -189,9 +189,6 @@ jobs:
       P1_WORKING_DIRECTORY: p1
       CAL_CHECKOUT_PATH: products/cal
       PRODUCTS_ROOT: ${{ github.workspace }}/products
-      # CodeQL actions/cache-poisoning/poisonable-step: workflow_dispatch can pass
-      # untrusted cal_ref; do not restore or save caches that feed yarn / next build.
-      CAL_SELF_HOSTED_USE_BUILD_CACHE: ${{ github.event_name != 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -218,7 +215,7 @@ jobs:
           working-directory: ${{ env.P1_WORKING_DIRECTORY }}
 
       - name: Restore Cal Yarn cache
-        if: ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true' }}
+        if: ${{ inputs.cal_ref == 'main' }}
         id: cal_yarn
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -226,7 +223,7 @@ jobs:
           key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
 
       - name: Restore Cal Next.js build cache
-        if: ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true' }}
+        if: ${{ inputs.cal_ref == 'main' }}
         id: cal_next
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -242,7 +239,7 @@ jobs:
 
       - name: Save Cal Yarn cache
         if: >-
-          ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true'
+          ${{ inputs.cal_ref == 'main'
           && steps.cal_yarn.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -373,7 +370,7 @@ jobs:
 
       - name: Save Cal Next.js build cache
         if: >-
-          ${{ env.CAL_SELF_HOSTED_USE_BUILD_CACHE == 'true'
+          ${{ inputs.cal_ref == 'main'
           && steps.cal_next.outputs.cache-hit != 'true'
           && hashFiles(format('{0}/apps/web/.next/required-server-files.json', env.CAL_CHECKOUT_PATH)) != '' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
