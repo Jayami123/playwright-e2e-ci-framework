@@ -479,6 +479,20 @@ export async function countCalQaBookings(): Promise<number> {
   });
 }
 
+export async function sweepCalQaBookings(): Promise<number> {
+  return withWritableCalPool(async (pool) => {
+    const result = await pool.query(
+      `DELETE FROM "Booking" b
+       WHERE b.id IN (
+         SELECT a."bookingId" FROM "Attendee" a WHERE a.email LIKE $1
+       )
+       AND b.status IN ('accepted', 'pending')`,
+      [QA_BOOKING_ATTENDEE_EMAIL_LIKE],
+    );
+    return result.rowCount ?? 0;
+  });
+}
+
 export async function readScheduleIdByName(email: string, scheduleName: string): Promise<number> {
   return withCalPool(async (pool) => {
     const result = await pool.query<{ id: number }>(
