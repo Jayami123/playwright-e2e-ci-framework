@@ -6,9 +6,9 @@ import {
 } from "../src/core/playwright-json-summary.js";
 
 function writeSummary(markdown: string): void {
+  process.stdout.write(markdown);
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (summaryPath === undefined || summaryPath.trim() === "") {
-    process.stdout.write(markdown);
     return;
   }
   appendFileSync(summaryPath, markdown, "utf8");
