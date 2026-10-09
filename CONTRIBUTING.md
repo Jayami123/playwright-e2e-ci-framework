@@ -29,6 +29,7 @@ test(cal): tag FW specs and assert event-type deletion
 - PR titles must follow Conventional Commits (same types as commits: `feat`, `fix`, `refactor`, `chore`, `test`, `ci`, `docs`). The **PR title** workflow checks the title on every PR update. On a single-commit PR, the commit message must be conventional too (squash merge uses the PR title when repo settings use "Pull request title").
 - Keep product forks (`products/`) and `qa-portfolio-harness` out of this repo's diffs.
 - Describe why the change exists.
+- Before every push, run `npm run check`.
 - Before push: `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm run test:unit`, `npm run test:cal`, and `npm run test:cal:matrix` (each E2E command twice when the suite or matrix changed). After each E2E run, `npx tsx scripts/count-trial-qa.mts` must show all zeros including `qaUsers` and `qaBookings`.
 
 ## Code
