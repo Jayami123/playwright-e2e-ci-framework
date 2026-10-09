@@ -1,4 +1,11 @@
 import type { Page } from "@playwright/test";
+import {
+  readEventTypeIdByTitle,
+  readScheduleIdByName,
+  teardownIsolatedSundayEventInDb,
+  type IsolatedSundayTeardownIds,
+} from "./db.js";
+import { loadConfig } from "./env.js";
 import { THIRTY_MINUTE_DURATION } from "./factories.js";
 import type { AvailabilityPage } from "./pages/availability.page.js";
 import type { EventTypesPage } from "./pages/event-types.page.js";
@@ -13,6 +20,8 @@ export interface IsolatedSundayEvent {
   readonly title: string;
   readonly slug: string;
   readonly scheduleName: string;
+  readonly scheduleId: number;
+  readonly eventTypeId: number;
 }
 
 export interface SundayProvisionOptions {
@@ -47,7 +56,10 @@ export async function provisionIsolatedSundayEvent(
   const slug = await organiser.eventTypes.createdSlug();
   await organiser.eventTypes.assignAvailabilitySchedule(scheduleName);
   await organiser.eventTypes.expectSundayAvailabilityRow();
-  return { title, slug, scheduleName };
+  const { dstEmail } = loadConfig();
+  const scheduleId = await readScheduleIdByName(dstEmail, scheduleName);
+  const eventTypeId = await readEventTypeIdByTitle(dstEmail, title);
+  return { title, slug, scheduleName, scheduleId, eventTypeId };
 }
 
 export async function teardownIsolatedSundayEvent(options: {
@@ -65,16 +77,13 @@ export async function teardownIsolatedSundayEvent(options: {
     }
   }
   try {
-    await options.organiser.eventTypes.deleteByTitle(options.provisioned.title, {
-      tolerateMissing: true,
-    });
-  } catch (error) {
-    failures.push(error);
-  }
-  try {
-    await options.organiser.availability.deleteByName(options.provisioned.scheduleName, {
-      tolerateMissing: true,
-    });
+    const { dstEmail } = loadConfig();
+    const ids: IsolatedSundayTeardownIds = {
+      email: dstEmail,
+      scheduleId: options.provisioned.scheduleId,
+      eventTypeId: options.provisioned.eventTypeId,
+    };
+    await teardownIsolatedSundayEventInDb(ids);
   } catch (error) {
     failures.push(error);
   }

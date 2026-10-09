@@ -1,6 +1,10 @@
 import { getAdapter } from "qa-portfolio-harness";
 import { normalizeBaseUrl } from "../src/core/config.js";
-import { firstEventTypeId } from "../src/products/cal/db.js";
+import {
+  bulkDeleteTrialQaArtifacts,
+  countTrialQaArtifacts,
+  firstEventTypeId,
+} from "../src/products/cal/db.js";
 import { loadConfig, skipLiveCal, timeouts } from "../src/products/cal/env.js";
 import {
   CAL_ROUTES,
@@ -55,6 +59,19 @@ async function csrfStatus(baseUrl: string, timeoutMs: number): Promise<number | 
   return getStatus(`${normalizeBaseUrl(baseUrl)}${CAL_ROUTES.csrf}`, timeoutMs);
 }
 
+async function sweepLocalTrialQaLeavings(): Promise<void> {
+  if (process.env.CI) {
+    return;
+  }
+  const { dstEmail } = loadConfig();
+  const before = await countTrialQaArtifacts(dstEmail);
+  const deleted = await bulkDeleteTrialQaArtifacts(dstEmail);
+  const after = await countTrialQaArtifacts(dstEmail);
+  console.log(
+    `Local trial QA sweep (before=${JSON.stringify(before)}, deleted=${JSON.stringify(deleted)}, after=${JSON.stringify(after)})`,
+  );
+}
+
 export default async function globalSetup(): Promise<void> {
   if (skipLiveCal()) {
     console.log("Skipping Cal health check (CAL_E2E=0 or CI without CAL_E2E_BASE_URL).");
@@ -71,6 +88,7 @@ export default async function globalSetup(): Promise<void> {
       `Cal already serving ${config.baseUrl}${CAL_ROUTES.csrf} (HTTP 200); skipping harness up().`,
     );
     await warmupCalPages(config.baseUrl);
+    await sweepLocalTrialQaLeavings();
     return;
   }
 
@@ -92,6 +110,7 @@ export default async function globalSetup(): Promise<void> {
     }
     console.log(`Cal healthy at ${adapter.baseUrl} (${adapter.productRoot})`);
     await warmupCalPages(adapter.baseUrl);
+    await sweepLocalTrialQaLeavings();
   } catch (error) {
     throw new Error(
       "Cal did not become healthy. From qa-portfolio-harness run: node scripts/up.mjs cal",

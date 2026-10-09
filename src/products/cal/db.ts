@@ -355,3 +355,316 @@ export async function firstViewerWeekdayWithoutBusyTime(options: {
     `No weekday without organiser busy time (bookings or held slots) within ${String(options.maxAttempts)} attempts from lead ${String(options.minLeadDays)}`,
   );
 }
+
+export const TRIAL_QA_SCHEDULE_NAME_PREFIX = "sch-qa-" as const;
+export const TRIAL_QA_EVENT_TITLE_PREFIX = "qa-" as const;
+
+export interface TrialQaArtifactCounts {
+  readonly schQaSchedules: number;
+  readonly qaEventTypes: number;
+  readonly qaEventTypesOnSchQaSchedules: number;
+  readonly orphanedAvailability: number;
+}
+
+export interface TrialQaBulkDeleteCounts {
+  readonly availabilityRows: number;
+  readonly schedules: number;
+  readonly eventTypes: number;
+  readonly bookings: number;
+}
+
+export interface IsolatedSundayTeardownIds {
+  readonly email: string;
+  readonly scheduleId: number;
+  readonly eventTypeId: number;
+}
+
+interface TrialUserRow {
+  readonly id: number;
+  readonly defaultScheduleId: number | null;
+}
+
+async function readTrialUserRow(pool: Pool, email: string): Promise<TrialUserRow> {
+  const result = await pool.query<{ id: number; default_schedule_id: number | null }>(
+    `SELECT id, "defaultScheduleId" AS default_schedule_id FROM users WHERE email = $1 LIMIT 1`,
+    [email],
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(`No user row for email=${email}`);
+  }
+  return { id: row.id, defaultScheduleId: row.default_schedule_id };
+}
+
+function assertNotDefaultSchedule(
+  scheduleId: number,
+  defaultScheduleId: number | null,
+  context: string,
+): void {
+  if (defaultScheduleId !== null && scheduleId === defaultScheduleId) {
+    throw new Error(`${context}: refused to delete defaultScheduleId=${String(scheduleId)}`);
+  }
+}
+
+export async function countTrialQaArtifacts(email: string): Promise<TrialQaArtifactCounts> {
+  return withCalPool(async (pool) => {
+    const schedules = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM "Schedule" s
+       JOIN users u ON s."userId" = u.id
+       WHERE u.email = $1 AND s.name LIKE $2`,
+      [email, `${TRIAL_QA_SCHEDULE_NAME_PREFIX}%`],
+    );
+    const eventTypes = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM "EventType" et
+       JOIN users u ON et."userId" = u.id
+       WHERE u.email = $1 AND et.title LIKE $2`,
+      [email, `${TRIAL_QA_EVENT_TITLE_PREFIX}%`],
+    );
+    const linked = await pool.query<{ count: string }>(
+      `SELECT COUNT(DISTINCT et.id)::text AS count
+       FROM "EventType" et
+       JOIN users u ON et."userId" = u.id
+       JOIN "Availability" a ON a."eventTypeId" = et.id
+       JOIN "Schedule" s ON a."scheduleId" = s.id
+       WHERE u.email = $1
+         AND et.title LIKE $2
+         AND s.name LIKE $3`,
+      [email, `${TRIAL_QA_EVENT_TITLE_PREFIX}%`, `${TRIAL_QA_SCHEDULE_NAME_PREFIX}%`],
+    );
+    const orphans = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM "Availability" a
+       LEFT JOIN "Schedule" s ON a."scheduleId" = s.id
+       WHERE a."scheduleId" IS NOT NULL AND s.id IS NULL`,
+    );
+    const schQaSchedules = schedules.rows[0]?.count;
+    const qaEventTypes = eventTypes.rows[0]?.count;
+    const qaEventTypesOnSchQaSchedules = linked.rows[0]?.count;
+    const orphanedAvailability = orphans.rows[0]?.count;
+    if (
+      schQaSchedules === undefined ||
+      qaEventTypes === undefined ||
+      qaEventTypesOnSchQaSchedules === undefined ||
+      orphanedAvailability === undefined
+    ) {
+      throw new Error("Trial QA count query returned no row");
+    }
+    return {
+      schQaSchedules: Number(schQaSchedules),
+      qaEventTypes: Number(qaEventTypes),
+      qaEventTypesOnSchQaSchedules: Number(qaEventTypesOnSchQaSchedules),
+      orphanedAvailability: Number(orphanedAvailability),
+    };
+  });
+}
+
+export async function readScheduleIdByName(email: string, scheduleName: string): Promise<number> {
+  return withCalPool(async (pool) => {
+    const result = await pool.query<{ id: number }>(
+      `SELECT s.id
+       FROM "Schedule" s
+       JOIN users u ON s."userId" = u.id
+       WHERE u.email = $1 AND s.name = $2
+       ORDER BY s.id ASC
+       LIMIT 1`,
+      [email, scheduleName],
+    );
+    const id = result.rows[0]?.id;
+    if (id === undefined) {
+      throw new Error(`No schedule named "${scheduleName}" for ${email}`);
+    }
+    return id;
+  });
+}
+
+export async function readEventTypeIdByTitle(email: string, title: string): Promise<number> {
+  return withCalPool(async (pool) => {
+    const result = await pool.query<{ id: number }>(
+      `SELECT et.id
+       FROM "EventType" et
+       JOIN users u ON et."userId" = u.id
+       WHERE u.email = $1 AND et.title = $2
+       ORDER BY et.id ASC
+       LIMIT 1`,
+      [email, title],
+    );
+    const id = result.rows[0]?.id;
+    if (id === undefined) {
+      throw new Error(`No event type titled "${title}" for ${email}`);
+    }
+    return id;
+  });
+}
+
+async function deleteEventTypeByIdInPool(
+  pool: Pool,
+  userId: number,
+  eventTypeId: number,
+): Promise<{ readonly bookings: number; readonly eventTypes: number }> {
+  const bookings = await pool.query(
+    `DELETE FROM "Booking" b
+     USING "EventType" et
+     WHERE b."eventTypeId" = et.id
+       AND et.id = $1
+       AND et."userId" = $2`,
+    [eventTypeId, userId],
+  );
+  await pool.query(`DELETE FROM "Availability" WHERE "eventTypeId" = $1`, [eventTypeId]);
+  await pool.query(`DELETE FROM "Host" WHERE "eventTypeId" = $1`, [eventTypeId]);
+  const eventTypes = await pool.query(`DELETE FROM "EventType" WHERE id = $1 AND "userId" = $2`, [
+    eventTypeId,
+    userId,
+  ]);
+  const deletedEventTypes = eventTypes.rowCount ?? 0;
+  if (deletedEventTypes !== 1) {
+    throw new Error(
+      `deleteEventTypeById expected 1 EventType row, deleted ${String(deletedEventTypes)} (id=${String(eventTypeId)}, userId=${String(userId)})`,
+    );
+  }
+  return { bookings: bookings.rowCount ?? 0, eventTypes: deletedEventTypes };
+}
+
+async function deleteScheduleWithAvailabilityInPool(
+  pool: Pool,
+  userId: number,
+  scheduleId: number,
+  defaultScheduleId: number | null,
+): Promise<{ readonly availabilityRows: number; readonly schedules: number }> {
+  assertNotDefaultSchedule(scheduleId, defaultScheduleId, "deleteScheduleWithAvailabilityInPool");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const availability = await client.query(
+      `DELETE FROM "Availability" a
+       USING "Schedule" s
+       WHERE a."scheduleId" = s.id
+         AND s.id = $1
+         AND s."userId" = $2`,
+      [scheduleId, userId],
+    );
+    const schedules = await client.query(`DELETE FROM "Schedule" WHERE id = $1 AND "userId" = $2`, [
+      scheduleId,
+      userId,
+    ]);
+    const deletedSchedules = schedules.rowCount ?? 0;
+    if (deletedSchedules !== 1) {
+      throw new Error(
+        `deleteScheduleWithAvailability expected 1 Schedule row, deleted ${String(deletedSchedules)} (scheduleId=${String(scheduleId)}, userId=${String(userId)})`,
+      );
+    }
+    await client.query("COMMIT");
+    return {
+      availabilityRows: availability.rowCount ?? 0,
+      schedules: deletedSchedules,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function teardownIsolatedSundayEventInDb(
+  ids: IsolatedSundayTeardownIds,
+): Promise<TrialQaBulkDeleteCounts> {
+  return withWritableCalPool(async (pool) => {
+    const user = await readTrialUserRow(pool, ids.email);
+    assertNotDefaultSchedule(
+      ids.scheduleId,
+      user.defaultScheduleId,
+      "teardownIsolatedSundayEventInDb",
+    );
+    const eventType = await deleteEventTypeByIdInPool(pool, user.id, ids.eventTypeId);
+    const schedule = await deleteScheduleWithAvailabilityInPool(
+      pool,
+      user.id,
+      ids.scheduleId,
+      user.defaultScheduleId,
+    );
+    return {
+      availabilityRows: schedule.availabilityRows,
+      schedules: schedule.schedules,
+      eventTypes: eventType.eventTypes,
+      bookings: eventType.bookings,
+    };
+  });
+}
+
+export async function bulkDeleteTrialQaArtifacts(email: string): Promise<TrialQaBulkDeleteCounts> {
+  return withWritableCalPool(async (pool) => {
+    const user = await readTrialUserRow(pool, email);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const bookings = await client.query(
+        `DELETE FROM "Booking" b
+         USING "EventType" et, users u
+         WHERE b."eventTypeId" = et.id
+           AND et."userId" = u.id
+           AND u.email = $1
+           AND et.title LIKE $2`,
+        [email, `${TRIAL_QA_EVENT_TITLE_PREFIX}%`],
+      );
+      await client.query(
+        `DELETE FROM "Availability" a
+         USING "EventType" et, users u
+         WHERE a."eventTypeId" = et.id
+           AND et."userId" = u.id
+           AND u.email = $1
+           AND et.title LIKE $2`,
+        [email, `${TRIAL_QA_EVENT_TITLE_PREFIX}%`],
+      );
+      await client.query(
+        `DELETE FROM "Host" h
+         USING "EventType" et, users u
+         WHERE h."eventTypeId" = et.id
+           AND et."userId" = u.id
+           AND u.email = $1
+           AND et.title LIKE $2`,
+        [email, `${TRIAL_QA_EVENT_TITLE_PREFIX}%`],
+      );
+      const eventTypes = await client.query(
+        `DELETE FROM "EventType" et
+         USING users u
+         WHERE et."userId" = u.id
+           AND u.email = $1
+           AND et.title LIKE $2`,
+        [email, `${TRIAL_QA_EVENT_TITLE_PREFIX}%`],
+      );
+      const availabilityOnSchedules = await client.query(
+        `DELETE FROM "Availability" a
+         USING "Schedule" s, users u
+         WHERE a."scheduleId" = s.id
+           AND s."userId" = u.id
+           AND u.email = $1
+           AND s.name LIKE $2
+           AND ($3::int IS NULL OR s.id <> $3)`,
+        [email, `${TRIAL_QA_SCHEDULE_NAME_PREFIX}%`, user.defaultScheduleId],
+      );
+      const schedules = await client.query(
+        `DELETE FROM "Schedule" s
+         USING users u
+         WHERE s."userId" = u.id
+           AND u.email = $1
+           AND s.name LIKE $2
+           AND ($3::int IS NULL OR s.id <> $3)`,
+        [email, `${TRIAL_QA_SCHEDULE_NAME_PREFIX}%`, user.defaultScheduleId],
+      );
+      await client.query("COMMIT");
+      return {
+        bookings: bookings.rowCount ?? 0,
+        eventTypes: eventTypes.rowCount ?? 0,
+        availabilityRows: availabilityOnSchedules.rowCount ?? 0,
+        schedules: schedules.rowCount ?? 0,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+}

@@ -204,7 +204,7 @@ export const test = base.extend<CalFixtures, CalWorkerFixtures>({
       ): Promise<IsolatedSundayEvent> {
         const title = qaEventTitle();
         const scheduleName = qaScheduleName();
-        provisioned = { title, slug: "", scheduleName };
+        provisioned = { title, slug: "", scheduleName, scheduleId: 0, eventTypeId: 0 };
         const created = await provisionIsolatedSundayEvent(dstOrganiser, {
           ...options,
           title,
