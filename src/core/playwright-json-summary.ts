@@ -1,6 +1,41 @@
 export const PLAYWRIGHT_JSON_REPORT_FILE = "test-results/results.json";
 export const PLAYWRIGHT_JUNIT_REPORT_FILE = "test-results/junit.xml";
 
+const P1_PW_REPORT_ID_ENV = "P1_PW_REPORT_ID";
+
+function playwrightReportSuffix(): string | undefined {
+  const raw = process.env[P1_PW_REPORT_ID_ENV];
+  if (raw === undefined) {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+export function resolvePlaywrightJsonReportFile(): string {
+  const suffix = playwrightReportSuffix();
+  return suffix === undefined
+    ? PLAYWRIGHT_JSON_REPORT_FILE
+    : `test-results/results-${suffix}.json`;
+}
+
+export function resolvePlaywrightJUnitReportFile(): string {
+  const suffix = playwrightReportSuffix();
+  return suffix === undefined
+    ? PLAYWRIGHT_JUNIT_REPORT_FILE
+    : `test-results/junit-${suffix}.xml`;
+}
+
+export function resolvePlaywrightBlobReportDir(): string {
+  const suffix = playwrightReportSuffix();
+  return suffix === undefined ? "blob-report" : `blob-report-${suffix}`;
+}
+
+export interface PlaywrightJobSummaryFormatOptions {
+  readonly browserLabel?: string;
+  readonly elapsedSeconds?: number;
+}
+
 export interface PlaywrightRunTotals {
   readonly passed: number;
   readonly failed: number;
@@ -157,7 +192,28 @@ export function totalTestsInSummary(summary: PlaywrightJobSummary): number {
   return totals.passed + totals.failed + totals.flaky + totals.expectedFailures + totals.skipped;
 }
 
-export function formatPlaywrightJobSummary(summary: PlaywrightJobSummary): string {
+function formatSummaryHeading(options: PlaywrightJobSummaryFormatOptions | undefined): string {
+  const browserLabel = options?.browserLabel?.trim();
+  const elapsed = options?.elapsedSeconds;
+  const hasBrowser = browserLabel !== undefined && browserLabel !== "";
+  const hasElapsed = elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0;
+  if (!hasBrowser && !hasElapsed) {
+    return "## Playwright results";
+  }
+  const parts: string[] = [];
+  if (hasBrowser) {
+    parts.push(browserLabel);
+  }
+  if (hasElapsed) {
+    parts.push(`${String(Math.round(elapsed))}s wall-clock`);
+  }
+  return `## Playwright results (${parts.join(", ")})`;
+}
+
+export function formatPlaywrightJobSummary(
+  summary: PlaywrightJobSummary,
+  options?: PlaywrightJobSummaryFormatOptions,
+): string {
   const { totals, knownProductBugs } = summary;
   const compact =
     knownProductBugs.length === 0
@@ -166,7 +222,7 @@ export function formatPlaywrightJobSummary(summary: PlaywrightJobSummary): strin
           .map((row) => `${titleId(row.title)} (${row.issueId})`)
           .join(", ")}`;
   const lines = [
-    "## Playwright results",
+    formatSummaryHeading(options),
     "",
     "| passed | failed | flaky | expected failures |",
     "| ---: | ---: | ---: | ---: |",

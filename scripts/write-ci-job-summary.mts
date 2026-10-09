@@ -22,8 +22,21 @@ function isEnoent(error: unknown): boolean {
   return error.code === "ENOENT";
 }
 
+function parseElapsedSeconds(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === "") {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+  return value;
+}
+
 function main(): void {
   const jsonPath = process.argv[2] ?? PLAYWRIGHT_JSON_REPORT_FILE;
+  const browserLabel = process.argv[3];
+  const elapsedSeconds = parseElapsedSeconds(process.argv[4]);
   let rawText: string;
   try {
     rawText = readFileSync(jsonPath, "utf8");
@@ -48,7 +61,14 @@ function main(): void {
   if (totalTestsInSummary(summary) === 0) {
     throw new Error(`Playwright JSON report at ${jsonPath} contains zero tests`);
   }
-  writeSummary(formatPlaywrightJobSummary(summary));
+  writeSummary(
+    formatPlaywrightJobSummary(summary, {
+      ...(browserLabel === undefined || browserLabel.trim() === ""
+        ? {}
+        : { browserLabel: browserLabel.trim() }),
+      ...(elapsedSeconds === undefined ? {} : { elapsedSeconds }),
+    }),
+  );
 }
 
 try {

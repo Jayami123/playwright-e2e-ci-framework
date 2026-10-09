@@ -9,6 +9,9 @@
   "scripts": {
     "test": "playwright test",
     "test:cal": "playwright test --project=cal-chromium",
+    "test:cal:firefox": "playwright test --project=cal-firefox",
+    "test:cal:webkit": "playwright test --project=cal-webkit",
+    "test:cal:matrix": "playwright test --project=cal-firefox --project=cal-webkit",
     "test:unit": "playwright test --project=unit",
     "cal:restore-trial": "tsx scripts/restore-trial-default.mts",
     "test:smoke": "playwright test --project=cal-chromium --grep @smoke",

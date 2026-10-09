@@ -1,8 +1,9 @@
 import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
 import { normalizeBaseUrl, parsePositiveInt } from "./src/core/config.js";
 import {
-  PLAYWRIGHT_JSON_REPORT_FILE,
-  PLAYWRIGHT_JUNIT_REPORT_FILE,
+  resolvePlaywrightBlobReportDir,
+  resolvePlaywrightJsonReportFile,
+  resolvePlaywrightJUnitReportFile,
 } from "./src/core/playwright-json-summary.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
 
@@ -28,20 +29,25 @@ const baseURL = live
     ? normalizeBaseUrl(rawBase)
     : undefined;
 
+const jsonReportFile = resolvePlaywrightJsonReportFile();
+const junitReportFile = resolvePlaywrightJUnitReportFile();
+const blobReportDir = resolvePlaywrightBlobReportDir();
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
+  failOnFlakyTests: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   // Default 1: CAL_WEB_MODE=dev webpack serializes compiles; extra workers time out CSRF.
   workers: parsePositiveInt(process.env.PW_WORKERS, 1),
   reporter: process.env.CI
     ? ([
-        ["blob"],
+        ["blob", { outputDir: blobReportDir }],
         ["github"],
         ["list"],
-        ["junit", { outputFile: PLAYWRIGHT_JUNIT_REPORT_FILE }],
-        ["json", { outputFile: PLAYWRIGHT_JSON_REPORT_FILE }],
+        ["junit", { outputFile: junitReportFile }],
+        ["json", { outputFile: jsonReportFile }],
       ] satisfies ReporterDescription[])
     : [["html", { open: "never" }], ["list"]],
   timeout: TIMEOUTS[webMode].test,
@@ -73,6 +79,26 @@ export default defineConfig({
       testDir: "./tests/cal",
       use: {
         ...devices["Desktop Chrome"],
+        ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
+      },
+    },
+    {
+      name: "cal-firefox",
+      dependencies: ["cal-setup"],
+      testDir: "./tests/cal",
+      grep: /@tz|@2fa/,
+      use: {
+        ...devices["Desktop Firefox"],
+        ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
+      },
+    },
+    {
+      name: "cal-webkit",
+      dependencies: ["cal-setup"],
+      testDir: "./tests/cal",
+      grep: /@tz|@2fa/,
+      use: {
+        ...devices["Desktop Safari"],
         ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
       },
     },
