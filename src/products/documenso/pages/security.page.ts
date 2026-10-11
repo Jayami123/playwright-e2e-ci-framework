@@ -14,7 +14,13 @@ export class SecuritySettingsPage extends BasePage {
 
   async goto(): Promise<void> {
     await this.gotoPath(DOCUMENSO_ROUTES.security);
-    await expect(this.enableTwoFactorButton()).toBeVisible({
+    await expect(this.page.getByRole("heading", { name: "Security" })).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
+    await expect(this.page.getByLabel("Current Password")).toBeEditable({
+      timeout: documensoTimeouts().request,
+    });
+    await expect(this.enableTwoFactorButton()).toBeEnabled({
       timeout: documensoTimeouts().request,
     });
   }
