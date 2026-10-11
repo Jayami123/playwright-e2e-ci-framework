@@ -3,8 +3,14 @@ import { BasePage } from "../../../core/base.page.js";
 import { documensoTeamDocumentsPath, documensoTimeouts } from "../env.js";
 
 export class DocumentsPage extends BasePage {
-  addDocumentButton(): Locator {
-    return this.page.getByRole("button", { name: "Add a document" });
+  private uploadDocumentButton(): Locator {
+    return this.page.getByRole("button", { name: "Upload Document" });
+  }
+
+  private uploadFileInput(): Locator {
+    // File inputs have no ARIA role; react-dropzone hides this input inside the Upload Document button.
+    // eslint-disable-next-line playwright/no-raw-locators -- file input has no role
+    return this.uploadDocumentButton().locator('input[type="file"]');
   }
 
   async goto(teamUrl: string): Promise<void> {
@@ -15,14 +21,15 @@ export class DocumentsPage extends BasePage {
   }
 
   async upload(pdfPath: string): Promise<void> {
-    const fileChooserPromise = this.page.waitForEvent("filechooser");
-    await this.addDocumentButton().click();
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(pdfPath);
-    await expect(this.page.getByRole("heading", { name: "Document Editor" })).toBeVisible({
-      timeout: documensoTimeouts().journey,
+    const actionTimeout = documensoTimeouts().request;
+    await expect(this.uploadDocumentButton()).toBeVisible({ timeout: actionTimeout });
+    await this.uploadFileInput().setInputFiles(pdfPath);
+    await expect(this.page).toHaveURL(/\/documents\/[^/]+\/edit/, {
+      timeout: actionTimeout,
     });
-    await expect(this.page).toHaveURL(/\/documents\/[^/]+\/edit/);
+    await expect(this.page.getByTestId("envelope-editor-step-addFields")).toBeVisible({
+      timeout: actionTimeout,
+    });
   }
 
   statusBadge(status: "Pending" | "Completed"): Locator {

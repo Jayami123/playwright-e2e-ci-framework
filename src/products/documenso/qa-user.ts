@@ -7,6 +7,7 @@ import { withDocumensoPool } from "./db.js";
 const BCRYPT_ROUNDS = 12 as const;
 const QA_EMAIL_LIKE = "qa-%@qa.local" as const;
 const EXPECTED_MIGRATION_HEAD = "20260818081941_add_api_token_last_used_property" as const;
+const ENVELOPE_DOCUMENT_SECONDARY_ID = /^document_(\d+)$/;
 
 const DEFAULT_EMAIL_DOCUMENT_SETTINGS = {
   recipientSigningRequest: true,
@@ -543,12 +544,27 @@ async function deleteOrphanDocumentStorage(client: PoolClient): Promise<{
   };
 }
 
+function parseEnvelopeDocumentId(secondaryId: unknown): number {
+  if (typeof secondaryId !== "string") {
+    throw new Error(`Envelope secondaryId must be a string, got ${typeof secondaryId}`);
+  }
+  const digits = ENVELOPE_DOCUMENT_SECONDARY_ID.exec(secondaryId)?.[1];
+  if (digits === undefined) {
+    throw new Error(`Envelope secondaryId is not a document id: ${secondaryId}`);
+  }
+  return Number(digits);
+}
+
+function envelopeDocumentSecondaryId(documentId: number): string {
+  return `document_${String(documentId)}`;
+}
+
 export async function readEnvelopeStatusByDocumentId(documentId: number): Promise<string> {
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{ status: string }>(
       `SELECT status FROM "Envelope"
        WHERE "secondaryId" = $1 AND type = 'DOCUMENT'`,
-      [documentId],
+      [envelopeDocumentSecondaryId(documentId)],
     );
     if (result.rows.length !== 1) {
       throw new Error(
@@ -570,7 +586,7 @@ export async function countSignedRecipientsByDocumentId(documentId: number): Pro
        FROM "Recipient" r
        JOIN "Envelope" e ON e.id = r."envelopeId"
        WHERE e."secondaryId" = $1 AND r."signingStatus" = 'SIGNED'`,
-      [documentId],
+      [envelopeDocumentSecondaryId(documentId)],
     );
     const count = result.rows[0]?.count;
     if (count === undefined) {
@@ -594,7 +610,7 @@ export async function readSentEnvelopeByRecipientEmail(
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{
       envelope_id: string;
-      document_id: number;
+      document_id: string;
       recipient_token: string;
       signature_field_id: number | null;
     }>(
@@ -605,7 +621,7 @@ export async function readSentEnvelopeByRecipientEmail(
        FROM "Recipient" r
        JOIN "Envelope" e ON e.id = r."envelopeId"
        WHERE lower(r.email) = lower($1)
-       ORDER BY r."createdAt" DESC
+       ORDER BY r.id DESC
        LIMIT 1`,
       [recipientEmail],
     );
@@ -623,7 +639,7 @@ export async function readSentEnvelopeByRecipientEmail(
     }
     return {
       envelopeId: row.envelope_id,
-      documentId: row.document_id,
+      documentId: parseEnvelopeDocumentId(row.document_id),
       recipientToken: row.recipient_token,
       recipientEmail,
       signatureFieldId: row.signature_field_id,
