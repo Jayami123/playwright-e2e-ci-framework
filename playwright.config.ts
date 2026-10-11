@@ -7,7 +7,10 @@ import {
   resolvePlaywrightJUnitReportFile,
 } from "./src/core/playwright-json-summary.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
-import { loadDocumensoConfig } from "./src/products/documenso/env.js";
+import {
+  documensoTreatInsecureOriginAsSecureLaunchArg,
+  loadDocumensoConfig,
+} from "./src/products/documenso/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
 
@@ -133,7 +136,16 @@ export default defineConfig({
       testDir: "./tests/documenso",
       use: {
         ...devices["Desktop Chrome"],
-        ...(runsDocumenso ? { baseURL: loadDocumensoConfig().baseUrl } : {}),
+        ...(runsDocumenso
+          ? {
+              baseURL: loadDocumensoConfig().baseUrl,
+              // Bundled Chromium headless does not honour the insecure-origin flag; Chrome does.
+              channel: "chrome",
+              launchOptions: {
+                args: [documensoTreatInsecureOriginAsSecureLaunchArg()],
+              },
+            }
+          : {}),
       },
     },
   ],

@@ -20,13 +20,18 @@ test(
     ],
   },
   async ({ page, documensoUser, virtualAuthenticator }) => {
+    await test.step("Passkey origin is a secure context", async () => {
+      await page.goto("/signin", { waitUntil: "domcontentloaded" });
+      const isSecureContext = await page.evaluate("window.isSecureContext");
+      expect(isSecureContext).toBe(true);
+    });
+
     await test.step("API login with virtual authenticator attached", async () => {
       const login = await loginViaApi(page.request, {
         email: documensoUser.email,
         password: documensoUser.password,
       });
       expect(login.status, "documensoUser password login").toBe(201);
-      await virtualAuthenticator.activate();
     });
 
     const passkeys = new PasskeysSettingsPage(page);
@@ -55,9 +60,8 @@ test(
     });
 
     await test.step("Virtual authenticator holds one credential", async () => {
-      const { authenticatorId, cdp } = await virtualAuthenticator.activate();
-      const { credentials } = await cdp.send("WebAuthn.getCredentials", {
-        authenticatorId,
+      const { credentials } = await virtualAuthenticator.cdp.send("WebAuthn.getCredentials", {
+        authenticatorId: virtualAuthenticator.authenticatorId,
       });
       expect(credentials).toHaveLength(1);
     });

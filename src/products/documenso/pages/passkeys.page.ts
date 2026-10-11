@@ -24,7 +24,7 @@ export class PasskeysSettingsPage extends BasePage {
   }
 
   createdPasskeyToast(): Locator {
-    return this.page.getByText("Successfully created passkey");
+    return this.page.getByText("Successfully created passkey", { exact: true });
   }
 
   async gotoPasskeys(): Promise<void> {

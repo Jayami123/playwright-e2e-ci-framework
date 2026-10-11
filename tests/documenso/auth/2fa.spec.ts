@@ -139,11 +139,11 @@ test(
     await signIn.fillTotpToken(wrongCode);
     const response = await signIn.submitTwoFactorSignIn();
     expect(await authorizeBodyCode(response)).toBe(DOC_INVALID_TWO_FACTOR_CODE);
-    await expect(page.getByText("Unable to sign in")).toBeVisible({
+    await expect(page.getByText("Unable to sign in", { exact: true })).toBeVisible({
       timeout: documensoTimeouts().request,
     });
     await expect(
-      page.getByText("The two-factor authentication code provided is incorrect."),
+      page.getByText("The two-factor authentication code provided is incorrect.", { exact: true }),
     ).toBeVisible();
     await expect(signIn.twoFactorDialog()).toBeVisible();
     await expect(page).toHaveURL(/\/signin$/);
@@ -435,7 +435,9 @@ test(
       test.fail(true, DISABLE_WRONG_CODE_ISSUE);
     }
 
-    await expect(page.getByText("Unable to disable two-factor authentication")).toBeVisible({
+    await expect(
+      page.getByText("Unable to disable two-factor authentication", { exact: true }),
+    ).toBeVisible({
       timeout: documensoTimeouts().request,
     });
     expect(twoFactorEnabledAfterWrong).toBe(true);

@@ -15,7 +15,8 @@ export type TwoFactorDocumensoUserFixture = DocumensoQaUserFixture & {
 };
 
 export interface VirtualAuthenticatorFixture {
-  activate(): Promise<{ readonly authenticatorId: string; readonly cdp: CDPSession }>;
+  readonly authenticatorId: string;
+  readonly cdp: CDPSession;
 }
 
 interface DocumensoFixtures {
@@ -73,38 +74,23 @@ export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
   },
 
   virtualAuthenticator: async ({ page }, use) => {
-    const context = page.context();
-    let active: { authenticatorId: string; cdp: CDPSession } | undefined;
-
-    const activate = async (): Promise<{ authenticatorId: string; cdp: CDPSession }> => {
-      if (active !== undefined) {
-        return active;
-      }
-      await context.credentials.install();
-      const cdp = await context.newCDPSession(page);
-      await cdp.send("WebAuthn.enable", { enableUI: false });
-      const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
-        options: {
-          protocol: "ctap2",
-          transport: "internal",
-          hasResidentKey: true,
-          hasUserVerification: true,
-          isUserVerified: true,
-          automaticPresenceSimulation: true,
-        },
-      });
-      active = { authenticatorId, cdp };
-      return active;
-    };
-
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("WebAuthn.enable", { enableUI: false });
+    const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: {
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
+    });
     try {
-      await use({ activate });
+      await use({ authenticatorId, cdp });
     } finally {
-      if (active !== undefined) {
-        const { authenticatorId, cdp } = active;
-        await cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }).catch(() => {});
-        await cdp.detach().catch(() => {});
-      }
+      await cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }).catch(() => {});
+      await cdp.detach().catch(() => {});
     }
   },
 

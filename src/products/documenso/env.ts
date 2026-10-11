@@ -136,3 +136,9 @@ export function loadDocumensoConfig(): DocumensoE2EConfig {
 export function documensoTimeouts(): DocumensoTimeoutBudget {
   return DOCUMENSO_TIMEOUTS;
 }
+
+/** Chromium flag so HTTP passkey origin (non-localhost host) is a secure context for WebAuthn. */
+export function documensoTreatInsecureOriginAsSecureLaunchArg(): string {
+  const publicUrl = loadDocumensoConfig().baseUrl;
+  return `--unsafely-treat-insecure-origin-as-secure=${publicUrl}`;
+}
