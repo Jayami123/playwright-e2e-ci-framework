@@ -7,6 +7,7 @@ export const DOCUMENSO_ROUTES = {
   emailPasswordAuthorize: "/api/auth/email-password/authorize",
   twoFactorSetup: "/api/auth/two-factor/setup",
   twoFactorEnable: "/api/auth/two-factor/enable",
+  twoFactorDisable: "/api/auth/two-factor/disable",
   security: "/settings/security",
 } as const;
 

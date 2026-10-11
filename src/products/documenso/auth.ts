@@ -3,6 +3,7 @@ import { totpMsLeftInStep } from "../../core/totp.js";
 import { DOCUMENSO_ROUTES, documensoTimeouts, loadDocumensoConfig } from "./env.js";
 
 export const DOC_INVALID_TWO_FACTOR_CODE = "INVALID_TWO_FACTOR_CODE" as const;
+export const DOC_INCORRECT_TWO_FACTOR_CODE = "INCORRECT_TWO_FACTOR_CODE" as const;
 export const DOC_TWO_FACTOR_MISSING_CREDENTIALS = "TWO_FACTOR_MISSING_CREDENTIALS" as const;
 
 const TOTP_SECRET_PATTERN = /^[A-Z2-7]{16}$/;

@@ -6,6 +6,7 @@ import {
   serializeKnownBugEvidence,
 } from "../../../src/core/known-bug-evidence.js";
 import {
+  DOC_INCORRECT_TWO_FACTOR_CODE,
   DOC_INVALID_TWO_FACTOR_CODE,
   DOC_TWO_FACTOR_MISSING_CREDENTIALS,
   loginViaApi,
@@ -14,6 +15,7 @@ import {
   sessionHasEmail,
   wrongTotpCodeFromLive,
 } from "../../../src/products/documenso/auth.js";
+import { readDocumensoTwoFactorEnabled } from "../../../src/products/documenso/qa-user.js";
 import { documensoTimeouts } from "../../../src/products/documenso/env.js";
 import { expect, test } from "../../../src/products/documenso/fixtures.js";
 import { SecuritySettingsPage } from "../../../src/products/documenso/pages/security.page.js";
@@ -28,6 +30,8 @@ const BACKUP_REUSE_ISSUE =
 const REPLAY_ISSUE = "P7-OBS-DOC-2FA-002: Documenso accepts TOTP replay within the same window";
 const WRONG_CODE_STATUS_ISSUE =
   "P7-OBS-DOC-2FA-003: Documenso auth failure returns HTTP 500 instead of 4xx";
+const DISABLE_WRONG_CODE_ISSUE =
+  "P7-OBS-DOC-2FA-004: Documenso disable 2FA wrong code is not cleanly refused";
 
 async function authorizeBodyCode(response: Response): Promise<string | undefined> {
   try {
@@ -323,5 +327,76 @@ test(
     } finally {
       await http.dispose();
     }
+  },
+);
+
+test(
+  "P1-DOC-2FA-009 disabling 2FA requires a valid code",
+  {
+    tag: ["@documenso", "@auth", "@2fa"],
+    annotation: [
+      { type: "testId", description: "P1-DOC-2FA-009" },
+      { type: "priority", description: "P1" },
+      { type: "issue", description: DISABLE_WRONG_CODE_ISSUE },
+    ],
+  },
+  async ({ page, twoFactorDocumensoUser }, testInfo) => {
+    const loginMintedAtMs = Date.now();
+    const loginTotp = generateTotpCode(twoFactorDocumensoUser.secret, loginMintedAtMs);
+    const sessionLogin = await loginViaApi(page.request, {
+      email: twoFactorDocumensoUser.email,
+      password: twoFactorDocumensoUser.password,
+      totpCode: loginTotp,
+    });
+    expect(sessionLogin.status).toBe(201);
+
+    const security = new SecuritySettingsPage(page);
+    await security.gotoWithTwoFactorEnabled();
+    await security.openDisableTwoFactorDialog();
+    await security.fillDisableTotpCode("000000");
+    const wrongDisableResponse = await security.submitDisableTwoFactor();
+    const wrongDisableCode = await authorizeBodyCode(wrongDisableResponse);
+    const twoFactorEnabledAfterWrong = await readDocumensoTwoFactorEnabled(
+      twoFactorDocumensoUser.id,
+    );
+
+    await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
+      body: serializeKnownBugEvidence({
+        issue: DISABLE_WRONG_CODE_ISSUE,
+        observed: {
+          wrongDisableStatus: wrongDisableResponse.status(),
+          wrongDisableCode: wrongDisableCode ?? null,
+          twoFactorEnabledAfterWrong,
+        },
+        expected: {
+          wrongDisableStatus: "4xx",
+          wrongDisableCode: DOC_INCORRECT_TWO_FACTOR_CODE,
+          twoFactorEnabledAfterWrong: true,
+        },
+      }),
+      contentType: "application/json",
+    });
+
+    if (wrongDisableResponse.status() >= 500 || !twoFactorEnabledAfterWrong) {
+      test.fail(true, DISABLE_WRONG_CODE_ISSUE);
+    }
+
+    await expect(page.getByText("Unable to disable two-factor authentication")).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
+    expect(twoFactorEnabledAfterWrong).toBe(true);
+    expect(wrongDisableCode).toBe(DOC_INCORRECT_TWO_FACTOR_CODE);
+    expect(wrongDisableResponse.status()).toBeGreaterThanOrEqual(400);
+    expect(wrongDisableResponse.status()).toBeLessThan(500);
+
+    const disableMintedAtMs = Date.now();
+    const disableTotp = generateTotpCode(twoFactorDocumensoUser.secret, disableMintedAtMs);
+    await security.fillDisableTotpCode(disableTotp);
+    const disableResponse = await security.submitDisableTwoFactor();
+    expect(disableResponse.status()).toBe(201);
+    expect(await readDocumensoTwoFactorEnabled(twoFactorDocumensoUser.id)).toBe(false);
+    await expect(security.enableTwoFactorButton()).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
   },
 );

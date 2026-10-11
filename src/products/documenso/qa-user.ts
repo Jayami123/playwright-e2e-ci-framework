@@ -403,6 +403,20 @@ export async function countDocumensoQaOrphans(): Promise<DocumensoQaOrphanCounts
   });
 }
 
+export async function readDocumensoTwoFactorEnabled(userId: number): Promise<boolean> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ two_factor_enabled: boolean }>(
+      `SELECT "twoFactorEnabled" AS two_factor_enabled FROM "User" WHERE id = $1`,
+      [userId],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error(`Documenso QA user id=${String(userId)} was not found`);
+    }
+    return row.two_factor_enabled;
+  });
+}
+
 export async function sweepDocumensoQaUsers(): Promise<number> {
   return withDocumensoPool(async (pool) => {
     const client = await pool.connect();

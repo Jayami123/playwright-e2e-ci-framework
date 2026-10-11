@@ -1,4 +1,4 @@
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Response } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { twoFactorEnableFailureMessage } from "../auth.js";
 import { DOCUMENSO_ROUTES, documensoTimeouts } from "../env.js";
@@ -17,6 +17,46 @@ export class SecuritySettingsPage extends BasePage {
     await expect(this.enableTwoFactorButton()).toBeVisible({
       timeout: documensoTimeouts().request,
     });
+  }
+
+  async gotoWithTwoFactorEnabled(): Promise<void> {
+    await this.gotoPath(DOCUMENSO_ROUTES.security);
+    await expect(this.page.getByRole("button", { name: "Disable 2FA" })).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
+  }
+
+  disableTwoFactorDialog(): Locator {
+    return this.page.getByRole("dialog", { name: "Disable 2FA" });
+  }
+
+  async openDisableTwoFactorDialog(): Promise<void> {
+    await this.page.getByRole("button", { name: "Disable 2FA" }).click();
+    await expect(this.disableTwoFactorDialog()).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
+  }
+
+  async fillDisableTotpCode(code: string): Promise<void> {
+    expect(code, "TOTP code must be exactly six digits").toMatch(/^\d{6}$/);
+    await this.disableTwoFactorDialog().getByRole("textbox").fill(code);
+  }
+
+  private waitForDisableResponse(): Promise<Response> {
+    return this.page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes(DOCUMENSO_ROUTES.twoFactorDisable),
+      { timeout: documensoTimeouts().request },
+    );
+  }
+
+  async submitDisableTwoFactor(): Promise<Response> {
+    const disableDone = this.waitForDisableResponse();
+    await this.disableTwoFactorDialog()
+      .getByRole("button", { name: "Disable 2FA", exact: true })
+      .click();
+    return await disableDone;
   }
 
   async openEnableTwoFactorFlow(): Promise<string> {
