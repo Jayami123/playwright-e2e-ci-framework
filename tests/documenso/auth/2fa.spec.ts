@@ -1,5 +1,10 @@
 import type { Response } from "@playwright/test";
-import { generateTotpCode } from "../../../src/core/totp.js";
+import {
+  epochMsForStableTotpMint,
+  generateTotpCode,
+  totpMsLeftInStep,
+  totpStepNumber,
+} from "../../../src/core/totp.js";
 import { required } from "../../../src/core/required.js";
 import {
   KNOWN_BUG_JSON_ATTACHMENT,
@@ -32,6 +37,8 @@ const WRONG_CODE_STATUS_ISSUE =
   "P7-OBS-DOC-2FA-003: Documenso auth failure returns HTTP 500 instead of 4xx";
 const DISABLE_WRONG_CODE_ISSUE =
   "P7-OBS-DOC-2FA-004: Documenso disable 2FA wrong code is not cleanly refused";
+const REPLAY_TOTP_MIN_MS_LEFT = 8_000;
+const REPLAY_EVIDENCE_ATTACHMENT = "replay-totp-evidence.json";
 
 async function authorizeBodyCode(response: Response): Promise<string | undefined> {
   try {
@@ -265,7 +272,9 @@ test(
   },
   async ({ twoFactorDocumensoUser }, testInfo) => {
     test.fail(true, REPLAY_ISSUE);
-    const sharedCode = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
+    const mintEpochMs = await epochMsForStableTotpMint(REPLAY_TOTP_MIN_MS_LEFT);
+    const sharedCode = generateTotpCode(twoFactorDocumensoUser.secret, mintEpochMs);
+    const mintStep = totpStepNumber(mintEpochMs);
     const httpA = await newDocumensoApiContext();
     const httpB = await newDocumensoApiContext();
     try {
@@ -279,6 +288,47 @@ test(
         password: twoFactorDocumensoUser.password,
         totpCode: sharedCode,
       });
+      const firstStep = totpStepNumber(first.authorizeRequestedAtMs);
+      const secondStep = totpStepNumber(second.authorizeRequestedAtMs);
+      const sameAuthorizeStep = firstStep === secondStep;
+      const replayRejected =
+        second.code === DOC_INVALID_TWO_FACTOR_CODE && !second.hasSessionCookie;
+
+      const replayEvidence = {
+        issue: REPLAY_ISSUE,
+        mint: {
+          epochMs: mintEpochMs,
+          step: mintStep,
+          msLeftInStep: totpMsLeftInStep(mintEpochMs),
+        },
+        firstLogin: {
+          authorizeRequestedAtMs: first.authorizeRequestedAtMs,
+          step: firstStep,
+          status: first.status,
+          code: first.code ?? null,
+        },
+        secondLogin: {
+          authorizeRequestedAtMs: second.authorizeRequestedAtMs,
+          step: secondStep,
+          status: second.status,
+          code: second.code ?? null,
+        },
+        sameAuthorizeStep,
+        sameStepAsMint: firstStep === mintStep && secondStep === mintStep,
+        sameStepReplayRejected: sameAuthorizeStep && replayRejected,
+      };
+
+      await testInfo.attach(REPLAY_EVIDENCE_ATTACHMENT, {
+        body: JSON.stringify(replayEvidence, null, 2),
+        contentType: "application/json",
+      });
+
+      if (replayEvidence.sameStepReplayRejected) {
+        throw new Error(
+          `${REPLAY_ISSUE}: replay rejected while both authorize POSTs share TOTP step ${String(firstStep)}`,
+        );
+      }
+
       await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
         body: serializeKnownBugEvidence({
           issue: REPLAY_ISSUE,
@@ -286,6 +336,10 @@ test(
             firstStatus: first.status,
             secondStatus: second.status,
             secondCode: second.code ?? null,
+            mintStep,
+            firstStep,
+            secondStep,
+            sameAuthorizeStep,
           },
           expected: {
             secondStatus: "4xx",

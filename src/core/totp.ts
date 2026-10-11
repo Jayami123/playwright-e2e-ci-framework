@@ -24,3 +24,29 @@ export function generateTotpCode(secret: string, epochMs: number): string {
 export function totpMsLeftInStep(epochMs: number): number {
   return TOTP_STEP_MS - (epochMs % TOTP_STEP_MS);
 }
+
+/** Zero-based TOTP step index for `epochMs` (Documenso verifies only the current step). */
+export function totpStepNumber(epochMs: number): number {
+  return Math.floor(epochMs / TOTP_STEP_MS);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Returns an epoch suitable for minting a code when two authorize POSTs must share one step.
+ * Waits once until the next step boundary when fewer than `minMsLeftInStep` ms remain.
+ */
+export async function epochMsForStableTotpMint(minMsLeftInStep: number): Promise<number> {
+  const now = Date.now();
+  const msLeft = totpMsLeftInStep(now);
+  if (msLeft >= minMsLeftInStep) {
+    return now;
+  }
+  const nextBoundary = (totpStepNumber(now) + 1) * TOTP_STEP_MS;
+  await delay(nextBoundary - now);
+  return Date.now();
+}

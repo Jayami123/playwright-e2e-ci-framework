@@ -21,6 +21,8 @@ export interface DocumensoAuthorizeResult {
   readonly code: string | undefined;
   readonly message: string | undefined;
   readonly hasSessionCookie: boolean;
+  /** Wall-clock ms immediately before POST /email-password/authorize. */
+  readonly authorizeRequestedAtMs: number;
 }
 
 export interface DocumensoSessionPayload {
@@ -135,6 +137,7 @@ export async function loginViaApi(
     body.backupCode = input.backupCode;
   }
 
+  const authorizeRequestedAtMs = Date.now();
   const response = await http.post(DOCUMENSO_ROUTES.emailPasswordAuthorize, {
     data: body,
     timeout: documensoTimeouts().request,
@@ -154,6 +157,7 @@ export async function loginViaApi(
     code: parsed.code,
     message: parsed.message,
     hasSessionCookie: hasSessionIdCookie(cookies),
+    authorizeRequestedAtMs,
   };
 }
 

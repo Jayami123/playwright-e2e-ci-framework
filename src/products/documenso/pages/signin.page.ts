@@ -20,8 +20,23 @@ export class SignInPage extends BasePage {
 
   async goto(): Promise<void> {
     await this.gotoPath(DOCUMENSO_ROUTES.signin);
+    await expect(this.page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
     await expect(this.emailField).toBeEditable({ timeout: documensoTimeouts().request });
+    await expect(this.passwordField).toBeEditable({ timeout: documensoTimeouts().request });
     await expect(this.signInButton).toBeEnabled({ timeout: documensoTimeouts().request });
+  }
+
+  private async fillSignInCredentials(email: string, password: string): Promise<void> {
+    await expect(this.emailField).toBeEditable({ timeout: documensoTimeouts().request });
+    await this.emailField.fill(email);
+    await expect(this.emailField).toHaveValue(email, { timeout: documensoTimeouts().request });
+    await expect(this.passwordField).toBeEditable({ timeout: documensoTimeouts().request });
+    await this.passwordField.fill(password);
+    await expect(this.passwordField).toHaveValue(password, {
+      timeout: documensoTimeouts().request,
+    });
   }
 
   private waitForAuthorizeResponse(): Promise<Response> {
@@ -34,19 +49,18 @@ export class SignInPage extends BasePage {
   }
 
   async signIn(email: string, password: string): Promise<void> {
-    await this.emailField.fill(email);
-    await this.passwordField.fill(password);
+    await this.fillSignInCredentials(email, password);
     const authorizeDone = this.waitForAuthorizeResponse();
+    await expect(this.signInButton).toBeEnabled({ timeout: documensoTimeouts().request });
     await this.signInButton.click();
     const response = await authorizeDone;
     expect(response.status(), "Documenso email-password authorize").toBe(201);
   }
 
   async submitPasswordForTwoFactorDialog(email: string, password: string): Promise<Response> {
-    await this.emailField.fill(email);
-    await expect(this.emailField).toHaveValue(email);
-    await this.passwordField.fill(password);
+    await this.fillSignInCredentials(email, password);
     const authorizeDone = this.waitForAuthorizeResponse();
+    await expect(this.signInButton).toBeEnabled({ timeout: documensoTimeouts().request });
     await this.signInButton.click();
     const response = await authorizeDone;
     await expect(this.twoFactorDialog()).toBeVisible({ timeout: documensoTimeouts().request });
