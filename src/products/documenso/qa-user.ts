@@ -337,6 +337,19 @@ export async function teardownDocumensoQaUserById(userId: number): Promise<void>
   });
 }
 
+export async function countDocumensoQaRateLimitRows(): Promise<number> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ leftover: number }>(
+      `SELECT count(*)::int AS leftover FROM "RateLimit" WHERE key LIKE 'id:qa-%'`,
+    );
+    const count = result.rows[0]?.leftover;
+    if (count === undefined) {
+      throw new Error("countDocumensoQaRateLimitRows query returned no row");
+    }
+    return count;
+  });
+}
+
 export async function countDocumensoQaUsers(): Promise<number> {
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{ leftover: number }>(

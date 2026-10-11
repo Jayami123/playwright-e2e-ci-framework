@@ -1,12 +1,14 @@
 import "dotenv/config";
 import {
   countDocumensoQaOrphans,
+  countDocumensoQaRateLimitRows,
   countDocumensoQaUsers,
 } from "../src/products/documenso/qa-user.js";
 
 const users = await countDocumensoQaUsers();
 const orphans = await countDocumensoQaOrphans();
-console.log(JSON.stringify({ users, orphans }, null, 2));
+const rateLimitRows = await countDocumensoQaRateLimitRows();
+console.log(JSON.stringify({ users, orphans, rateLimitRows }, null, 2));
 
 const orphanTotal =
   orphans.orphanOrganisationGlobalSettings +

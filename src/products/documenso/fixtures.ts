@@ -1,13 +1,22 @@
-import { test as base } from "@playwright/test";
+import { expect, request, test as base } from "@playwright/test";
 import { setFactorySeed } from "qa-portfolio-harness";
+import { generateTotpCode } from "../../core/totp.js";
 import { parsePositiveInt } from "../../core/config.js";
+import { enableTwoFactorViaApi, loginViaApi, setupTwoFactorViaApi } from "./auth.js";
+import { loadDocumensoConfig } from "./env.js";
 import { qaDocumensoUser, type DocumensoQaUser } from "./factories.js";
 import { createDocumensoQaUser, teardownDocumensoQaUserById } from "./qa-user.js";
 
 export type DocumensoQaUserFixture = DocumensoQaUser & { readonly id: number };
 
+export type TwoFactorDocumensoUserFixture = DocumensoQaUserFixture & {
+  readonly secret: string;
+  readonly backupCodes: readonly string[];
+};
+
 interface DocumensoFixtures {
   documensoUser: DocumensoQaUserFixture;
+  twoFactorDocumensoUser: TwoFactorDocumensoUserFixture;
 }
 
 interface DocumensoWorkerFixtures {
@@ -55,6 +64,28 @@ export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
     }
     if (teardownErrors.length > 0) {
       throw new AggregateError(teardownErrors, "documensoUser fixture failed");
+    }
+  },
+
+  twoFactorDocumensoUser: async ({ documensoUser }, use) => {
+    const { baseUrl } = loadDocumensoConfig();
+    const http = await request.newContext({ baseURL: baseUrl });
+    try {
+      const login = await loginViaApi(http, {
+        email: documensoUser.email,
+        password: documensoUser.password,
+      });
+      expect(login.status, "twoFactorDocumensoUser password login").toBe(201);
+      const setup = await setupTwoFactorViaApi(http);
+      const enrolCode = generateTotpCode(setup.secret, Date.now());
+      const enabled = await enableTwoFactorViaApi(http, enrolCode);
+      await use({
+        ...documensoUser,
+        secret: setup.secret,
+        backupCodes: enabled.backupCodes,
+      });
+    } finally {
+      await http.dispose();
     }
   },
 });
