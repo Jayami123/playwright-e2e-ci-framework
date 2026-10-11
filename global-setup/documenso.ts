@@ -6,6 +6,7 @@ import {
   documensoTimeouts,
   loadDocumensoConfig,
 } from "../src/products/documenso/env.js";
+import { countDocumensoQaUsers, sweepDocumensoQaUsers } from "../src/products/documenso/qa-user.js";
 
 async function signinStatus(baseUrl: string, timeoutMs: number): Promise<number | undefined> {
   return getStatus(`${normalizeBaseUrl(baseUrl)}${DOCUMENSO_ROUTES.signin}`, timeoutMs);
@@ -22,6 +23,18 @@ async function isDocumensoHealthy(baseUrl: string, timeoutMs: number): Promise<b
   }
   const csrf = await csrfStatus(baseUrl, timeoutMs);
   return csrf === 200;
+}
+
+async function sweepLocalDocumensoQaUsers(): Promise<void> {
+  if (process.env.CI) {
+    return;
+  }
+  const before = await countDocumensoQaUsers();
+  const deleted = await sweepDocumensoQaUsers();
+  const after = await countDocumensoQaUsers();
+  console.log(
+    `Local Documenso qa-user sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)})`,
+  );
 }
 
 async function warmupDocumensoPages(baseUrl: string): Promise<void> {
@@ -47,6 +60,7 @@ export default async function documensoGlobalSetup(): Promise<void> {
       `Documenso already serving ${config.baseUrl}${DOCUMENSO_ROUTES.signin} and ${DOCUMENSO_ROUTES.csrf} (HTTP 200); skipping harness up().`,
     );
     await warmupDocumensoPages(config.baseUrl);
+    await sweepLocalDocumensoQaUsers();
     return;
   }
 
@@ -68,6 +82,7 @@ export default async function documensoGlobalSetup(): Promise<void> {
     }
     console.log(`Documenso healthy at ${adapter.baseUrl} (${adapter.productRoot})`);
     await warmupDocumensoPages(adapter.baseUrl);
+    await sweepLocalDocumensoQaUsers();
   } catch (error) {
     throw new Error(
       "Documenso did not become healthy. From qa-portfolio-harness under Node 24 run: node scripts/up.mjs documenso",
