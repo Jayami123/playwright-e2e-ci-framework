@@ -31,7 +31,7 @@ test(
         email: documensoUser.email,
         password: documensoUser.password,
       });
-      expect(login.status, "documensoUser password login").toBe(201);
+      expect(login.status, login.authorizeDiagnostic ?? "documensoUser password login").toBe(201);
     });
 
     const passkeys = new PasskeysSettingsPage(page);

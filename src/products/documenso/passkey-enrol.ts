@@ -5,10 +5,10 @@ import { readDocumensoPasskeyChallengeToken, type DocumensoQaUserRecord } from "
 import type { VirtualAuthenticatorFixture } from "./fixtures.js";
 import { PasskeysSettingsPage } from "./pages/passkeys.page.js";
 import { SecuritySettingsPage } from "./pages/security.page.js";
+import { isDocumensoPasskeyCreateTrpcUrl } from "./trpc.js";
 
 export const DOCUMENSO_PASSKEY_NAME = "QA passkey" as const;
 
-const PASSKEY_CREATE_TRPC_PATH = "/api/trpc/auth.passkey.create";
 const PASSKEY_REGISTRATION_OPTIONS_TRPC_PATH = "/api/trpc/auth.passkey.createRegistrationOptions";
 
 export async function readVirtualAuthenticatorSignCount(
@@ -33,7 +33,7 @@ export async function enrolPasskeyForSignIn(
     email: documensoUser.email,
     password: documensoUser.password,
   });
-  expect(login.status, "documensoUser password login").toBe(201);
+  expect(login.status, login.authorizeDiagnostic ?? "documensoUser password login").toBe(201);
 
   const security = new SecuritySettingsPage(page);
   await security.goto();
@@ -67,7 +67,7 @@ export async function enrolPasskeyCapturingCreateRequest(
     email: documensoUser.email,
     password: documensoUser.password,
   });
-  expect(login.status, "documensoUser password login").toBe(201);
+  expect(login.status, login.authorizeDiagnostic ?? "documensoUser password login").toBe(201);
 
   const security = new SecuritySettingsPage(page);
   await security.goto();
@@ -75,7 +75,7 @@ export async function enrolPasskeyCapturingCreateRequest(
   await passkeys.gotoPasskeys();
 
   const createRequestDone = page.waitForRequest(
-    (request) => request.method() === "POST" && request.url().includes(PASSKEY_CREATE_TRPC_PATH),
+    (request) => request.method() === "POST" && isDocumensoPasskeyCreateTrpcUrl(request.url()),
     { timeout: documensoTimeouts().request },
   );
   const registrationOptionsDone = page.waitForResponse(

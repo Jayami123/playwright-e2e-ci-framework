@@ -102,7 +102,10 @@ export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
         email: documensoUser.email,
         password: documensoUser.password,
       });
-      expect(login.status, "twoFactorDocumensoUser password login").toBe(201);
+      expect(
+        login.status,
+        login.authorizeDiagnostic ?? "twoFactorDocumensoUser password login",
+      ).toBe(201);
       const setup = await setupTwoFactorViaApi(http);
       const codeMintedAtMs = Date.now();
       const enrolCode = generateTotpCode(setup.secret, codeMintedAtMs);

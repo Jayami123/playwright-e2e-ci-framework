@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Response } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
+import { emailPasswordAuthorizeFailureMessage } from "../auth.js";
 import { DOCUMENSO_ROUTES, documensoTimeouts } from "../env.js";
 
 export class SignInPage extends BasePage {
@@ -59,13 +60,25 @@ export class SignInPage extends BasePage {
     );
   }
 
+  private async readAuthorizeResponseBody(response: Response): Promise<unknown> {
+    try {
+      return await response.json();
+    } catch {
+      return undefined;
+    }
+  }
+
   async signIn(email: string, password: string): Promise<void> {
     await this.fillSignInCredentials(email, password);
     const authorizeDone = this.waitForAuthorizeResponse();
     await expect(this.signInButton).toBeEnabled({ timeout: documensoTimeouts().request });
     await this.signInButton.click();
     const response = await authorizeDone;
-    expect(response.status(), "Documenso email-password authorize").toBe(201);
+    const status = response.status();
+    if (status !== 201) {
+      const body = await this.readAuthorizeResponseBody(response);
+      throw new Error(emailPasswordAuthorizeFailureMessage(status, body));
+    }
   }
 
   async submitPasswordForTwoFactorDialog(email: string, password: string): Promise<Response> {
@@ -99,6 +112,11 @@ export class SignInPage extends BasePage {
     await expect(this.twoFactorDialog().getByLabel("Token")).toBeVisible({
       timeout: documensoTimeouts().request,
     });
+  }
+
+  async authorizeFailureMessage(response: Response): Promise<string> {
+    const body = await this.readAuthorizeResponseBody(response);
+    return emailPasswordAuthorizeFailureMessage(response.status(), body);
   }
 
   async submitTwoFactorSignIn(): Promise<Response> {

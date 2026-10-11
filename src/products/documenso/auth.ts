@@ -23,6 +23,8 @@ export interface DocumensoAuthorizeResult {
   readonly hasSessionCookie: boolean;
   /** Wall-clock ms immediately before POST /email-password/authorize. */
   readonly authorizeRequestedAtMs: number;
+  /** Set when status is not 201; use as the Playwright expect message. */
+  readonly authorizeDiagnostic: string | undefined;
 }
 
 export interface DocumensoSessionPayload {
@@ -93,10 +95,21 @@ function assertTotpSecret(secret: string): string {
 }
 
 export function readJsonErrorCode(body: unknown): string | undefined {
-  if (!isRecord(body) || typeof body.code !== "string") {
+  if (!isRecord(body)) {
     return undefined;
   }
-  return body.code;
+  if (typeof body.code === "string") {
+    return body.code;
+  }
+  if (typeof body.error === "string") {
+    return "TOO_MANY_REQUESTS";
+  }
+  return undefined;
+}
+
+export function emailPasswordAuthorizeFailureMessage(httpStatus: number, body: unknown): string {
+  const code = readJsonErrorCode(body);
+  return `POST ${DOCUMENSO_ROUTES.emailPasswordAuthorize} failed (HTTP ${String(httpStatus)}, code=${code ?? "none"})`;
 }
 
 export function twoFactorEnableFailureMessage(
@@ -152,12 +165,17 @@ export async function loginViaApi(
   const parsed = parseAuthorizeBody(payload);
   const cookies = (await http.storageState()).cookies;
 
+  const status = response.status();
+  const authorizeDiagnostic =
+    status === 201 ? undefined : emailPasswordAuthorizeFailureMessage(status, payload);
+
   return {
-    status: response.status(),
+    status,
     code: parsed.code,
     message: parsed.message,
     hasSessionCookie: documensoHasSessionIdCookie(cookies),
     authorizeRequestedAtMs,
+    authorizeDiagnostic,
   };
 }
 

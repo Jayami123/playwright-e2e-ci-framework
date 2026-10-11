@@ -16,9 +16,16 @@ import {
   countDocumensoPasskeysForUser,
   insertPasskeyChallenge,
 } from "../../../src/products/documenso/qa-user.js";
+import {
+  DOCUMENSO_TRPC_PASSKEY_CREATE_PROCEDURE,
+  isDocumensoPasskeyCreateTrpcUrl,
+  parseDocumensoTrpcHttpBody,
+} from "../../../src/products/documenso/trpc.js";
 import { serializeKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
 
 const EMPTY_STORAGE = { cookies: [] as [], origins: [] as [] };
+const DUPLICATE_CREDENTIAL_ISSUE =
+  "P7-OBS-DOC-PK-002: Passkey.credentialId has no unique index; duplicate insert succeeded";
 const DUPLICATE_CREDENTIAL_OBSERVATION =
   "P7-OBS-DOC-PK-002: Passkey.credentialId has no unique index (defence-in-depth)";
 
@@ -178,6 +185,7 @@ test(
       expect(virtualAuthenticator.authenticatorId.length).toBeGreaterThan(0);
     });
     const captured = await enrolPasskeyCapturingCreateRequest(page, documensoUser);
+    expect(isDocumensoPasskeyCreateTrpcUrl(captured.createUrl)).toBe(true);
 
     await test.step("Replay passkey create with restored PASSKEY_CHALLENGE", async () => {
       const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
@@ -186,21 +194,41 @@ test(
         data: captured.createPostData,
         timeout: documensoTimeouts().request,
       });
+      const replayBodyText = await replayResponse.text();
+      const parsed = parseDocumensoTrpcHttpBody(replayBodyText);
       const passkeyCount = await countDocumensoPasskeysForUser(documensoUser.id);
+      const secondHttpStatus = replayResponse.status();
+      const trpcCode = parsed.appErrorCode ?? null;
+
+      console.log(
+        `P1-DOC-PK-006 replay: secondHttpStatus=${String(secondHttpStatus)} trpcProcedurePath=${parsed.procedurePath ?? "none"} trpcCode=${trpcCode ?? "none"} passkeyCount=${String(passkeyCount)}`,
+      );
+
       await testInfo.attach("duplicate-credential-evidence", {
         body: serializeKnownBugEvidence({
           issue: DUPLICATE_CREDENTIAL_OBSERVATION,
           observed: {
-            secondHttpStatus: replayResponse.status(),
+            secondHttpStatus,
+            trpcProcedurePath: parsed.procedurePath ?? null,
+            trpcCode,
             passkeyCount,
           },
           expected: {
+            trpcProcedurePath: DOCUMENSO_TRPC_PASSKEY_CREATE_PROCEDURE,
             passkeyCount: 1,
           },
         }),
         contentType: "application/json",
       });
+
+      expect(parsed.procedurePath).toBe(DOCUMENSO_TRPC_PASSKEY_CREATE_PROCEDURE);
+
+      if (secondHttpStatus >= 200 && secondHttpStatus < 300 && passkeyCount === 2) {
+        test.fail(true, DUPLICATE_CREDENTIAL_ISSUE);
+      }
+
       expect(passkeyCount).toBe(1);
+      expect(trpcCode).toBe("BAD_REQUEST");
     });
   },
 );

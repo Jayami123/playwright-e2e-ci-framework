@@ -63,7 +63,7 @@ test(
       email: documensoUser.email,
       password: documensoUser.password,
     });
-    expect(login.status).toBe(201);
+    expect(login.status, login.authorizeDiagnostic).toBe(201);
 
     const security = new SecuritySettingsPage(page);
     await security.goto();
@@ -109,7 +109,7 @@ test(
     const code = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
     await signIn.fillTotpToken(code);
     const response = await signIn.submitTwoFactorSignIn();
-    expect(response.status()).toBe(201);
+    expect(response.status(), await signIn.authorizeFailureMessage(response)).toBe(201);
     await expect(page).toHaveURL(/\/t\/[^/]+\/documents$/, {
       timeout: documensoTimeouts().request,
     });
