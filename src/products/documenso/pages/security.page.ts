@@ -1,5 +1,6 @@
 import { expect, type Locator } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
+import { twoFactorEnableFailureMessage } from "../auth.js";
 import { DOCUMENSO_ROUTES, documensoTimeouts } from "../env.js";
 
 export class SecuritySettingsPage extends BasePage {
@@ -41,7 +42,7 @@ export class SecuritySettingsPage extends BasePage {
     return payload.secret;
   }
 
-  async submitEnrolmentToken(code: string): Promise<readonly string[]> {
+  async submitEnrolmentToken(code: string, codeMintedAtMs: number): Promise<readonly string[]> {
     expect(code, "TOTP code must be exactly six digits").toMatch(/^\d{6}$/);
     const dialog = this.enableAuthenticatorDialog();
     const tokenField = dialog.getByRole("textbox", { name: "Token" });
@@ -54,9 +55,19 @@ export class SecuritySettingsPage extends BasePage {
     );
     await dialog.getByRole("button", { name: "Enable 2FA" }).click();
     const enableResponse = await enableDone;
-    expect(enableResponse.ok(), "Enable 2FA POST must succeed").toBeTruthy();
-    const payload = (await enableResponse.json()) as { recoveryCodes?: string[] };
-    const codes = payload.recoveryCodes;
+    let payload: unknown;
+    try {
+      payload = await enableResponse.json();
+    } catch {
+      payload = undefined;
+    }
+    if (!enableResponse.ok()) {
+      throw new Error(
+        twoFactorEnableFailureMessage(enableResponse.status(), payload, codeMintedAtMs),
+      );
+    }
+    const enableBody = payload as { recoveryCodes?: string[] };
+    const codes = enableBody.recoveryCodes;
     if (codes === undefined || codes.length !== 10) {
       throw new Error("Enable 2FA enable response did not include 10 recovery codes");
     }

@@ -77,8 +77,9 @@ export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
       });
       expect(login.status, "twoFactorDocumensoUser password login").toBe(201);
       const setup = await setupTwoFactorViaApi(http);
-      const enrolCode = generateTotpCode(setup.secret, Date.now());
-      const enabled = await enableTwoFactorViaApi(http, enrolCode);
+      const codeMintedAtMs = Date.now();
+      const enrolCode = generateTotpCode(setup.secret, codeMintedAtMs);
+      const enabled = await enableTwoFactorViaApi(http, enrolCode, codeMintedAtMs);
       await use({
         ...documensoUser,
         secret: setup.secret,

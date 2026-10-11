@@ -19,3 +19,8 @@ function authenticatorAtEpoch(epochMs: number): ReturnType<typeof authenticator.
 export function generateTotpCode(secret: string, epochMs: number): string {
   return authenticatorAtEpoch(epochMs).generate(secret);
 }
+
+/** Milliseconds remaining in the RFC 6238 step that contains `epochMs` (Documenso uses a 30 s step). */
+export function totpMsLeftInStep(epochMs: number): number {
+  return TOTP_STEP_MS - (epochMs % TOTP_STEP_MS);
+}

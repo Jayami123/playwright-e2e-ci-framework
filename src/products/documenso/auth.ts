@@ -1,4 +1,5 @@
 import { request, type APIRequestContext } from "@playwright/test";
+import { totpMsLeftInStep } from "../../core/totp.js";
 import { DOCUMENSO_ROUTES, documensoTimeouts, loadDocumensoConfig } from "./env.js";
 
 export const DOC_INVALID_TWO_FACTOR_CODE = "INVALID_TWO_FACTOR_CODE" as const;
@@ -86,6 +87,22 @@ function assertTotpSecret(secret: string): string {
     throw new Error("Documenso 2FA setup secret format is invalid");
   }
   return secret;
+}
+
+function readJsonErrorCode(body: unknown): string | undefined {
+  if (!isRecord(body) || typeof body.code !== "string") {
+    return undefined;
+  }
+  return body.code;
+}
+
+export function twoFactorEnableFailureMessage(
+  httpStatus: number,
+  body: unknown,
+  codeMintedAtMs: number,
+): string {
+  const jsonCode = readJsonErrorCode(body);
+  return `POST ${DOCUMENSO_ROUTES.twoFactorEnable} failed (HTTP ${String(httpStatus)}, code=${jsonCode ?? "none"}, totpMsLeftInStep=${String(totpMsLeftInStep(codeMintedAtMs))})`;
 }
 
 function assertBackupCodes(codes: readonly string[]): readonly string[] {
@@ -190,17 +207,21 @@ export async function setupTwoFactorViaApi(
 export async function enableTwoFactorViaApi(
   http: APIRequestContext,
   code: string,
+  codeMintedAtMs: number,
 ): Promise<DocumensoTwoFactorEnableResult> {
   const response = await http.post(DOCUMENSO_ROUTES.twoFactorEnable, {
     data: { code },
     timeout: documensoTimeouts().request,
   });
-  if (!response.ok()) {
-    throw new Error(
-      `POST ${DOCUMENSO_ROUTES.twoFactorEnable} failed (HTTP ${String(response.status())})`,
-    );
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = undefined;
   }
-  const payload: unknown = await response.json();
+  if (!response.ok()) {
+    throw new Error(twoFactorEnableFailureMessage(response.status(), payload, codeMintedAtMs));
+  }
   if (!isRecord(payload) || !Array.isArray(payload.recoveryCodes)) {
     throw new Error("Documenso 2FA enable response shape is invalid");
   }

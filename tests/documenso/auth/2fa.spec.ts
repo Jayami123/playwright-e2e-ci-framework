@@ -57,8 +57,9 @@ test(
     const security = new SecuritySettingsPage(page);
     await security.goto();
     const secret = await security.openEnableTwoFactorFlow();
-    const enrolCode = generateTotpCode(secret, Date.now());
-    const backupCodes = await security.submitEnrolmentToken(enrolCode);
+    const codeMintedAtMs = Date.now();
+    const enrolCode = generateTotpCode(secret, codeMintedAtMs);
+    const backupCodes = await security.submitEnrolmentToken(enrolCode, codeMintedAtMs);
     expect(backupCodes.length).toBe(10);
     await security.expectRecoveryCodesSection();
 
