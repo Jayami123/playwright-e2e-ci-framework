@@ -7,12 +7,6 @@ export class DocumentsPage extends BasePage {
     return this.page.getByRole("button", { name: "Upload Document" });
   }
 
-  private uploadFileInput(): Locator {
-    // File inputs have no ARIA role; react-dropzone hides this input inside the Upload Document button.
-    // eslint-disable-next-line playwright/no-raw-locators -- file input has no role
-    return this.uploadDocumentButton().locator('input[type="file"]');
-  }
-
   async goto(teamUrl: string): Promise<void> {
     await this.gotoPath(documensoTeamDocumentsPath(teamUrl));
     await expect(this.page.getByRole("heading", { name: "Documents" })).toBeVisible({
@@ -22,8 +16,16 @@ export class DocumentsPage extends BasePage {
 
   async upload(pdfPath: string): Promise<void> {
     const actionTimeout = documensoTimeouts().request;
+    await expect(this.page.getByRole("heading", { name: "We're all empty" })).toBeVisible({
+      timeout: actionTimeout,
+    });
     await expect(this.uploadDocumentButton()).toBeVisible({ timeout: actionTimeout });
-    await this.uploadFileInput().setInputFiles(pdfPath);
+    // setInputFiles on the nested 1px dropzone input does not fire onDrop (no envelope.create).
+    const [fileChooser] = await Promise.all([
+      this.page.waitForEvent("filechooser"),
+      this.uploadDocumentButton().click(),
+    ]);
+    await fileChooser.setFiles(pdfPath);
     await expect(this.page).toHaveURL(/\/documents\/[^/]+\/edit/, {
       timeout: actionTimeout,
     });
