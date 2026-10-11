@@ -7,7 +7,11 @@ import { loadDocumensoConfig } from "./env.js";
 import { qaDocumensoUser, type DocumensoQaUser } from "./factories.js";
 import { createDocumensoQaUser, teardownDocumensoQaUserById } from "./qa-user.js";
 
-export type DocumensoQaUserFixture = DocumensoQaUser & { readonly id: number };
+export type DocumensoQaUserFixture = DocumensoQaUser & {
+  readonly id: number;
+  readonly teamUrl: string;
+  readonly teamId: number;
+};
 
 export type TwoFactorDocumensoUserFixture = DocumensoQaUserFixture & {
   readonly secret: string;

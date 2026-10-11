@@ -1,5 +1,6 @@
 import "dotenv/config";
 import {
+  countDocumensoEnvelopeLeakRows,
   countDocumensoQaOrphans,
   countDocumensoQaPasskeys,
   countDocumensoQaRateLimitRows,
@@ -10,7 +11,8 @@ const users = await countDocumensoQaUsers();
 const orphans = await countDocumensoQaOrphans();
 const passkeys = await countDocumensoQaPasskeys();
 const rateLimitRows = await countDocumensoQaRateLimitRows();
-console.log(JSON.stringify({ users, orphans, passkeys, rateLimitRows }, null, 2));
+const envelopeLeaks = await countDocumensoEnvelopeLeakRows();
+console.log(JSON.stringify({ users, orphans, passkeys, rateLimitRows, envelopeLeaks }, null, 2));
 
 const orphanTotal =
   orphans.orphanOrganisationGlobalSettings +
@@ -18,6 +20,15 @@ const orphanTotal =
   orphans.orphanOrganisationAuthenticationPortal +
   orphans.orphanTeamGlobalSettings;
 
-if (users > 0 || orphanTotal > 0 || passkeys > 0) {
+const documentStorageOrphans = envelopeLeaks.orphanDocumentMeta + envelopeLeaks.orphanDocumentData;
+
+if (
+  users > 0 ||
+  orphanTotal > 0 ||
+  passkeys > 0 ||
+  envelopeLeaks.qaEnvelopes > 0 ||
+  envelopeLeaks.qaRecipients > 0 ||
+  documentStorageOrphans > 0
+) {
   process.exitCode = 1;
 }

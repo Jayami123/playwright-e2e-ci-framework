@@ -10,6 +10,23 @@ function runId(): string {
   return process.env.P1_RUN_ID ?? Date.now().toString(36);
 }
 
+export interface DocumensoSigningRecipient {
+  readonly email: string;
+  readonly name: string;
+}
+
+export function qaDocumensoSigningRecipient(parallelIndex: number): DocumensoSigningRecipient {
+  const person = fakePerson();
+  const token = `${runId()}-w${String(parallelIndex)}-${person.firstName}${person.lastName}`
+    .replace(/\s+/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "");
+  return {
+    email: `qa-${token}@example.test`,
+    name: person.fullName,
+  };
+}
+
 export function qaDocumensoUser(parallelIndex: number): DocumensoQaUser {
   const person = fakePerson();
   const token = `${runId()}-w${String(parallelIndex)}-${person.firstName}${person.lastName}`

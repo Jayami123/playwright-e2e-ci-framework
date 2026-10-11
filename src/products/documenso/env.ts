@@ -14,25 +14,37 @@ export const DOCUMENSO_ROUTES = {
   securityPasskeys: "/settings/security/passkeys",
 } as const;
 
+export function documensoTeamDocumentsPath(teamUrl: string): string {
+  return `/t/${teamUrl}/documents`;
+}
+
+export function documensoSignPath(token: string): string {
+  return `/sign/${token}`;
+}
+
 export interface DocumensoTimeoutBudget {
   readonly request: number;
   readonly upDeadline: number;
   readonly healthPoll: number;
+  readonly journey: number;
 }
 
 export const DOCUMENSO_TIMEOUTS: DocumensoTimeoutBudget = {
   request: 30_000,
   upDeadline: 600_000,
   healthPoll: 5_000,
+  journey: 120_000,
 };
 
 export interface DocumensoE2EConfig {
   readonly baseUrl: string;
   readonly dbUrl: string;
+  readonly inbucketOrigin: string;
 }
 
 const DEFAULT_DOCUMENSO_LISTEN_URL = "http://127.0.0.1:3001";
 const DEFAULT_DOCUMENSO_PUBLIC_URL = "http://p1.lvh.me:3001";
+const DEFAULT_INBUCKET_ORIGIN = "http://127.0.0.1:9003";
 
 let cached: DocumensoE2EConfig | undefined;
 
@@ -117,6 +129,9 @@ export function loadDocumensoConfig(): DocumensoE2EConfig {
     process.env.DOCUMENSO_PUBLIC_URL?.trim() ?? DEFAULT_DOCUMENSO_PUBLIC_URL
   ).trim();
   const dbUrlRaw = process.env.DOCUMENSO_DB_URL?.trim() ?? "";
+  const inbucketOriginRaw = (
+    process.env.DOCUMENSO_INBUCKET_ORIGIN?.trim() ?? DEFAULT_INBUCKET_ORIGIN
+  ).trim();
   const missing = collectMissingEnv({
     DOCUMENSO_DB_URL: dbUrlRaw,
   });
@@ -125,12 +140,14 @@ export function loadDocumensoConfig(): DocumensoE2EConfig {
   const listenUrl = assertDocumensoListenUrl(listenUrlRaw);
   const publicUrl = assertDocumensoPublicUrl(publicUrlRaw, listenUrl);
   const dbUrl = assertDocumensoDbUrl(dbUrlRaw);
+  const inbucketOrigin = normalizeBaseUrl(inbucketOriginRaw);
 
   process.env.DOCUMENSO_BASE_URL ??= listenUrl;
   process.env.DOCUMENSO_PUBLIC_URL ??= publicUrl;
   process.env.DOCUMENSO_DB_URL ??= dbUrl;
+  process.env.DOCUMENSO_INBUCKET_ORIGIN ??= inbucketOrigin;
 
-  cached = { baseUrl: publicUrl, dbUrl };
+  cached = { baseUrl: publicUrl, dbUrl, inbucketOrigin };
   return cached;
 }
 
