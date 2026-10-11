@@ -18,6 +18,17 @@ export class SignInPage extends BasePage {
     return this.page.getByRole("dialog", { name: "Two-Factor Authentication" });
   }
 
+  passkeyButton(): Locator {
+    return this.page.getByRole("button", { name: "Passkey", exact: true });
+  }
+
+  passkeyNotSetupToast(): Locator {
+    return this.page.getByText(
+      "This passkey is not configured for this application. Please login and add one in the user settings.",
+      { exact: true },
+    );
+  }
+
   async goto(): Promise<void> {
     await this.gotoPath(DOCUMENSO_ROUTES.signin);
     await expect(this.page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible({
@@ -94,5 +105,29 @@ export class SignInPage extends BasePage {
     const authorizeDone = this.waitForAuthorizeResponse();
     await this.twoFactorDialog().getByRole("button", { name: "Sign In", exact: true }).click();
     return await authorizeDone;
+  }
+
+  private waitForPasskeyAuthorizeResponse(): Promise<Response> {
+    return this.page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes(DOCUMENSO_ROUTES.passkeyAuthorize),
+      { timeout: documensoTimeouts().request },
+    );
+  }
+
+  async clickPasskeySignIn(): Promise<Response> {
+    const authorizeDone = this.waitForPasskeyAuthorizeResponse();
+    await expect(this.passkeyButton()).toBeEnabled({ timeout: documensoTimeouts().request });
+    await this.passkeyButton().click();
+    return await authorizeDone;
+  }
+
+  async signOut(): Promise<void> {
+    await this.page.getByTestId("menu-switcher").click();
+    await Promise.all([
+      this.page.waitForURL(/\/signin$/, { timeout: documensoTimeouts().request }),
+      this.page.getByRole("menuitem", { name: "Sign Out" }).click(),
+    ]);
   }
 }

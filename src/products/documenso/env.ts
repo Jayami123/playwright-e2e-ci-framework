@@ -6,6 +6,7 @@ export const DOCUMENSO_ROUTES = {
   csrf: "/api/auth/csrf",
   session: "/api/auth/session",
   emailPasswordAuthorize: "/api/auth/email-password/authorize",
+  passkeyAuthorize: "/api/auth/passkey/authorize",
   twoFactorSetup: "/api/auth/two-factor/setup",
   twoFactorEnable: "/api/auth/two-factor/enable",
   twoFactorDisable: "/api/auth/two-factor/disable",

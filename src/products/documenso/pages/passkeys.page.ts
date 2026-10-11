@@ -27,6 +27,21 @@ export class PasskeysSettingsPage extends BasePage {
     return this.page.getByText("Successfully created passkey", { exact: true });
   }
 
+  removedPasskeyToast(): Locator {
+    return this.page.getByText("Passkey has been removed", { exact: true });
+  }
+
+  deletePasskeyButtonForName(name: string): Locator {
+    return this.page
+      .getByRole("row")
+      .filter({ has: this.passkeyNameCell(name) })
+      .getByRole("button", { name: "Delete" });
+  }
+
+  deletePasskeyDialog(): Locator {
+    return this.page.getByRole("dialog", { name: "Delete passkey" });
+  }
+
   async gotoPasskeys(): Promise<void> {
     await this.gotoPath(DOCUMENSO_ROUTES.securityPasskeys);
     await expect(this.passkeysHeading()).toBeVisible({
@@ -38,15 +53,11 @@ export class PasskeysSettingsPage extends BasePage {
     await expect(this.managePasskeysLink()).toBeVisible({
       timeout: documensoTimeouts().request,
     });
-    await Promise.all([
-      this.page.waitForURL(/\/settings\/security\/passkeys$/, {
-        timeout: documensoTimeouts().request,
-      }),
-      this.managePasskeysLink().click(),
-    ]);
+    await this.managePasskeysLink().click();
     await expect(this.passkeysHeading()).toBeVisible({
       timeout: documensoTimeouts().request,
     });
+    await expect(this.page).toHaveURL(/\/settings\/security\/passkeys$/);
   }
 
   async createPasskey(name: string): Promise<void> {
@@ -55,5 +66,12 @@ export class PasskeysSettingsPage extends BasePage {
     await expect(dialog).toBeVisible({ timeout: documensoTimeouts().request });
     await dialog.getByLabel("Passkey name").fill(name);
     await dialog.getByRole("button", { name: "Continue" }).click();
+  }
+
+  async deletePasskey(name: string): Promise<void> {
+    await this.deletePasskeyButtonForName(name).click();
+    const dialog = this.deletePasskeyDialog();
+    await expect(dialog).toBeVisible({ timeout: documensoTimeouts().request });
+    await dialog.getByRole("button", { name: "Delete" }).click();
   }
 }

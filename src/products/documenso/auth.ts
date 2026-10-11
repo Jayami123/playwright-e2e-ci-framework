@@ -69,7 +69,7 @@ function parseAuthorizeBody(payload: unknown): {
   };
 }
 
-function hasSessionIdCookie(cookies: readonly { name: string }[]): boolean {
+export function documensoHasSessionIdCookie(cookies: readonly { name: string }[]): boolean {
   return cookies.some(
     (cookie) => cookie.name === "sessionId" || cookie.name.endsWith("-sessionId"),
   );
@@ -156,7 +156,7 @@ export async function loginViaApi(
     status: response.status(),
     code: parsed.code,
     message: parsed.message,
-    hasSessionCookie: hasSessionIdCookie(cookies),
+    hasSessionCookie: documensoHasSessionIdCookie(cookies),
     authorizeRequestedAtMs,
   };
 }

@@ -354,6 +354,31 @@ export async function countDocumensoQaPasskeys(): Promise<number> {
   });
 }
 
+export async function readDocumensoPasskeyCounter(userId: number): Promise<number> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ counter: string | number }>(
+      `SELECT counter::text AS counter FROM "Passkey" WHERE "userId" = $1`,
+      [userId],
+    );
+    if (result.rows.length !== 1) {
+      throw new Error(
+        `readDocumensoPasskeyCounter expected 1 Passkey row, found ${String(result.rows.length)}`,
+      );
+    }
+    const counterRaw = result.rows[0]?.counter;
+    if (counterRaw === undefined) {
+      throw new Error("readDocumensoPasskeyCounter query returned a row without counter");
+    }
+    const counter = Number.parseInt(String(counterRaw), 10);
+    if (!Number.isInteger(counter)) {
+      throw new Error(
+        `readDocumensoPasskeyCounter expected integer counter, got ${String(counterRaw)}`,
+      );
+    }
+    return counter;
+  });
+}
+
 export async function countDocumensoPasskeysForUser(userId: number): Promise<number> {
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{ count: number }>(
