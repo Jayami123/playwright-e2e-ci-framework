@@ -1,16 +1,42 @@
 import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
 import { normalizeBaseUrl, parsePositiveInt } from "./src/core/config.js";
+import { selectedProjects } from "./src/core/projects.js";
 import {
   resolvePlaywrightBlobReportDir,
   resolvePlaywrightJsonReportFile,
   resolvePlaywrightJUnitReportFile,
 } from "./src/core/playwright-json-summary.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
+import { loadDocumensoConfig } from "./src/products/documenso/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
 
-/** Set by `npm run test:unit` so globalSetup does not start the Cal harness. */
-function shouldStartCalHarness(): boolean {
+const CAL_PROJECT_NAMES = ["cal-setup", "cal-chromium", "cal-firefox"] as const;
+const DOCUMENSO_PROJECT_NAMES = ["documenso-chromium"] as const;
+
+/** Playwright often loads config without --project on argv; npm_lifecycle_event disambiguates test:unit / test:documenso. */
+function runsCalProject(): boolean {
+  if (process.env.npm_lifecycle_event === "test:unit") {
+    return false;
+  }
+  return selectedProjects(process.argv, CAL_PROJECT_NAMES);
+}
+
+function runsDocumensoProject(): boolean {
+  if (process.env.npm_lifecycle_event === "test:unit") {
+    return false;
+  }
+  if (process.env.npm_lifecycle_event === "test:documenso") {
+    return true;
+  }
+  return selectedProjects(process.argv, DOCUMENSO_PROJECT_NAMES);
+}
+
+const runsCal = runsCalProject();
+const runsDocumenso = runsDocumensoProject();
+
+/** Set by `npm run test:unit` so globalSetup does not start product harnesses. */
+function shouldStartHarness(): boolean {
   if (process.env.P1_PLAYWRIGHT_HARNESS === "0") {
     return false;
   }
@@ -20,7 +46,7 @@ function shouldStartCalHarness(): boolean {
   return true;
 }
 
-const live = !skipLiveCal() && shouldStartCalHarness();
+const live = !skipLiveCal() && shouldStartHarness() && runsCal;
 const webMode = live ? loadConfig().webMode : parseWebMode(process.env.CAL_WEB_MODE);
 const rawBase = process.env.CAL_E2E_BASE_URL ?? process.env.CAL_BASE_URL;
 const baseURL = live
@@ -28,6 +54,16 @@ const baseURL = live
   : rawBase !== undefined && rawBase.trim() !== ""
     ? normalizeBaseUrl(rawBase)
     : undefined;
+
+const harnessSetups: string[] = [];
+if (shouldStartHarness()) {
+  if (runsCal) {
+    harnessSetups.push("./global-setup/index.ts");
+  }
+  if (runsDocumenso) {
+    harnessSetups.push("./global-setup/documenso.ts");
+  }
+}
 
 const jsonReportFile = resolvePlaywrightJsonReportFile();
 const junitReportFile = resolvePlaywrightJUnitReportFile();
@@ -52,7 +88,7 @@ export default defineConfig({
     : [["html", { open: "never" }], ["list"]],
   timeout: TIMEOUTS[webMode].test,
   expect: { timeout: TIMEOUTS[webMode].expect },
-  ...(live ? { globalSetup: "./global-setup/index.ts" } : {}),
+  ...(harnessSetups.length > 0 ? { globalSetup: harnessSetups } : {}),
   use: {
     ...(baseURL === undefined ? {} : { baseURL }),
     navigationTimeout: TIMEOUTS[webMode].navigation,
@@ -90,6 +126,14 @@ export default defineConfig({
       use: {
         ...devices["Desktop Firefox"],
         ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
+      },
+    },
+    {
+      name: "documenso-chromium",
+      testDir: "./tests/documenso",
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(runsDocumenso ? { baseURL: loadDocumensoConfig().baseUrl } : {}),
       },
     },
   ],

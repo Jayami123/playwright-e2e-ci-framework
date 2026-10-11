@@ -8,6 +8,7 @@
   "packageManager": "npm@10.9.3",
   "scripts": {
     "test": "playwright test",
+    "test:documenso": "playwright test --project=documenso-chromium",
     "test:cal": "playwright test --project=cal-chromium",
     "test:cal:firefox": "playwright test --project=cal-firefox",
     "test:cal:matrix": "playwright test --project=cal-chromium --project=cal-firefox",
@@ -27,7 +28,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.2"
+    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
