@@ -1,3 +1,4 @@
+import net from "node:net";
 import { collectMissingEnv, failOnMissingEnv, normalizeBaseUrl } from "../../core/config.js";
 
 export const DOCUMENSO_ROUTES = {
@@ -9,6 +10,7 @@ export const DOCUMENSO_ROUTES = {
   twoFactorEnable: "/api/auth/two-factor/enable",
   twoFactorDisable: "/api/auth/two-factor/disable",
   security: "/settings/security",
+  securityPasskeys: "/settings/security/passkeys",
 } as const;
 
 export interface DocumensoTimeoutBudget {
@@ -28,23 +30,61 @@ export interface DocumensoE2EConfig {
   readonly dbUrl: string;
 }
 
-const DEFAULT_DOCUMENSO_BASE_URL = "http://127.0.0.1:3001";
+const DEFAULT_DOCUMENSO_LISTEN_URL = "http://127.0.0.1:3001";
+const DEFAULT_DOCUMENSO_PUBLIC_URL = "http://p1.lvh.me:3001";
 
 let cached: DocumensoE2EConfig | undefined;
 
-function assertDocumensoBaseUrl(raw: string): string {
+function assertDocumensoListenUrl(raw: string): string {
   let parsed: URL;
   try {
     parsed = new URL(raw);
   } catch (error) {
     throw new Error(`Invalid DOCUMENSO_BASE_URL: ${raw}`, { cause: error });
   }
-  if (parsed.hostname === "localhost") {
+  if (parsed.hostname !== "127.0.0.1") {
     throw new Error(
-      "DOCUMENSO_BASE_URL must use 127.0.0.1 (got localhost). localhost can hide an IPv6-only bind, so P1 does not accept it.",
+      `DOCUMENSO_BASE_URL must use 127.0.0.1 (got ${parsed.hostname}). localhost can hide an IPv6-only bind, so P1 does not accept it.`,
     );
   }
   return normalizeBaseUrl(raw);
+}
+
+function listenPort(listenUrl: string): string {
+  const parsed = new URL(listenUrl);
+  return parsed.port || "3001";
+}
+
+function assertDocumensoPublicUrl(raw: string, listenUrl: string): string {
+  const example = DEFAULT_DOCUMENSO_PUBLIC_URL;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw.trim());
+  } catch (error) {
+    throw new Error(`Invalid DOCUMENSO_PUBLIC_URL: ${raw}`, { cause: error });
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      `DOCUMENSO_PUBLIC_URL must use http or https (got ${parsed.protocol}). Example: ${example}.`,
+    );
+  }
+  const hostname = parsed.hostname;
+  if (hostname.toLowerCase() === "localhost" || net.isIP(hostname) !== 0) {
+    throw new Error(
+      `DOCUMENSO_PUBLIC_URL hostname must not be localhost or an IP (got ${hostname}). Example: ${example}.`,
+    );
+  }
+  const publicPort = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+  const expectedPort = listenPort(listenUrl);
+  if (publicPort !== expectedPort) {
+    throw new Error(
+      `DOCUMENSO_PUBLIC_URL port must match DOCUMENSO_BASE_URL listen port ${expectedPort} (got ${publicPort}).`,
+    );
+  }
+  if (parsed.pathname !== "" && parsed.pathname !== "/") {
+    throw new Error(`DOCUMENSO_PUBLIC_URL must not include a path (got ${parsed.pathname}).`);
+  }
+  return normalizeBaseUrl(parsed.origin);
 }
 
 function assertDocumensoDbUrl(raw: string): string {
@@ -69,20 +109,27 @@ export function loadDocumensoConfig(): DocumensoE2EConfig {
     return cached;
   }
 
-  const baseUrlRaw = (process.env.DOCUMENSO_BASE_URL?.trim() ?? DEFAULT_DOCUMENSO_BASE_URL).trim();
+  const listenUrlRaw = (
+    process.env.DOCUMENSO_BASE_URL?.trim() ?? DEFAULT_DOCUMENSO_LISTEN_URL
+  ).trim();
+  const publicUrlRaw = (
+    process.env.DOCUMENSO_PUBLIC_URL?.trim() ?? DEFAULT_DOCUMENSO_PUBLIC_URL
+  ).trim();
   const dbUrlRaw = process.env.DOCUMENSO_DB_URL?.trim() ?? "";
   const missing = collectMissingEnv({
     DOCUMENSO_DB_URL: dbUrlRaw,
   });
   failOnMissingEnv(missing);
 
-  const baseUrl = assertDocumensoBaseUrl(baseUrlRaw);
+  const listenUrl = assertDocumensoListenUrl(listenUrlRaw);
+  const publicUrl = assertDocumensoPublicUrl(publicUrlRaw, listenUrl);
   const dbUrl = assertDocumensoDbUrl(dbUrlRaw);
 
-  process.env.DOCUMENSO_BASE_URL ??= baseUrl;
+  process.env.DOCUMENSO_BASE_URL ??= listenUrl;
+  process.env.DOCUMENSO_PUBLIC_URL ??= publicUrl;
   process.env.DOCUMENSO_DB_URL ??= dbUrl;
 
-  cached = { baseUrl, dbUrl };
+  cached = { baseUrl: publicUrl, dbUrl };
   return cached;
 }
 

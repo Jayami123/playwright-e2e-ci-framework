@@ -337,6 +337,37 @@ export async function teardownDocumensoQaUserById(userId: number): Promise<void>
   });
 }
 
+export async function countDocumensoQaPasskeys(): Promise<number> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ leftover: number }>(
+      `SELECT count(*)::int AS leftover
+       FROM "Passkey" p
+       JOIN "User" u ON u.id = p."userId"
+       WHERE u.email LIKE $1`,
+      [QA_EMAIL_LIKE],
+    );
+    const count = result.rows[0]?.leftover;
+    if (count === undefined) {
+      throw new Error("countDocumensoQaPasskeys query returned no row");
+    }
+    return count;
+  });
+}
+
+export async function countDocumensoPasskeysForUser(userId: number): Promise<number> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM "Passkey" WHERE "userId" = $1`,
+      [userId],
+    );
+    const count = result.rows[0]?.count;
+    if (count === undefined) {
+      throw new Error("countDocumensoPasskeysForUser query returned no row");
+    }
+    return count;
+  });
+}
+
 export async function countDocumensoQaRateLimitRows(): Promise<number> {
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{ leftover: number }>(

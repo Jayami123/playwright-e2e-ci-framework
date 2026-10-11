@@ -1,4 +1,4 @@
-import { expect, request, test as base } from "@playwright/test";
+import { expect, request, test as base, type CDPSession } from "@playwright/test";
 import { setFactorySeed } from "qa-portfolio-harness";
 import { generateTotpCode } from "../../core/totp.js";
 import { parsePositiveInt } from "../../core/config.js";
@@ -14,9 +14,14 @@ export type TwoFactorDocumensoUserFixture = DocumensoQaUserFixture & {
   readonly backupCodes: readonly string[];
 };
 
+export interface VirtualAuthenticatorFixture {
+  activate(): Promise<{ readonly authenticatorId: string; readonly cdp: CDPSession }>;
+}
+
 interface DocumensoFixtures {
   documensoUser: DocumensoQaUserFixture;
   twoFactorDocumensoUser: TwoFactorDocumensoUserFixture;
+  virtualAuthenticator: VirtualAuthenticatorFixture;
 }
 
 interface DocumensoWorkerFixtures {
@@ -64,6 +69,42 @@ export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
     }
     if (teardownErrors.length > 0) {
       throw new AggregateError(teardownErrors, "documensoUser fixture failed");
+    }
+  },
+
+  virtualAuthenticator: async ({ page }, use) => {
+    const context = page.context();
+    let active: { authenticatorId: string; cdp: CDPSession } | undefined;
+
+    const activate = async (): Promise<{ authenticatorId: string; cdp: CDPSession }> => {
+      if (active !== undefined) {
+        return active;
+      }
+      await context.credentials.install();
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("WebAuthn.enable", { enableUI: false });
+      const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+        options: {
+          protocol: "ctap2",
+          transport: "internal",
+          hasResidentKey: true,
+          hasUserVerification: true,
+          isUserVerified: true,
+          automaticPresenceSimulation: true,
+        },
+      });
+      active = { authenticatorId, cdp };
+      return active;
+    };
+
+    try {
+      await use({ activate });
+    } finally {
+      if (active !== undefined) {
+        const { authenticatorId, cdp } = active;
+        await cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }).catch(() => {});
+        await cdp.detach().catch(() => {});
+      }
     }
   },
 
