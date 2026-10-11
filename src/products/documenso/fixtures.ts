@@ -1,18 +1,13 @@
 import { test as base } from "@playwright/test";
 import { setFactorySeed } from "qa-portfolio-harness";
 import { parsePositiveInt } from "../../core/config.js";
-import { qaDocumensoUser } from "./factories.js";
+import { qaDocumensoUser, type DocumensoQaUser } from "./factories.js";
 import { createDocumensoQaUser, teardownDocumensoQaUserById } from "./qa-user.js";
 
-export interface DocumensoQaUserHandle {
-  readonly id: number;
-  readonly email: string;
-  readonly password: string;
-  readonly name: string;
-}
+export type DocumensoQaUserFixture = DocumensoQaUser & { readonly id: number };
 
 interface DocumensoFixtures {
-  documensoUser: DocumensoQaUserHandle;
+  documensoUser: DocumensoQaUserFixture;
 }
 
 interface DocumensoWorkerFixtures {
@@ -43,12 +38,7 @@ export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
     try {
       const created = await createDocumensoQaUser(identity);
       userId = created.id;
-      await use({
-        id: created.id,
-        email: created.email,
-        password: identity.password,
-        name: created.name,
-      });
+      await use(created);
     } catch (error) {
       testError = error;
     } finally {

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { PoolClient } from "pg";
+import type { DocumensoQaUser } from "./factories.js";
 import { withDocumensoPool } from "./db.js";
 
 const BCRYPT_ROUNDS = 12 as const;
@@ -25,17 +26,7 @@ const DEFAULT_REMINDER_SETTINGS = {
   repeatEvery: { unit: "day", amount: 2 },
 } as const;
 
-export interface DocumensoQaUserRecord {
-  readonly id: number;
-  readonly email: string;
-  readonly name: string;
-}
-
-export interface CreateDocumensoQaUserInput {
-  readonly email: string;
-  readonly name: string;
-  readonly password: string;
-}
+export type DocumensoQaUserRecord = DocumensoQaUser & { readonly id: number };
 
 export interface DocumensoQaOrphanCounts {
   readonly orphanOrganisationGlobalSettings: number;
@@ -48,12 +39,16 @@ function prefixedId(prefix: string): string {
   return `${prefix}_${randomBytes(8).toString("hex")}`;
 }
 
+async function rollbackTransaction(client: PoolClient): Promise<void> {
+  await client.query("ROLLBACK").catch(() => {});
+}
+
 async function assertDocumensoMigrationHead(client: PoolClient): Promise<void> {
   const result = await client.query<{ migration_name: string }>(
     `SELECT migration_name
      FROM _prisma_migrations
      WHERE finished_at IS NOT NULL
-     ORDER BY finished_at DESC
+     ORDER BY migration_name DESC
      LIMIT 1`,
   );
   const found = result.rows[0]?.migration_name;
@@ -71,11 +66,11 @@ async function assertDocumensoMigrationHead(client: PoolClient): Promise<void> {
 
 async function insertDocumensoQaUser(
   client: PoolClient,
-  input: CreateDocumensoQaUserInput,
+  input: DocumensoQaUser,
+  passwordHash: string,
 ): Promise<DocumensoQaUserRecord> {
   await assertDocumensoMigrationHead(client);
 
-  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   const email = input.email.toLowerCase();
 
   const orgSettingsId = prefixedId("org_setting");
@@ -207,21 +202,22 @@ async function insertDocumensoQaUser(
     );
   }
 
-  return { id: userId, email, name: input.name };
+  return { id: userId, email, name: input.name, password: input.password };
 }
 
 export async function createDocumensoQaUser(
-  input: CreateDocumensoQaUserInput,
+  input: DocumensoQaUser,
 ): Promise<DocumensoQaUserRecord> {
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   return withDocumensoPool(async (pool) => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const record = await insertDocumensoQaUser(client, input);
+      const record = await insertDocumensoQaUser(client, input, passwordHash);
       await client.query("COMMIT");
       return record;
     } catch (error) {
-      await client.query("ROLLBACK");
+      await rollbackTransaction(client);
       throw error;
     } finally {
       client.release();
@@ -279,14 +275,43 @@ async function deleteDocumensoQaUserInTransaction(
     );
   }
 
-  await client.query(`DELETE FROM "OrganisationGlobalSettings" WHERE id = $1`, [
-    org.organisationGlobalSettingsId,
+  const deletedOrgSettings = await client.query(
+    `DELETE FROM "OrganisationGlobalSettings" WHERE id = $1`,
+    [org.organisationGlobalSettingsId],
+  );
+  if ((deletedOrgSettings.rowCount ?? 0) !== 1) {
+    throw new Error(
+      `teardownDocumensoQaUserById expected 1 OrganisationGlobalSettings delete, got ${String(deletedOrgSettings.rowCount ?? 0)}`,
+    );
+  }
+
+  const deletedOrgClaim = await client.query(`DELETE FROM "OrganisationClaim" WHERE id = $1`, [
+    org.organisationClaimId,
   ]);
-  await client.query(`DELETE FROM "OrganisationClaim" WHERE id = $1`, [org.organisationClaimId]);
-  await client.query(`DELETE FROM "OrganisationAuthenticationPortal" WHERE id = $1`, [
-    org.organisationAuthenticationPortalId,
+  if ((deletedOrgClaim.rowCount ?? 0) !== 1) {
+    throw new Error(
+      `teardownDocumensoQaUserById expected 1 OrganisationClaim delete, got ${String(deletedOrgClaim.rowCount ?? 0)}`,
+    );
+  }
+
+  const deletedOrgPortal = await client.query(
+    `DELETE FROM "OrganisationAuthenticationPortal" WHERE id = $1`,
+    [org.organisationAuthenticationPortalId],
+  );
+  if ((deletedOrgPortal.rowCount ?? 0) !== 1) {
+    throw new Error(
+      `teardownDocumensoQaUserById expected 1 OrganisationAuthenticationPortal delete, got ${String(deletedOrgPortal.rowCount ?? 0)}`,
+    );
+  }
+
+  const deletedTeamSettings = await client.query(`DELETE FROM "TeamGlobalSettings" WHERE id = $1`, [
+    team.teamGlobalSettingsId,
   ]);
-  await client.query(`DELETE FROM "TeamGlobalSettings" WHERE id = $1`, [team.teamGlobalSettingsId]);
+  if ((deletedTeamSettings.rowCount ?? 0) !== 1) {
+    throw new Error(
+      `teardownDocumensoQaUserById expected 1 TeamGlobalSettings delete, got ${String(deletedTeamSettings.rowCount ?? 0)}`,
+    );
+  }
 
   const deletedUser = await client.query(`DELETE FROM "User" WHERE id = $1 RETURNING id`, [userId]);
   if ((deletedUser.rowCount ?? 0) !== 1) {
@@ -304,7 +329,7 @@ export async function teardownDocumensoQaUserById(userId: number): Promise<void>
       await deleteDocumensoQaUserInTransaction(client, userId);
       await client.query("COMMIT");
     } catch (error) {
-      await client.query("ROLLBACK");
+      await rollbackTransaction(client);
       throw error;
     } finally {
       client.release();
@@ -380,7 +405,7 @@ export async function sweepDocumensoQaUsers(): Promise<number> {
       await client.query("COMMIT");
       return listed.rows.length;
     } catch (error) {
-      await client.query("ROLLBACK");
+      await rollbackTransaction(client);
       throw error;
     } finally {
       client.release();

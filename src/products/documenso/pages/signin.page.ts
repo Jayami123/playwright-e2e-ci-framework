@@ -16,7 +16,6 @@ export class SignInPage extends BasePage {
 
   async goto(): Promise<void> {
     await this.gotoPath(DOCUMENSO_ROUTES.signin);
-    await expect(this.emailField).toBeVisible({ timeout: documensoTimeouts().request });
     await expect(this.emailField).toBeEditable({ timeout: documensoTimeouts().request });
     await expect(this.signInButton).toBeEnabled({ timeout: documensoTimeouts().request });
   }
@@ -27,11 +26,11 @@ export class SignInPage extends BasePage {
     const authorizeDone = this.page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes("/api/auth/email-password/authorize") &&
-        response.status() === 201,
+        response.url().includes(DOCUMENSO_ROUTES.emailPasswordAuthorize),
       { timeout: documensoTimeouts().request },
     );
     await this.signInButton.click();
-    await authorizeDone;
+    const response = await authorizeDone;
+    expect(response.status(), "Documenso email-password authorize").toBe(201);
   }
 }

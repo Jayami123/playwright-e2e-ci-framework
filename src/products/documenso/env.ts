@@ -3,6 +3,7 @@ import { collectMissingEnv, failOnMissingEnv, normalizeBaseUrl } from "../../cor
 export const DOCUMENSO_ROUTES = {
   signin: "/signin",
   csrf: "/api/auth/csrf",
+  emailPasswordAuthorize: "/api/auth/email-password/authorize",
 } as const;
 
 export interface DocumensoTimeoutBudget {
