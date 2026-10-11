@@ -559,6 +559,14 @@ function envelopeDocumentSecondaryId(documentId: number): string {
   return `document_${String(documentId)}`;
 }
 
+function parseFieldPercent(value: string, label: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Field ${label} is not a number: ${value}`);
+  }
+  return parsed;
+}
+
 export async function readEnvelopeStatusByDocumentId(documentId: number): Promise<string> {
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{ status: string }>(
@@ -602,6 +610,10 @@ export interface DocumensoSentEnvelopeRecord {
   readonly recipientToken: string;
   readonly recipientEmail: string;
   readonly signatureFieldId: number;
+  readonly fieldPositionX: number;
+  readonly fieldPositionY: number;
+  readonly fieldWidth: number;
+  readonly fieldHeight: number;
 }
 
 export async function readSentEnvelopeByRecipientEmail(
@@ -613,15 +625,20 @@ export async function readSentEnvelopeByRecipientEmail(
       document_id: string;
       recipient_token: string;
       signature_field_id: number | null;
+      field_position_x: string;
+      field_position_y: string;
+      field_width: string;
+      field_height: string;
     }>(
       `SELECT e.id AS envelope_id, e."secondaryId" AS document_id, r.token AS recipient_token,
-              (SELECT f.id FROM "Field" f
-               WHERE f."envelopeId" = e.id AND f.type = 'SIGNATURE'
-               ORDER BY f.id ASC LIMIT 1) AS signature_field_id
+              f.id AS signature_field_id, f."positionX"::text AS field_position_x,
+              f."positionY"::text AS field_position_y, f.width::text AS field_width,
+              f.height::text AS field_height
        FROM "Recipient" r
        JOIN "Envelope" e ON e.id = r."envelopeId"
+       JOIN "Field" f ON f."envelopeId" = e.id AND f.type = 'SIGNATURE'
        WHERE lower(r.email) = lower($1)
-       ORDER BY r.id DESC
+       ORDER BY r.id DESC, f.id ASC
        LIMIT 1`,
       [recipientEmail],
     );
@@ -643,6 +660,10 @@ export async function readSentEnvelopeByRecipientEmail(
       recipientToken: row.recipient_token,
       recipientEmail,
       signatureFieldId: row.signature_field_id,
+      fieldPositionX: parseFieldPercent(row.field_position_x, "positionX"),
+      fieldPositionY: parseFieldPercent(row.field_position_y, "positionY"),
+      fieldWidth: parseFieldPercent(row.field_width, "width"),
+      fieldHeight: parseFieldPercent(row.field_height, "height"),
     };
   });
 }

@@ -34,7 +34,7 @@ export async function sendExamplePdfToRecipient(
   await documents.upload(EXAMPLE_PDF_PATH);
   const envelopeId = parseEnvelopeIdFromEditorUrl(page.url());
   await editor.addSigner(recipient.email, recipient.name);
-  await editor.addSignatureField();
+  await editor.addSignatureField(`${recipient.name} (${recipient.email})`);
   await editor.send();
   const sent = await readSentEnvelopeByRecipientEmail(recipient.email);
   return { envelopeId, sent, recipient };

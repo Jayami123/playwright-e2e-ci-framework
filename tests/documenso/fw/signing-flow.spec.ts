@@ -7,7 +7,7 @@ import { readEnvelopeStatusByDocumentId } from "../../../src/products/documenso/
 import { readEnvelopeStatusViaTrpc } from "../../../src/products/documenso/envelope-api.js";
 import { expect, test } from "./fixtures.js";
 import { sendExamplePdfToRecipient, teardownRecipientMailbox } from "./send-example-pdf.js";
-test.setTimeout(documensoTimeouts().journey);
+test.setTimeout(documensoTimeouts().journey * 3);
 
 test(
   "P1-DOC-FW-002 upload, add recipient, send",
@@ -60,15 +60,17 @@ test(
       try {
         await recipientPage.goto(signingUrl, { waitUntil: "domcontentloaded" });
         const signing = new SigningPage(recipientPage);
-        await signing.signTypedSignature("QA Signer");
+        await signing.signTypedSignature("QA Signer", sent);
         await signing.completeSigning();
       } finally {
         await recipientContext.close();
       }
 
       await expect
-        .poll(async () =>
-          readEnvelopeStatusViaTrpc(page.request, signedInDocumensoUser.teamId, envelopeId),
+        .poll(
+          async () =>
+            readEnvelopeStatusViaTrpc(page.request, signedInDocumensoUser.teamId, envelopeId),
+          { timeout: documensoTimeouts().journey },
         )
         .toBe("COMPLETED");
 

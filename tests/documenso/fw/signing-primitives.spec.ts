@@ -27,13 +27,14 @@ const EXPIRED_TOKEN_DB_SEAM =
 async function signEnvelopeInFreshContext(
   browser: import("@playwright/test").Browser,
   signingUrl: string,
+  sent: import("../../../src/products/documenso/qa-user.js").DocumensoSentEnvelopeRecord,
 ): Promise<void> {
   const recipientContext = await browser.newContext();
   const recipientPage = await recipientContext.newPage();
   try {
     await recipientPage.goto(signingUrl, { waitUntil: "domcontentloaded" });
     const signing = new SigningPage(recipientPage);
-    await signing.signTypedSignature("QA Signer");
+    await signing.signTypedSignature("QA Signer", sent);
     await signing.completeSigning();
   } finally {
     await recipientContext.close();
@@ -54,7 +55,7 @@ test(
     try {
       const { sent } = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipient);
       const signingUrl = await pollSigningUrlFromInbucket(recipient.email);
-      await signEnvelopeInFreshContext(browser, signingUrl);
+      await signEnvelopeInFreshContext(browser, signingUrl, sent);
 
       const revisit = await browser.newContext();
       const revisitPage = await revisit.newPage();

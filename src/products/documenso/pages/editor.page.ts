@@ -1,8 +1,22 @@
-import { expect, type Response } from "@playwright/test";
+import { expect, type Locator, type Response } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { documensoTimeouts } from "../env.js";
+import { SIGNING_CANVAS_CLICK_OFFSET } from "./signing-canvas.js";
 
 export class EditorPage extends BasePage {
+  private sendDocumentButton(): Locator {
+    return this.page.getByRole("button", {
+      name: "Send Document",
+      description: "Send Envelope",
+    });
+  }
+
+  private fieldCanvas(): Locator {
+    // Konva draws the PDF page on a canvas with no ARIA role.
+    // eslint-disable-next-line playwright/no-raw-locators -- canvas has no role
+    return this.page.locator(".konva-container canvas");
+  }
+
   async addSigner(email: string, name: string): Promise<void> {
     const emailField = this.page.getByLabel("Email");
     const nameField = this.page.getByLabel("Name");
@@ -12,21 +26,37 @@ export class EditorPage extends BasePage {
     await expect.poll(async () => emailField.inputValue()).toBe(email);
   }
 
-  async addSignatureField(): Promise<void> {
+  async selectRecipientForFields(recipientLabel: string): Promise<void> {
+    const combobox = this.page.getByRole("combobox");
+    await combobox.click();
+    await this.page.getByRole("option", { name: recipientLabel }).click();
+  }
+
+  async addSignatureField(recipientLabel: string): Promise<void> {
     await this.page.getByTestId("envelope-editor-step-addFields").click();
+    await this.page.getByRole("button", { name: /example\.pdf/i }).click();
+    await this.selectRecipientForFields(recipientLabel);
     await this.page.getByRole("button", { name: "Signature" }).click();
-    const textLayer = this.page.getByText("P1 Documenso example");
-    await expect(textLayer).toBeVisible({ timeout: documensoTimeouts().request });
-    const box = await textLayer.boundingBox();
-    if (box === null) {
-      throw new Error("PDF text layer did not return a bounding box");
+    await expect(this.page.getByText("Page 1 of 1")).toBeVisible({
+      timeout: documensoTimeouts().journey,
+    });
+    const fieldCanvas = this.fieldCanvas();
+    await expect(fieldCanvas).toHaveCount(1, { timeout: documensoTimeouts().journey });
+    await expect(this.page.getByRole("tooltip")).toBeHidden({
+      timeout: documensoTimeouts().request,
+    });
+    const pageBox = await fieldCanvas.boundingBox();
+    if (pageBox === null) {
+      throw new Error("PDF page canvas did not return a bounding box");
     }
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-    await this.page.mouse.move(x, y);
-    await this.page.mouse.down();
-    await this.page.mouse.up();
-    await expect(this.page.getByRole("button", { name: "Send Document" })).toBeEnabled({
+    await this.page.mouse.click(
+      pageBox.x + SIGNING_CANVAS_CLICK_OFFSET.x,
+      pageBox.y + SIGNING_CANVAS_CLICK_OFFSET.y,
+    );
+    await expect(this.page.getByRole("button", { name: /example\.pdf.*1 Field/i })).toBeVisible({
+      timeout: documensoTimeouts().journey,
+    });
+    await expect(this.sendDocumentButton()).toBeEnabled({
       timeout: documensoTimeouts().journey,
     });
   }
@@ -41,8 +71,10 @@ export class EditorPage extends BasePage {
 
   async send(): Promise<void> {
     const distributeDone = this.waitForDistribute();
-    await this.page.getByRole("button", { name: "Send Document" }).click();
-    await this.page.getByRole("dialog").getByRole("button", { name: "Send", exact: true }).click();
+    await this.sendDocumentButton().click({ timeout: documensoTimeouts().journey });
+    const dialog = this.page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: documensoTimeouts().request });
+    await dialog.getByRole("button", { name: "Send", exact: true }).click();
     const distribute = await distributeDone;
     expect(distribute.ok(), `envelope.distribute HTTP ${String(distribute.status())}`).toBeTruthy();
   }
