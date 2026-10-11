@@ -53,11 +53,7 @@ export class PasskeysSettingsPage extends BasePage {
     await expect(this.managePasskeysLink()).toBeVisible({
       timeout: documensoTimeouts().request,
     });
-    await this.managePasskeysLink().click();
-    await expect(this.passkeysHeading()).toBeVisible({
-      timeout: documensoTimeouts().request,
-    });
-    await expect(this.page).toHaveURL(/\/settings\/security\/passkeys$/);
+    await this.gotoPasskeys();
   }
 
   async createPasskey(name: string): Promise<void> {

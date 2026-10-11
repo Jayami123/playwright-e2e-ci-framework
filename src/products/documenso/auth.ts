@@ -92,7 +92,7 @@ function assertTotpSecret(secret: string): string {
   return secret;
 }
 
-function readJsonErrorCode(body: unknown): string | undefined {
+export function readJsonErrorCode(body: unknown): string | undefined {
   if (!isRecord(body) || typeof body.code !== "string") {
     return undefined;
   }
@@ -242,4 +242,39 @@ export function wrongTotpCodeFromLive(liveCode: string): string {
 export async function newDocumensoApiContext(): Promise<APIRequestContext> {
   const { baseUrl } = loadDocumensoConfig();
   return request.newContext({ baseURL: baseUrl });
+}
+
+export interface DocumensoPasskeyAuthorizeBody {
+  readonly csrfToken: string;
+  readonly credential: string;
+}
+
+export interface DocumensoPasskeyAuthorizeResult {
+  readonly status: number;
+  readonly code: string | undefined;
+  readonly hasSessionCookie: boolean;
+}
+
+export async function postPasskeyAuthorize(
+  http: APIRequestContext,
+  body: DocumensoPasskeyAuthorizeBody,
+): Promise<DocumensoPasskeyAuthorizeResult> {
+  const { baseUrl } = loadDocumensoConfig();
+  const response = await http.post(DOCUMENSO_ROUTES.passkeyAuthorize, {
+    data: body,
+    headers: { Origin: baseUrl },
+    timeout: documensoTimeouts().request,
+  });
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = undefined;
+  }
+  const cookies = (await http.storageState()).cookies;
+  return {
+    status: response.status(),
+    code: readJsonErrorCode(payload),
+    hasSessionCookie: documensoHasSessionIdCookie(cookies),
+  };
 }

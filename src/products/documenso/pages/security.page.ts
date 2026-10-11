@@ -1,6 +1,6 @@
 import { expect, type Locator, type Response } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
-import { twoFactorEnableFailureMessage } from "../auth.js";
+import { readJsonErrorCode, twoFactorEnableFailureMessage } from "../auth.js";
 import { DOCUMENSO_ROUTES, documensoTimeouts } from "../env.js";
 
 export class SecuritySettingsPage extends BasePage {
@@ -63,23 +63,34 @@ export class SecuritySettingsPage extends BasePage {
     const setupDone = this.page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes(DOCUMENSO_ROUTES.twoFactorSetup) &&
-        response.ok(),
+        response.url().includes(DOCUMENSO_ROUTES.twoFactorSetup),
       { timeout: documensoTimeouts().request },
     );
     await this.enableTwoFactorButton().click();
     const setupResponse = await setupDone;
-    const payload = (await setupResponse.json()) as { secret?: string };
-    if (typeof payload.secret !== "string" || payload.secret.length === 0) {
+    let payload: unknown;
+    try {
+      payload = await setupResponse.json();
+    } catch {
+      payload = undefined;
+    }
+    if (!setupResponse.ok()) {
+      const code = readJsonErrorCode(payload);
+      throw new Error(
+        `POST ${DOCUMENSO_ROUTES.twoFactorSetup} failed (HTTP ${String(setupResponse.status())}, code=${code ?? "none"})`,
+      );
+    }
+    const setupBody = payload as { secret?: string };
+    if (typeof setupBody.secret !== "string" || setupBody.secret.length === 0) {
       throw new Error("Enable 2FA setup response did not include secret");
     }
     await expect(this.enableAuthenticatorDialog()).toBeVisible({
       timeout: documensoTimeouts().request,
     });
-    await expect(this.page.getByText(payload.secret, { exact: true })).toBeVisible({
+    await expect(this.page.getByText(setupBody.secret, { exact: true })).toBeVisible({
       timeout: documensoTimeouts().request,
     });
-    return payload.secret;
+    return setupBody.secret;
   }
 
   async submitEnrolmentToken(code: string, codeMintedAtMs: number): Promise<readonly string[]> {

@@ -1,19 +1,15 @@
-import type { Page } from "@playwright/test";
 import {
   documensoHasSessionIdCookie,
-  loginViaApi,
   readSession,
   sessionHasEmail,
 } from "../../../src/products/documenso/auth.js";
 import { documensoTimeouts } from "../../../src/products/documenso/env.js";
+import { expect, test } from "../../../src/products/documenso/fixtures.js";
 import {
-  expect,
-  test,
-  type DocumensoQaUserFixture,
-  type VirtualAuthenticatorFixture,
-} from "../../../src/products/documenso/fixtures.js";
-import { PasskeysSettingsPage } from "../../../src/products/documenso/pages/passkeys.page.js";
-import { SecuritySettingsPage } from "../../../src/products/documenso/pages/security.page.js";
+  DOCUMENSO_PASSKEY_NAME,
+  enrolPasskeyForSignIn,
+  readVirtualAuthenticatorSignCount,
+} from "../../../src/products/documenso/passkey-enrol.js";
 import { SignInPage } from "../../../src/products/documenso/pages/signin.page.js";
 import {
   countDocumensoPasskeysForUser,
@@ -21,51 +17,8 @@ import {
 } from "../../../src/products/documenso/qa-user.js";
 
 const EMPTY_STORAGE = { cookies: [] as [], origins: [] as [] };
-const PASSKEY_NAME = "QA passkey";
 
 test.use({ storageState: EMPTY_STORAGE });
-
-async function readVirtualAuthenticatorSignCount(
-  virtualAuthenticator: VirtualAuthenticatorFixture,
-): Promise<number> {
-  const { credentials } = await virtualAuthenticator.cdp.send("WebAuthn.getCredentials", {
-    authenticatorId: virtualAuthenticator.authenticatorId,
-  });
-  expect(credentials).toHaveLength(1);
-  const signCount = credentials[0]?.signCount;
-  if (signCount === undefined) {
-    throw new Error("WebAuthn.getCredentials returned a credential without signCount");
-  }
-  return signCount;
-}
-
-async function enrolPasskeyForSignIn(
-  page: Page,
-  documensoUser: DocumensoQaUserFixture,
-): Promise<PasskeysSettingsPage> {
-  const login = await loginViaApi(page.request, {
-    email: documensoUser.email,
-    password: documensoUser.password,
-  });
-  expect(login.status, "documensoUser password login").toBe(201);
-
-  const security = new SecuritySettingsPage(page);
-  await security.goto();
-  const passkeys = new PasskeysSettingsPage(page);
-  await passkeys.openFromSecuritySettings();
-  await passkeys.createPasskey(PASSKEY_NAME);
-  await expect(passkeys.createdPasskeyToast()).toBeVisible({
-    timeout: documensoTimeouts().request,
-  });
-  await expect(passkeys.addPasskeyDialog()).toBeHidden({
-    timeout: documensoTimeouts().request,
-  });
-  await passkeys.gotoPasskeys();
-  await expect(passkeys.passkeyNameCell(PASSKEY_NAME)).toBeVisible({
-    timeout: documensoTimeouts().request,
-  });
-  return passkeys;
-}
 
 test(
   "P1-DOC-PK-002 passkey sign-in",
@@ -126,12 +79,12 @@ test(
     const passkeys = await enrolPasskeyForSignIn(page, documensoUser);
 
     await test.step("Delete passkey in settings", async () => {
-      await passkeys.deletePasskey(PASSKEY_NAME);
+      await passkeys.deletePasskey(DOCUMENSO_PASSKEY_NAME);
       await expect(passkeys.removedPasskeyToast()).toBeVisible({
         timeout: documensoTimeouts().request,
       });
       await passkeys.gotoPasskeys();
-      await expect(passkeys.passkeyNameCell(PASSKEY_NAME)).toBeHidden({
+      await expect(passkeys.passkeyNameCell(DOCUMENSO_PASSKEY_NAME)).toBeHidden({
         timeout: documensoTimeouts().request,
       });
       const count = await countDocumensoPasskeysForUser(documensoUser.id);

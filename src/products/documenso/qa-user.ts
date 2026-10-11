@@ -354,6 +354,43 @@ export async function countDocumensoQaPasskeys(): Promise<number> {
   });
 }
 
+export async function readDocumensoPasskeyChallengeToken(userId: number): Promise<string> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ token: string }>(
+      `SELECT token
+       FROM "VerificationToken"
+       WHERE "userId" = $1 AND identifier = 'PASSKEY_CHALLENGE'
+       ORDER BY "createdAt" DESC
+       LIMIT 1`,
+      [userId],
+    );
+    if (result.rows.length !== 1) {
+      throw new Error(
+        `readDocumensoPasskeyChallengeToken expected 1 PASSKEY_CHALLENGE row, found ${String(result.rows.length)}`,
+      );
+    }
+    const token = result.rows[0]?.token;
+    if (token === undefined || token.length === 0) {
+      throw new Error("readDocumensoPasskeyChallengeToken row did not include token");
+    }
+    return token;
+  });
+}
+
+export async function insertPasskeyChallenge(
+  userId: number,
+  token: string,
+  expiresAt: Date,
+): Promise<void> {
+  await withDocumensoPool(async (pool) => {
+    await pool.query(
+      `INSERT INTO "VerificationToken" ("secondaryId", identifier, token, expires, "userId")
+       VALUES ($1, $2, $3, $4, $5)`,
+      [prefixedId("vt"), "PASSKEY_CHALLENGE", token, expiresAt, userId],
+    );
+  });
+}
+
 export async function readDocumensoPasskeyCounter(userId: number): Promise<number> {
   return withDocumensoPool(async (pool) => {
     const result = await pool.query<{ counter: string | number }>(
