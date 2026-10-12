@@ -2,9 +2,27 @@ import { expect, type Locator } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { documensoTimeouts } from "../env.js";
 import type { DocumensoSentEnvelopeRecord } from "../qa-user.js";
-import { clickSigningCanvas, SIGNING_CANVAS_CLICK_OFFSET } from "./signing-canvas.js";
+import { clickSigningCanvas } from "./signing-canvas.js";
 
 export class SigningPage extends BasePage {
+  signDocumentHeading(): Locator {
+    return this.page.getByRole("heading", { name: "Sign Document" });
+  }
+
+  cancelledUnavailableHeading(): Locator {
+    return this.page.getByRole("heading", { name: /is no longer available to sign/ });
+  }
+
+  nextFieldButton(): Locator {
+    return this.page.getByRole("button", { name: "Next Field" });
+  }
+
+  async expectCancelledOrSigningReady(): Promise<void> {
+    await expect(this.signDocumentHeading().or(this.cancelledUnavailableHeading())).toBeVisible({
+      timeout: documensoTimeouts().request,
+    });
+  }
+
   private fieldCanvas(): Locator {
     // Konva draws the PDF page on a canvas with no ARIA role.
     // eslint-disable-next-line playwright/no-raw-locators -- canvas has no role
@@ -35,24 +53,27 @@ export class SigningPage extends BasePage {
       "fieldPositionX" | "fieldPositionY" | "fieldWidth" | "fieldHeight"
     >,
   ): Promise<void> {
-    await expect(this.page.getByRole("heading", { name: "Sign Document" })).toBeVisible({
+    await expect(this.signDocumentHeading()).toBeVisible({
       timeout: documensoTimeouts().journey,
     });
-    await this.page.getByRole("button", { name: "Next Field" }).click();
+    await this.nextFieldButton().click();
     const fieldCanvas = this.fieldCanvas();
     await expect(fieldCanvas).toHaveCount(1, { timeout: documensoTimeouts().journey });
-    await clickSigningCanvas(this.page, fieldCanvas, SIGNING_CANVAS_CLICK_OFFSET);
-    await this.page.getByTestId("signature-pad-dialog-button").click();
-    await this.page.getByRole("tab", { name: "Type" }).click();
-    await this.page.getByTestId("signature-pad-type-input").fill(signatureText);
-    await this.page.getByRole("button", { name: "Next" }).click();
-    await expect(this.page.getByTestId("signature-pad-type-input")).toHaveCount(0);
-    const canvasBox = await fieldCanvas.boundingBox();
-    if (canvasBox === null) {
+    const initialCanvasBox = await fieldCanvas.boundingBox();
+    if (initialCanvasBox === null) {
       throw new Error("Signing canvas did not return a bounding box");
     }
-    const fieldPosition = this.fieldClickPosition(sent, canvasBox);
-    await clickSigningCanvas(this.page, fieldCanvas, fieldPosition);
+    await clickSigningCanvas(fieldCanvas, this.fieldClickPosition(sent, initialCanvasBox));
+    const signatureDialog = this.page.getByRole("dialog");
+    await expect(signatureDialog).toBeVisible({
+      timeout: documensoTimeouts().journey,
+    });
+    await signatureDialog.getByRole("tab", { name: "Type" }).click();
+    await signatureDialog.getByTestId("signature-pad-type-input").fill(signatureText);
+    await signatureDialog.getByRole("button", { name: "Sign", exact: true }).click();
+    await expect(signatureDialog).toHaveCount(0, {
+      timeout: documensoTimeouts().journey,
+    });
     await expect(this.page.getByRole("navigation").getByText("0 Fields Remaining")).toBeVisible({
       timeout: documensoTimeouts().journey,
     });

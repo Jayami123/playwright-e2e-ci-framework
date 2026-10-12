@@ -1,8 +1,10 @@
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
+import { expect } from "@playwright/test";
 import type { PoolClient } from "pg";
 import type { DocumensoQaUser } from "./factories.js";
 import { withDocumensoPool } from "./db.js";
+import { documensoTimeouts } from "./env.js";
 
 const BCRYPT_ROUNDS = 12 as const;
 const QA_EMAIL_LIKE = "qa-%@qa.local" as const;
@@ -341,7 +343,43 @@ async function deleteDocumensoQaUserInTransaction(
   }
 }
 
+async function countPendingEnvelopeJobsForUser(userId: number): Promise<number> {
+  return withDocumensoPool(async (pool) => {
+    const result = await pool.query<{ leftover: number }>(
+      `SELECT count(*)::int AS leftover
+       FROM "BackgroundJob" bj
+       WHERE bj.status IN ('PENDING', 'PROCESSING')
+         AND EXISTS (
+           SELECT 1
+           FROM "Envelope" e
+           JOIN "Team" t ON t.id = e."teamId"
+           JOIN "Organisation" o ON o.id = t."organisationId"
+           WHERE o."ownerUserId" = $1
+             AND (
+               e.id = bj.payload->>'envelopeId'
+               OR e."secondaryId" = 'document_' || (bj.payload->>'documentId')
+             )
+         )`,
+      [userId],
+    );
+    const leftover = result.rows[0]?.leftover;
+    if (leftover === undefined) {
+      throw new Error("countPendingEnvelopeJobsForUser query returned no row");
+    }
+    return leftover;
+  });
+}
+
+async function waitUntilQaUserEnvelopeJobsIdle(userId: number): Promise<void> {
+  await expect
+    .poll(async () => countPendingEnvelopeJobsForUser(userId), {
+      timeout: documensoTimeouts().journey,
+    })
+    .toBe(0);
+}
+
 export async function teardownDocumensoQaUserById(userId: number): Promise<void> {
+  await waitUntilQaUserEnvelopeJobsIdle(userId);
   await withDocumensoPool(async (pool) => {
     const client = await pool.connect();
     try {

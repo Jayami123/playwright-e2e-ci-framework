@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { type Locator } from "@playwright/test";
 import { documensoTimeouts } from "../env.js";
 
 export const SIGNING_CANVAS_CLICK_OFFSET = {
@@ -7,14 +7,11 @@ export const SIGNING_CANVAS_CLICK_OFFSET = {
 } as const;
 
 export async function clickSigningCanvas(
-  page: Page,
   canvas: Locator,
   position: { x: number; y: number },
 ): Promise<void> {
-  await page.getByRole("heading", { name: "Sign Document" }).hover();
-  await expect(page.getByRole("tooltip")).toBeHidden({
-    timeout: documensoTimeouts().request,
-  });
+  // Recipient tooltip (DocumentReadOnlyFields showRecipientTooltip) anchors on the
+  // field overlay, not the Sign Document heading — click the canvas field directly.
   await canvas.click({
     position,
     timeout: documensoTimeouts().journey,

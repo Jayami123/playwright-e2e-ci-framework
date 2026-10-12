@@ -1,4 +1,7 @@
-import { serializeKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
+import {
+  attachKnownBugEvidence,
+  serializeKnownBugEvidence,
+} from "../../../src/core/known-bug-evidence.js";
 import {
   cancelEnvelopeViaTrpc,
   completeDocumentWithTokenViaTrpc,
@@ -23,6 +26,8 @@ test.setTimeout(documensoTimeouts().journey);
 
 const EXPIRED_TOKEN_DB_SEAM =
   "P7-OBS-DOC-FW-008: Recipient.expiresAt set in the past via test-only SQL seam";
+const CANCELLED_SIGN_ISSUE =
+  "P7-OBS-DOC-FW-006: /sign/{token} still offers signing after the owner cancels";
 
 async function signEnvelopeInFreshContext(
   browser: import("@playwright/test").Browser,
@@ -280,6 +285,7 @@ test(
     annotation: [
       { type: "testId", description: "P1-DOC-FW-010" },
       { type: "priority", description: "P1" },
+      { type: "issue", description: CANCELLED_SIGN_ISSUE },
     ],
   },
   async ({ browser, page, signedInDocumensoUser }, testInfo) => {
@@ -297,19 +303,70 @@ test(
         envelopeId,
         "QA cancel",
       );
-      expect(cancelled.httpStatus.toString().startsWith("2")).toBe(true);
+      await testInfo.attach("fw-010-cancel-trpc", {
+        body: serializeKnownBugEvidence({
+          issue: "P1-DOC-FW-010 envelope.cancel before complete",
+          observed: {
+            httpStatus: cancelled.httpStatus,
+            bodyText: cancelled.bodyText,
+            appErrorCode: cancelled.appErrorCode ?? null,
+            resultStatus: cancelled.resultStatus ?? null,
+            procedurePath: cancelled.procedurePath ?? null,
+          },
+          expected: { httpStatus2xx: true },
+        }),
+      });
+      expect(
+        cancelled.httpStatus.toString().startsWith("2"),
+        `envelope.cancel HTTP ${String(cancelled.httpStatus)} body: ${cancelled.bodyText}`,
+      ).toBe(true);
       const complete = await completeDocumentWithTokenViaTrpc(page.request, {
         token: sent.recipientToken,
         documentId: sent.documentId,
       });
-      expect(complete.appErrorCode).toBe("ENVELOPE_CANCELLED");
+      await testInfo.attach("fw-010-complete-trpc", {
+        body: serializeKnownBugEvidence({
+          issue: "P1-DOC-FW-010 recipient.completeDocumentWithToken after cancel",
+          observed: {
+            httpStatus: complete.httpStatus,
+            bodyText: complete.bodyText,
+            appErrorCode: complete.appErrorCode ?? null,
+            resultStatus: complete.resultStatus ?? null,
+            procedurePath: complete.procedurePath ?? null,
+          },
+          expected: { appErrorCode: "ENVELOPE_CANCELLED" },
+        }),
+      });
+      expect(
+        complete.appErrorCode,
+        `completeDocumentWithToken HTTP ${String(complete.httpStatus)} body: ${complete.bodyText}`,
+      ).toBe("ENVELOPE_CANCELLED");
+      test.fail(true, CANCELLED_SIGN_ISSUE);
       const context = await browser.newContext();
       const cancelledPage = await context.newPage();
       try {
-        await cancelledPage.goto(signingUrl, { waitUntil: "domcontentloaded" });
-        await expect(cancelledPage.getByText(/cancelled/i)).toBeVisible({
-          timeout: documensoTimeouts().request,
+        const response = await cancelledPage.goto(signingUrl, {
+          waitUntil: "domcontentloaded",
         });
+        const signing = new SigningPage(cancelledPage);
+        await signing.expectCancelledOrSigningReady();
+        await attachKnownBugEvidence(cancelledPage, testInfo, {
+          issue: CANCELLED_SIGN_ISSUE,
+          observed: {
+            httpStatus: response?.status() ?? null,
+            pathIsSign: /\/sign\/[^/]+$/.test(new URL(cancelledPage.url()).pathname),
+            signDocumentHeadingCount: await signing.signDocumentHeading().count(),
+            cancelledHeadingCount: await signing.cancelledUnavailableHeading().count(),
+            nextFieldCount: await signing.nextFieldButton().count(),
+          },
+          expected: {
+            signDocumentHeadingCount: 0,
+            cancelledHeadingCount: 1,
+            nextFieldCount: 0,
+          },
+        });
+        await expect(signing.cancelledUnavailableHeading()).toBeVisible();
+        await expect(signing.nextFieldButton()).toHaveCount(0);
       } finally {
         await context.close();
       }
