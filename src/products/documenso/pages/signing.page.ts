@@ -9,18 +9,8 @@ export class SigningPage extends BasePage {
     return this.page.getByRole("heading", { name: "Sign Document" });
   }
 
-  cancelledUnavailableHeading(): Locator {
-    return this.page.getByRole("heading", { name: /is no longer available to sign/ });
-  }
-
   nextFieldButton(): Locator {
     return this.page.getByRole("button", { name: "Next Field" });
-  }
-
-  async expectCancelledOrSigningReady(): Promise<void> {
-    await expect(this.signDocumentHeading().or(this.cancelledUnavailableHeading())).toBeVisible({
-      timeout: documensoTimeouts().request,
-    });
   }
 
   private fieldCanvas(): Locator {

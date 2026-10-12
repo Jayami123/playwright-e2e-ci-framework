@@ -26,12 +26,13 @@ export class DocumentsPage extends BasePage {
   }
 
   async goto(teamUrl: string): Promise<void> {
+    const documentsUrl = new RegExp(`/t/${teamUrl}/documents(?:\\?.*)?$`);
     const limitsDone = this.waitForLimits();
-    await this.gotoPath(documensoTeamDocumentsPath(teamUrl));
-    await limitsDone;
-    await expect(this.page).toHaveURL(new RegExp(`/t/${teamUrl}/documents(?:\\?.*)?$`), {
+    const documentsNavigationDone = this.page.waitForURL(documentsUrl, {
       timeout: documensoTimeouts().journey,
     });
+    await this.gotoPath(documensoTeamDocumentsPath(teamUrl));
+    await Promise.all([documentsNavigationDone, limitsDone]);
     await expect(this.page.getByRole("heading", { name: "Documents" })).toBeVisible({
       timeout: documensoTimeouts().journey,
     });
