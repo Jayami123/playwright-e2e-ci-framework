@@ -38,15 +38,20 @@ function delay(ms: number): Promise<void> {
 
 /**
  * Returns an epoch suitable for minting a code when two authorize POSTs must share one step.
- * Waits once until the next step boundary when fewer than `minMsLeftInStep` ms remain.
+ * Waits until the next step boundary when fewer than `minMsLeftInStep` ms remain, then
+ * rechecks (setTimeout can fire ~1 ms early).
  */
 export async function epochMsForStableTotpMint(minMsLeftInStep: number): Promise<number> {
-  const now = Date.now();
-  const msLeft = totpMsLeftInStep(now);
-  if (msLeft >= minMsLeftInStep) {
-    return now;
+  if (!Number.isFinite(minMsLeftInStep) || minMsLeftInStep < 0 || minMsLeftInStep >= TOTP_STEP_MS) {
+    throw new RangeError(
+      `minMsLeftInStep must be >= 0 and < ${String(TOTP_STEP_MS)} ms, got ${String(minMsLeftInStep)}`,
+    );
   }
-  const nextBoundary = (totpStepNumber(now) + 1) * TOTP_STEP_MS;
-  await delay(nextBoundary - now);
-  return Date.now();
+  let now = Date.now();
+  while (totpMsLeftInStep(now) < minMsLeftInStep) {
+    const nextBoundary = (totpStepNumber(now) + 1) * TOTP_STEP_MS;
+    await delay(Math.max(nextBoundary - now, 1));
+    now = Date.now();
+  }
+  return now;
 }
