@@ -17,7 +17,7 @@ A full `documenso-chromium` run (~27 tests) exceeds Documenso `apiTrpcRateLimit`
 - **Retries:** `P1_DOCUMENSO_RETRIES` default **0** on functional Documenso projects; Cal keeps CI `retries: 2`.
 - **tRPC 429 fail-fast:** `attachDocumensoTrpc429Guard` on functional Documenso pages fails immediately with the tRPC URL (avoids 120s editor waits when rate limited).
 - **Browsers / matrix / caches / path filters:** unchanged from the initial 0011 draft (Chrome channel, Firefox FW-001..003, `RUNNER_TEMP` clone path, caches, leak gate, failure artifacts).
-- **Known bugs:** No `test.fail()` without findings HTTP/trace proof. Four 2FA cases remain strict failures until evidence-backed `test.fail()` is approved.
+- **Known bugs:** Four 2FA cases use `test.fail()` with HTTP/trace proof in [documenso-2fa-known-issues.md](../observations/documenso-2fa-known-issues.md) (CI run 38388797450).
 
 ## Consequences
 
