@@ -8,6 +8,14 @@
 
 **Classification:** UX inconsistency (stale signing chrome while mutations reject). Not a harness `test.fail` item; API coverage lives in **P1-DOC-FW-010**.
 
+## P7-OBS-DOC-FW-005 (low): orphan DocumentMeta / DocumentData after envelope delete
+
+**Observed (verified, CI run [38390915947](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38390915947), `documenso-self-hosted`):** After the full Documenso chromium suite (27 tests: 23 passed, 4 expected 2FA failures), `scripts/count-documenso-qa-leaks.mts` reported **orphanDocumentMeta=11** and **orphanDocumentData=14**. **users**, organisation orphans, **passkeys**, **qaEnvelopes**, and **qaRecipients** were all **0**.
+
+**Cause:** Documenso does not always remove `DocumentMeta` / `DocumentData` rows when envelopes are deleted during signing tests (product cleanup gap), not missing P1 teardown.
+
+**Harness:** The leak script still fails on QA users, org orphans, passkeys, `qaEnvelopes`, and `qaRecipients`. Orphan document storage is printed and appended to the GitHub job summary under this finding; the job fails only if either count exceeds the script ceiling (100).
+
 ## P7-OBS-DOC-FW-009 (TEST BUG, fixed 2026-10-13)
 
 **Evidence:** FW-009 failed in full `@fw` after tests 001–007. Trace `test.trace` (monotonic ms): navigate `/t/personal_15e2e48730a33702/documents` at **75687**; `waitForURL` done **76561**; `GET /api/limits` waiter done **76879**; **Documents** heading + upload `aria-disabled` checks passed at **76880–77052**; upload click at **77077** — button **detached from DOM** during retry; failure screenshot **404 Team not found**.
@@ -16,39 +24,26 @@
 
 **Fix:** Register and await `document.findDocumentsInternal` (HTTP **200**) before navigation with URL + limits; fail fast on **429** with `Documents index rate limited (429)`.
 
-## ENVIRONMENT / CI risk: Documenso rate limits (login + tRPC)
+## CI: tRPC rate limit during full suite (run 38377317652)
 
-**Label:** ENVIRONMENT / CI risk (not a product functional bug under test).
+**Observed (verified):** Full `documenso-chromium` job (27 tests, 2FA + passkey before `@fw`) hit `organisation.internal.getOrganisationSession` **429** during **P1-DOC-FW-002**; `envelope-editor-step-addFields` never appeared (120s wait). Locally, `@fw`-only runs stayed under the per-minute tRPC budget.
 
-### `auth.login` (~50 authorize calls / IP / 15 minutes)
+**Mitigation (ADR 0011):** CI and local scripts run harness **down/up** with `DANGEROUS_BYPASS_RATE_LIMITS=true` after **P1-DOC-RL-001** (limits enforced on the first stack); functional tests attach a browser **429 fail-fast** on any `/api/trpc/*` response. FW-002 and FW-003 remain full UI journeys; FW-004..011 still use API envelope setup where implemented (not for rate-limit budgeting).
 
-**Observed:** Burst re-runs of full `@fw` fail every test at `loginViaApi` with **HTTP 429** before any UI step.
+### Rate-limit primitive **P1-DOC-RL-001**
 
-**Budget:** Each test using `signedInDocumensoUser` performs one **POST /api/auth/email-password/authorize** in the page fixture. Full `@fw` (11 tests) ≈ **10** logins per run (FW-001 uses empty storage and its own login). More than a few full suites inside one 15-minute wall-clock bucket exhausts the limit.
+With bypass **off**, 51 failed authorize calls in one 15m IP bucket must yield HTTP **429** on the last call (`loginRateLimit` globalMax 50 in `rate-limits.ts`).
 
-**Mitigation:** Wait for the login bucket boundary before re-gating; do not interpret fixture **429** as a documents-page regression.
+### Product bypass flag (read at request time, not fork `.env`)
 
-### `apiTrpcRateLimit` (~100 `/api/trpc/*` / IP / minute)
+| Env                            | Source (Documenso fork)                          | Effect when `true`                                              |
+| ------------------------------ | ------------------------------------------------ | --------------------------------------------------------------- |
+| `DANGEROUS_BYPASS_RATE_LIMITS` | `rate-limit.ts` ~73–79                           | Skips all `createRateLimit` checks (login, passkey, tRPC, etc.) |
+| same                           | `assert-organisation-rates-and-limits.ts` ~32–34 | Skips organisation quota assertions                             |
 
-**Observed (verified 2026-10-13):** When every primitive used UI `DocumentsPage.goto()` + upload/send, a single `@fw` run exceeded **100** browser tRPC calls/minute. `document.findDocumentsInternal` returned **429**; the app showed **Team not found** while `GET /api/limits` stayed **200**.
+P1 sets this only via harness `up.mjs` env on the second stack (after RL-001); never in the Documenso fork `.env`.
 
-**Harness mitigations:**
-
-- **P1-DOC-FW-002** and **P1-DOC-FW-003** keep the UI upload/send/sign journey.
-- **P1-DOC-FW-004..011** create pending envelopes via **`envelope.create` + `envelope.distribute`** on `page.request` (same procedures as the UI; not counted in browser telemetry).
-- `DocumentsPage.goto()` awaits `findDocumentsInternal` **200** and fails fast on **429**.
-- `tests/documenso/fw/fixtures.ts` logs **`P1_DOC_FW_TRPC_BUDGET browser=<n>`** once per worker after all tests that use the FW fixture (browser `/api/trpc` responses only; excludes FW-001 which uses the base `documenso` fixture).
-
-### Browser `/api/trpc` budget (full `@fw`, verified)
-
-| Phase                                           | Approx. browser `/api/trpc` per full `@fw` run                                                            |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Before (UI send + `goto` per primitive 004–011) | **>100** (rate limit failures)                                                                            |
-| After (API envelope setup 004–011)              | **~44–46** on FW signed-in specs (+ ~6–7 for FW-001 `DocumentsPage.goto`, not in `P1_DOC_FW_TRPC_BUDGET`) |
-
-Gate: `npm run test:documenso -- --grep "@fw"`; keep **browser** total **under 100/minute**; space back-to-back full suites if login **429** appears.
-
-### Phase 4d: user-facing asserts in the browser (FW-004..011)
+## Phase 4d: user-facing asserts in the browser (FW-004..011)
 
 Setup for 004–011 is **API/tRPC** (not the documents UI). User-facing oracles still use the browser where the product surface is the signing page or HTTP status from navigation:
 

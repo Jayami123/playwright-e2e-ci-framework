@@ -113,9 +113,6 @@ test(
         documentId: envelopeB.sent.documentId,
       });
       expect(cross.appErrorCode ?? cross.resultStatus).toBe("NOT_FOUND");
-      if (cross.resultStatus === "SIGNED") {
-        test.fail(true, "P7-OBS-DOC-FW-002: cross-envelope token completed envelope B");
-      }
     } finally {
       await teardownRecipientMailbox(recipientA.email);
       await teardownRecipientMailbox(recipientB.email);
@@ -175,9 +172,6 @@ test(
         const statuses = [first.resultStatus, second.resultStatus];
         const signedCount = statuses.filter((value) => value === "SIGNED").length;
         const alreadyCount = statuses.filter((value) => value === "ALREADY_SIGNED").length;
-        if (signedCount === 2) {
-          test.fail(true, "P7-OBS-DOC-FW-003: both parallel completes succeeded");
-        }
         expect(signedCount).toBe(1);
         expect(alreadyCount).toBe(1);
         expect(await countSignedRecipientsByDocumentId(sent.documentId)).toBe(1);
@@ -386,9 +380,6 @@ test(
       const isolated = await newDocumensoApiContext();
       try {
         const unauth = await getEnvelopeViaTrpc(isolated, signedInDocumensoUser.teamId, envelopeId);
-        if (unauth.httpStatus === 200) {
-          test.fail(true, "P7-OBS-DOC-FW-004: envelope.get returned envelope without session");
-        }
         expect(unauth.httpStatus).toBe(401);
       } finally {
         await isolated.dispose();

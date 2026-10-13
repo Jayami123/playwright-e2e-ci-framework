@@ -20,6 +20,14 @@ on:
         description: Run Chromium then Firefox matrix suites on self-hosted Cal
         type: boolean
         default: false
+      documenso_self_hosted_timeout_minutes:
+        description: Timeout for the documenso-self-hosted job
+        type: number
+        default: 90
+      documenso_probe_only:
+        description: Start Documenso via harness, secure-context preflight, and --list only
+        type: boolean
+        default: false
     secrets:
       CAL_E2E_BASE_URL:
         required: false
@@ -41,6 +49,10 @@ defaults:
 
 env:
   CAL_REF: main
+  DOCUMENSO_REF: f4105e47eba56f5d8d7e70dd516a8fcc0c870d7c
+  DOCUMENSO_E2E_LISTEN_URL: http://127.0.0.1:3001
+  DOCUMENSO_E2E_PUBLIC_URL: http://p1.lvh.me:3001
+  DOCUMENSO_E2E_DB_URL: postgres://documenso:password@127.0.0.1:5451/documenso
   CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
   CAL_DEFAULT_E2E_EMAIL: pro@example.com
   CAL_DEFAULT_DST_EMAIL: trial@example.com
@@ -48,6 +60,38 @@ env:
   ACTIONLINT_INSTALLER_SHA: 914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
 
 jobs:
+  changes:
+    name: path filters
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      cal: ${{ steps.paths.outputs.cal }}
+      documenso: ${{ steps.paths.outputs.documenso }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: paths
+        run: |
+          set -euo pipefail
+          cal=false
+          documenso=false
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            cal=true
+            documenso=true
+          else
+            mapfile -t changed < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
+            cal_re='^(tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            doc_re='^(tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            for file in "${changed[@]}"; do
+              if [[ "$file" =~ $cal_re ]]; then cal=true; fi
+              if [[ "$file" =~ $doc_re ]]; then documenso=true; fi
+            done
+          fi
+          echo "cal=$cal" >> "$GITHUB_OUTPUT"
+          echo "documenso=$documenso" >> "$GITHUB_OUTPUT"
+
   lint:
     name: lint
     runs-on: ubuntu-24.04
@@ -112,7 +156,7 @@ jobs:
 
   cal-chromium:
     name: cal-chromium shard ${{ matrix.shard }} (live Cal only, skipped without CAL_E2E_BASE_URL)
-    needs: [lint, structural]
+    needs: [structural]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     if: needs.structural.outputs.has_live_url == 'true'
@@ -182,10 +226,12 @@ jobs:
 
   cal-self-hosted:
     name: cal-self-hosted
-    needs: [lint, structural]
+    needs: [structural, changes]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.self_hosted_timeout_minutes }}
-    if: needs.structural.outputs.has_live_url != 'true'
+    if: >-
+      needs.structural.outputs.has_live_url != 'true'
+      && needs.changes.outputs.cal == 'true'
     env:
       P1_WORKING_DIRECTORY: p1
       CAL_CHECKOUT_PATH: products/cal
@@ -229,7 +275,17 @@ jobs:
           path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
 
+      - name: Restore Cal node_modules cache
+        id: cal_nm
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.CAL_CHECKOUT_PATH }}/node_modules
+            ${{ env.CAL_CHECKOUT_PATH }}/node_modules/.prisma
+          key: ${{ runner.os }}-cal-nm-${{ steps.checkout_cal.outputs.commit }}-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
+
       - name: Install Cal dependencies
+        if: steps.cal_nm.outputs.cache-hit != 'true'
         working-directory: ${{ env.CAL_CHECKOUT_PATH }}
         run: |
           set -euo pipefail
@@ -244,6 +300,17 @@ jobs:
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/.yarn/cache
           key: cal-yarn-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
+
+      - name: Save Cal node_modules cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.cal_nm.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.CAL_CHECKOUT_PATH }}/node_modules
+            ${{ env.CAL_CHECKOUT_PATH }}/node_modules/.prisma
+          key: ${{ runner.os }}-cal-nm-${{ steps.checkout_cal.outputs.commit }}-${{ hashFiles(format('{0}/yarn.lock', env.CAL_CHECKOUT_PATH)) }}
 
       - name: Prepare Cal product .env
         env:
@@ -492,3 +559,417 @@ jobs:
         with:
           path: ${{ env.CAL_CHECKOUT_PATH }}/apps/web/.next
           key: ${{ runner.os }}-cal-next-${{ steps.checkout_cal.outputs.commit }}
+
+  documenso-self-hosted:
+    name: documenso-self-hosted
+    needs: [structural, changes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.documenso_self_hosted_timeout_minutes }}
+    if: needs.changes.outputs.documenso == 'true'
+    env:
+      P1_WORKING_DIRECTORY: p1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Set Documenso paths outside workspace
+        run: |
+          set -euo pipefail
+          # Vite rollup external /playwright/ matches .../playwright-e2e-ci-framework/ entry paths.
+          echo "PRODUCTS_ROOT=${RUNNER_TEMP}/products" >> "$GITHUB_ENV"
+          echo "DOCUMENSO_CHECKOUT_PATH=${RUNNER_TEMP}/products/documenso" >> "$GITHUB_ENV"
+
+      - name: Clone Documenso fork outside workspace
+        id: checkout_documenso
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${DOCUMENSO_CHECKOUT_PATH}")"
+          if [ -d "${DOCUMENSO_CHECKOUT_PATH}/.git" ]; then
+            rm -rf "${DOCUMENSO_CHECKOUT_PATH}"
+          fi
+          git clone https://github.com/Jayami123/documenso.git "${DOCUMENSO_CHECKOUT_PATH}"
+          git -C "${DOCUMENSO_CHECKOUT_PATH}" checkout "${DOCUMENSO_REF}"
+          head="$(git -C "${DOCUMENSO_CHECKOUT_PATH}" rev-parse HEAD)"
+          if [ "$head" != "${DOCUMENSO_REF}" ]; then
+            echo "::error::Documenso HEAD ${head} does not match DOCUMENSO_REF ${DOCUMENSO_REF}"
+            exit 1
+          fi
+          echo "commit=${head}" >> "$GITHUB_OUTPUT"
+
+      - id: documenso_lockfile
+        name: Hash Documenso package-lock.json
+        run: |
+          set -euo pipefail
+          sum="$(sha256sum "${DOCUMENSO_CHECKOUT_PATH}/package-lock.json" | awk '{print $1}')"
+          echo "hash=${sum}" >> "$GITHUB_OUTPUT"
+
+      - name: Stub harness product roots
+        run: |
+          set -euo pipefail
+          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/medusa" "${PRODUCTS_ROOT}/twenty-CRM"
+
+      - name: Map Documenso public host to loopback
+        run: |
+          set -euo pipefail
+          echo "127.0.0.1 p1.lvh.me" | sudo tee -a /etc/hosts
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Record Node 24 binary
+        run: echo "NODE24=$(command -v node)" >> "$GITHUB_ENV"
+
+      - name: Restore Documenso node_modules cache
+        id: documenso_nm
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules
+            ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules/.prisma
+            ${{ env.DOCUMENSO_CHECKOUT_PATH }}/packages/prisma/node_modules
+          key: ${{ runner.os }}-documenso-nm-${{ steps.checkout_documenso.outputs.commit }}-${{ steps.documenso_lockfile.outputs.hash }}
+
+      - name: Restore Documenso Remix build cache
+        id: documenso_remix
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.DOCUMENSO_CHECKOUT_PATH }}/apps/remix/build
+          key: ${{ runner.os }}-documenso-remix-${{ steps.checkout_documenso.outputs.commit }}
+
+      - name: Install Documenso product dependencies
+        if: steps.documenso_nm.outputs.cache-hit != 'true'
+        working-directory: ${{ env.DOCUMENSO_CHECKOUT_PATH }}
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Save Documenso node_modules cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.documenso_nm.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules
+            ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules/.prisma
+            ${{ env.DOCUMENSO_CHECKOUT_PATH }}/packages/prisma/node_modules
+          key: ${{ runner.os }}-documenso-nm-${{ steps.checkout_documenso.outputs.commit }}-${{ steps.documenso_lockfile.outputs.hash }}
+
+      - uses: ./p1/.github/actions/setup-p1
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - uses: ./p1/.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+          install_chrome: "true"
+          install_firefox_webkit: ${{ inputs.run_browser_matrix }}
+
+      - name: Start Documenso (limits enforced)
+        id: documenso_up
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+        run: |
+          set -euo pipefail
+          "${NODE24}" node_modules/qa-portfolio-harness/scripts/up.mjs documenso
+
+      - name: Run P1-DOC-RL-001
+        if: ${{ !inputs.documenso_probe_only && steps.documenso_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PLAYWRIGHT_HARNESS: "0"
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          npm run test:documenso:rate-limit
+
+      - name: Stop Documenso (harness down)
+        if: ${{ !inputs.documenso_probe_only && steps.documenso_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+        run: |
+          set -euo pipefail
+          "${NODE24}" node_modules/qa-portfolio-harness/scripts/down.mjs documenso
+
+      - name: Start Documenso (rate-limit bypass)
+        id: documenso_up_bypass
+        if: ${{ !inputs.documenso_probe_only && steps.documenso_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          DANGEROUS_BYPASS_RATE_LIMITS: "true"
+        run: |
+          set -euo pipefail
+          "${NODE24}" node_modules/qa-portfolio-harness/scripts/up.mjs documenso
+
+      - name: Documenso secure-context preflight
+        if: >-
+          ${{ (inputs.documenso_probe_only && steps.documenso_up.outcome == 'success')
+          || steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/assert-documenso-secure-context.mts
+
+      - name: List Documenso Chromium tests
+        if: >-
+          ${{ (inputs.documenso_probe_only && steps.documenso_up.outcome == 'success')
+          || steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          npx playwright test --project=documenso-chromium --list
+
+      - name: Run Documenso E2E suite
+        if: >-
+          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix
+          && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PLAYWRIGHT_HARNESS: "0"
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          P1_DOCUMENSO_RETRIES: 0
+        run: |
+          set -euo pipefail
+          npm run test:documenso
+
+      - name: Run Documenso E2E suite (matrix Chromium)
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PLAYWRIGHT_HARNESS: "0"
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          P1_DOCUMENSO_RETRIES: 0
+          P1_PW_REPORT_ID: documenso-chromium
+        run: |
+          set -euo pipefail
+          SECONDS=0
+          npm run test:documenso
+          echo "P1_MATRIX_DOCUMENSO_CHROMIUM_ELAPSED=$SECONDS" >> "$GITHUB_ENV"
+
+      - name: Write Playwright job summary (matrix Documenso Chromium)
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_MATRIX_DOCUMENSO_CHROMIUM_ELAPSED: ${{ env.P1_MATRIX_DOCUMENSO_CHROMIUM_ELAPSED }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results-documenso-chromium.json documenso-chromium "${P1_MATRIX_DOCUMENSO_CHROMIUM_ELAPSED:-}"
+
+      - name: Merge blob reports (matrix Documenso Chromium)
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ -d blob-report-documenso-chromium ] && [ -n "$(find blob-report-documenso-chromium -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-documenso-chromium
+            rm -rf playwright-report-documenso-chromium
+            mv playwright-report playwright-report-documenso-chromium
+          else
+            echo "No blob report to merge for documenso-chromium."
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        with:
+          name: playwright-report-documenso-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-documenso-chromium
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure() && steps.documenso_up_bypass.outcome == 'success' && inputs.run_browser_matrix
+        with:
+          name: playwright-test-results-documenso-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Run Documenso E2E suite (matrix Firefox)
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          P1_DOCUMENSO_RETRIES: 0
+          P1_PW_REPORT_ID: documenso-firefox
+        run: |
+          set -euo pipefail
+          SECONDS=0
+          npm run test:documenso:firefox
+          echo "P1_MATRIX_DOCUMENSO_FIREFOX_ELAPSED=$SECONDS" >> "$GITHUB_ENV"
+
+      - name: Write Playwright job summary (matrix Documenso Firefox)
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_MATRIX_DOCUMENSO_FIREFOX_ELAPSED: ${{ env.P1_MATRIX_DOCUMENSO_FIREFOX_ELAPSED }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results-documenso-firefox.json documenso-firefox "${P1_MATRIX_DOCUMENSO_FIREFOX_ELAPSED:-}"
+
+      - name: Merge blob reports (matrix Documenso Firefox)
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ -d blob-report-documenso-firefox ] && [ -n "$(find blob-report-documenso-firefox -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-documenso-firefox
+            rm -rf playwright-report-documenso-firefox
+            mv playwright-report playwright-report-documenso-firefox
+          else
+            echo "No blob report to merge for documenso-firefox."
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: >-
+          ${{ !inputs.documenso_probe_only && inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        with:
+          name: playwright-report-documenso-firefox
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-documenso-firefox
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure() && steps.documenso_up_bypass.outcome == 'success' && inputs.run_browser_matrix
+        with:
+          name: playwright-test-results-documenso-firefox
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Write Playwright job summary
+        if: >-
+          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/write-ci-job-summary.mts test-results/results.json
+
+      - name: Merge blob reports into HTML
+        if: >-
+          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ -d blob-report ] && [ -n "$(find blob-report -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report
+          else
+            echo "No blob report to merge (tests may have failed before reporters ran)."
+          fi
+
+      - name: Count Documenso QA leaks
+        if: >-
+          ${{ always() && !cancelled() && !inputs.documenso_probe_only
+          && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/count-documenso-qa-leaks.mts
+
+      - name: Redact Documenso server log
+        if: ${{ always() }}
+        env:
+          P1_DIR: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          LOG_SRC="${P1_DIR}/node_modules/qa-portfolio-harness/.harness/documenso-web.log"
+          LOG_DST="documenso-web-redacted.log"
+          if [ ! -f "$LOG_SRC" ]; then
+            echo "(no documenso-web.log from harness)" > "$LOG_DST"
+            exit 0
+          fi
+          sed -E \
+            -e '/(SECRET|PASSWORD|KEY|TOKEN|API_KEY|ENCRYPTION)=/Id' \
+            -e '/Bearer /Id' \
+            "$LOG_SRC" > "$LOG_DST"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: >-
+          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix
+          && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
+        with:
+          name: playwright-report-documenso
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure() && steps.documenso_up_bypass.outcome == 'success' && !inputs.run_browser_matrix
+        with:
+          name: playwright-test-results-documenso-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: documenso-server-log
+          path: documenso-web-redacted.log
+          retention-days: 14
+
+      - name: Save Documenso Remix build cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.documenso_remix.outputs.cache-hit != 'true'
+          && hashFiles(format('{0}/apps/remix/build/server/main.js', env.DOCUMENSO_CHECKOUT_PATH)) != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.DOCUMENSO_CHECKOUT_PATH }}/apps/remix/build
+          key: ${{ runner.os }}-documenso-remix-${{ steps.checkout_documenso.outputs.commit }}

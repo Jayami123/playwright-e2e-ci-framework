@@ -1,4 +1,4 @@
-import type { Response } from "@playwright/test";
+import type { APIRequestContext, Browser, Response } from "@playwright/test";
 import {
   epochMsForStableTotpMint,
   generateTotpCode,
@@ -39,6 +39,23 @@ const DISABLE_WRONG_CODE_ISSUE =
   "P7-OBS-DOC-2FA-004: Documenso disable 2FA wrong code is not cleanly refused";
 const REPLAY_TOTP_MIN_MS_LEFT = 8_000;
 const REPLAY_EVIDENCE_ATTACHMENT = "replay-totp-evidence.json";
+const CI_EVIDENCE_RUN_URL =
+  "https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38388797450";
+
+async function assertSecurityPageWithApiSession(
+  browser: Browser,
+  http: APIRequestContext,
+): Promise<void> {
+  const storageState = await http.storageState();
+  const context = await browser.newContext({ storageState });
+  try {
+    const page = await context.newPage();
+    const security = new SecuritySettingsPage(page);
+    await security.gotoWithTwoFactorEnabled();
+  } finally {
+    await context.close();
+  }
+}
 
 async function authorizeBodyCode(response: Response): Promise<string | undefined> {
   try {
@@ -162,17 +179,40 @@ test(
       { type: "issue", description: WRONG_CODE_STATUS_ISSUE },
     ],
   },
-  async ({ twoFactorDocumensoUser }) => {
-    test.fail(true, WRONG_CODE_STATUS_ISSUE);
+  async ({ twoFactorDocumensoUser }, testInfo) => {
+    expect(await readDocumensoTwoFactorEnabled(twoFactorDocumensoUser.id)).toBe(true);
+
     const http = await newDocumensoApiContext();
     try {
       const liveCode = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
       const wrongCode = wrongTotpCodeFromLive(liveCode);
+      expect(wrongCode).not.toBe(liveCode);
+
       const result = await loginViaApi(http, {
         email: twoFactorDocumensoUser.email,
         password: twoFactorDocumensoUser.password,
         totpCode: wrongCode,
       });
+      expect(result.code).toBe(DOC_INVALID_TWO_FACTOR_CODE);
+
+      await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
+        body: serializeKnownBugEvidence({
+          issue: WRONG_CODE_STATUS_ISSUE,
+          observed: {
+            authorizeStatus: result.status,
+            authorizeCode: result.code ?? null,
+            ciRun: CI_EVIDENCE_RUN_URL,
+            traceHint:
+              "playwright-test-results/auth-2fa-P1-DOC-2FA-004-wrong-code-status-is-4xx-documenso-chromium/trace.zip",
+          },
+          expected: { authorizeStatus: "4xx" },
+        }),
+        contentType: "application/json",
+      });
+
+      // P7-OBS-DOC-2FA-003 — docs/observations/documenso-2fa-known-issues.md
+      test.fail(true, WRONG_CODE_STATUS_ISSUE);
+
       expect(result.status).toBeGreaterThanOrEqual(400);
       expect(result.status).toBeLessThan(500);
     } finally {
@@ -219,9 +259,10 @@ test(
       { type: "issue", description: BACKUP_REUSE_ISSUE },
     ],
   },
-  async ({ twoFactorDocumensoUser }, testInfo) => {
-    test.fail(true, BACKUP_REUSE_ISSUE);
+  async ({ twoFactorDocumensoUser, browser }, testInfo) => {
+    expect(await readDocumensoTwoFactorEnabled(twoFactorDocumensoUser.id)).toBe(true);
     const backupCode = required(twoFactorDocumensoUser.backupCodes[0], "backupCodes[0]");
+
     const httpA = await newDocumensoApiContext();
     const httpB = await newDocumensoApiContext();
     try {
@@ -230,11 +271,29 @@ test(
         password: twoFactorDocumensoUser.password,
         backupCode,
       });
+      expect(first.status).toBe(201);
+      expect(first.hasSessionCookie).toBe(true);
+      expect(sessionHasEmail(await readSession(httpA), twoFactorDocumensoUser.email)).toBe(true);
+
       const second = await loginViaApi(httpB, {
         email: twoFactorDocumensoUser.email,
         password: twoFactorDocumensoUser.password,
         backupCode,
       });
+      const secondSession = await readSession(httpB);
+      const secondSessionHasEmail = sessionHasEmail(secondSession, twoFactorDocumensoUser.email);
+      const secondAuthenticated =
+        second.status === 201 && second.hasSessionCookie && secondSessionHasEmail;
+      let securityPageLoaded = false;
+      if (secondAuthenticated) {
+        try {
+          await assertSecurityPageWithApiSession(browser, httpB);
+          securityPageLoaded = true;
+        } catch {
+          securityPageLoaded = false;
+        }
+      }
+
       await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
         body: serializeKnownBugEvidence({
           issue: BACKUP_REUSE_ISSUE,
@@ -242,15 +301,26 @@ test(
             firstStatus: first.status,
             secondStatus: second.status,
             secondCode: second.code ?? null,
+            secondHasSessionCookie: second.hasSessionCookie,
+            secondSessionHasEmail,
+            secondAuthenticated,
+            securityPageLoaded,
+            ciRun: CI_EVIDENCE_RUN_URL,
+            traceHint:
+              "playwright-test-results/auth-2fa-P1-DOC-2FA-006-spent-backup-code-rejected-documenso-chromium/trace.zip",
           },
           expected: {
             secondStatus: "4xx",
             secondCode: DOC_INVALID_TWO_FACTOR_CODE,
+            secondHasSessionCookie: false,
           },
         }),
         contentType: "application/json",
       });
-      expect(first.status).toBe(201);
+
+      // P7-OBS-DOC-2FA-001 — docs/observations/documenso-2fa-known-issues.md
+      test.fail(true, BACKUP_REUSE_ISSUE);
+
       expect(second.code).toBe(DOC_INVALID_TWO_FACTOR_CODE);
       expect(second.hasSessionCookie).toBe(false);
     } finally {
@@ -270,8 +340,9 @@ test(
       { type: "issue", description: REPLAY_ISSUE },
     ],
   },
-  async ({ twoFactorDocumensoUser }, testInfo) => {
-    test.fail(true, REPLAY_ISSUE);
+  async ({ twoFactorDocumensoUser, browser }, testInfo) => {
+    expect(await readDocumensoTwoFactorEnabled(twoFactorDocumensoUser.id)).toBe(true);
+
     const mintEpochMs = await epochMsForStableTotpMint(REPLAY_TOTP_MIN_MS_LEFT);
     const sharedCode = generateTotpCode(twoFactorDocumensoUser.secret, mintEpochMs);
     const mintStep = totpStepNumber(mintEpochMs);
@@ -283,6 +354,10 @@ test(
         password: twoFactorDocumensoUser.password,
         totpCode: sharedCode,
       });
+      expect(first.status).toBe(201);
+      expect(first.hasSessionCookie).toBe(true);
+      expect(sessionHasEmail(await readSession(httpA), twoFactorDocumensoUser.email)).toBe(true);
+
       const second = await loginViaApi(httpB, {
         email: twoFactorDocumensoUser.email,
         password: twoFactorDocumensoUser.password,
@@ -291,11 +366,27 @@ test(
       const firstStep = totpStepNumber(first.authorizeRequestedAtMs);
       const secondStep = totpStepNumber(second.authorizeRequestedAtMs);
       const sameAuthorizeStep = firstStep === secondStep;
-      const replayRejected =
-        second.code === DOC_INVALID_TWO_FACTOR_CODE && !second.hasSessionCookie;
+      expect(sameAuthorizeStep).toBe(true);
+
+      const secondSession = await readSession(httpB);
+      const secondSessionHasEmail = sessionHasEmail(secondSession, twoFactorDocumensoUser.email);
+      const secondAuthenticated =
+        second.status === 201 && second.hasSessionCookie && secondSessionHasEmail;
+      let securityPageLoaded = false;
+      if (secondAuthenticated) {
+        try {
+          await assertSecurityPageWithApiSession(browser, httpB);
+          securityPageLoaded = true;
+        } catch {
+          securityPageLoaded = false;
+        }
+      }
 
       const replayEvidence = {
         issue: REPLAY_ISSUE,
+        ciRun: CI_EVIDENCE_RUN_URL,
+        traceHint:
+          "playwright-test-results/auth-2fa-P1-DOC-2FA-007-same-window-TOTP-replay-rejected-documenso-chromium/trace.zip",
         mint: {
           epochMs: mintEpochMs,
           step: mintStep,
@@ -312,22 +403,19 @@ test(
           step: secondStep,
           status: second.status,
           code: second.code ?? null,
+          hasSessionCookie: second.hasSessionCookie,
+          sessionHasEmail: secondSessionHasEmail,
+          authenticated: secondAuthenticated,
+          securityPageLoaded,
         },
         sameAuthorizeStep,
         sameStepAsMint: firstStep === mintStep && secondStep === mintStep,
-        sameStepReplayRejected: sameAuthorizeStep && replayRejected,
       };
 
       await testInfo.attach(REPLAY_EVIDENCE_ATTACHMENT, {
         body: JSON.stringify(replayEvidence, null, 2),
         contentType: "application/json",
       });
-
-      if (replayEvidence.sameStepReplayRejected) {
-        throw new Error(
-          `${REPLAY_ISSUE}: replay rejected while both authorize POSTs share TOTP step ${String(firstStep)}`,
-        );
-      }
 
       await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
         body: serializeKnownBugEvidence({
@@ -336,19 +424,25 @@ test(
             firstStatus: first.status,
             secondStatus: second.status,
             secondCode: second.code ?? null,
+            secondHasSessionCookie: second.hasSessionCookie,
             mintStep,
             firstStep,
             secondStep,
             sameAuthorizeStep,
+            ciRun: CI_EVIDENCE_RUN_URL,
           },
           expected: {
             secondStatus: "4xx",
             secondCode: DOC_INVALID_TWO_FACTOR_CODE,
+            secondHasSessionCookie: false,
           },
         }),
         contentType: "application/json",
       });
-      expect(first.status).toBe(201);
+
+      // P7-OBS-DOC-2FA-002 — docs/observations/documenso-2fa-known-issues.md
+      test.fail(true, REPLAY_ISSUE);
+
       expect(second.code).toBe(DOC_INVALID_TWO_FACTOR_CODE);
       expect(second.hasSessionCookie).toBe(false);
     } finally {
@@ -414,6 +508,9 @@ test(
       twoFactorDocumensoUser.id,
     );
 
+    expect(wrongDisableCode).toBe(DOC_INCORRECT_TWO_FACTOR_CODE);
+    expect(twoFactorEnabledAfterWrong).toBe(true);
+
     await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
       body: serializeKnownBugEvidence({
         issue: DISABLE_WRONG_CODE_ISSUE,
@@ -421,6 +518,9 @@ test(
           wrongDisableStatus: wrongDisableResponse.status(),
           wrongDisableCode: wrongDisableCode ?? null,
           twoFactorEnabledAfterWrong,
+          ciRun: CI_EVIDENCE_RUN_URL,
+          traceHint:
+            "playwright-test-results/auth-2fa-P1-DOC-2FA-009-disabling-2FA-requires-a-valid-code-documenso-chromium/trace.zip",
         },
         expected: {
           wrongDisableStatus: "4xx",
@@ -431,9 +531,8 @@ test(
       contentType: "application/json",
     });
 
-    if (wrongDisableResponse.status() >= 500 || !twoFactorEnabledAfterWrong) {
-      test.fail(true, DISABLE_WRONG_CODE_ISSUE);
-    }
+    // P7-OBS-DOC-2FA-004 — docs/observations/documenso-2fa-known-issues.md
+    test.fail(true, DISABLE_WRONG_CODE_ISSUE);
 
     await expect(
       page.getByText("Unable to disable two-factor authentication", { exact: true }),

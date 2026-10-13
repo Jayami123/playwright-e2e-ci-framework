@@ -2,6 +2,8 @@
 const NPM_SCRIPT_PROJECTS: Readonly<Record<string, readonly string[]>> = {
   "test:unit": ["unit"],
   "test:documenso": ["documenso-chromium"],
+  "test:documenso:rate-limit": ["documenso-rate-limit-chromium"],
+  "test:documenso:firefox": ["documenso-firefox"],
   "test:cal": ["cal-chromium"],
   "test:cal:firefox": ["cal-firefox"],
   "test:cal:matrix": ["cal-chromium", "cal-firefox"],

@@ -12,6 +12,10 @@ on:
         description: Run Chromium and Firefox on self-hosted Cal
         type: boolean
         default: false
+      documenso_probe_only:
+        description: Documenso harness up, secure-context preflight, and --list only
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
@@ -26,6 +30,8 @@ jobs:
     with:
       run_browser_matrix: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix) }}
       playwright_browsers_timeout_minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix)) && 20 || 10 }}
+      documenso_probe_only: ${{ github.event_name == 'workflow_dispatch' && inputs.documenso_probe_only }}
+      documenso_self_hosted_timeout_minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.documenso_probe_only && 30 || 90 }}
     secrets: inherit
 
   nightly-alert:
@@ -83,6 +89,8 @@ jobs:
 
           CHROMIUM_MD="$(browser_summary results-chromium.json chromium)"
           FIREFOX_MD="$(browser_summary results-firefox.json firefox)"
+          DOC_CHROMIUM_MD="$(browser_summary results-documenso-chromium.json documenso-chromium)"
+          DOC_FIREFOX_MD="$(browser_summary results-documenso-firefox.json documenso-firefox)"
 
           case "$E2E_RESULT" in
             cancelled|skipped)
@@ -118,6 +126,8 @@ jobs:
             echo ""
             echo "$CHROMIUM_MD"
             echo "$FIREFOX_MD"
+            echo "$DOC_CHROMIUM_MD"
+            echo "$DOC_FIREFOX_MD"
           } > "$BODY_FILE"
 
           if [ -n "$OPEN_ISSUE" ]; then

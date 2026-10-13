@@ -1,7 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { argvForProjectSelection, selectedProjects } from "../../src/core/projects.js";
 
-const ALL = ["cal-setup", "unit", "cal-chromium", "cal-firefox", "documenso-chromium"];
+const ALL = [
+  "cal-setup",
+  "unit",
+  "cal-chromium",
+  "cal-firefox",
+  "documenso-rate-limit-chromium",
+  "documenso-chromium",
+  "documenso-firefox",
+];
 
 test.describe("Playwright --project argv selection", () => {
   test("no --project flag selects every product", { tag: ["@unit"] }, () => {
@@ -42,6 +50,12 @@ test.describe("Playwright --project argv selection", () => {
       expect(selectedProjects(argv, ["cal-chromium", "documenso-chromium"])).toBe(false);
     },
   );
+
+  test("--project=documenso-firefox does not select Cal", { tag: ["@unit"] }, () => {
+    const argv = ["playwright", "test", "--project=documenso-firefox"];
+    expect(selectedProjects(argv, ["documenso-firefox"])).toBe(true);
+    expect(selectedProjects(argv, ["cal-chromium", "cal-firefox", "cal-setup"])).toBe(false);
+  });
 
   test(
     "npm test:cal infers cal-chromium when argv lacks --project",
