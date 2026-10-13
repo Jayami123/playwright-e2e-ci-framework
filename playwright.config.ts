@@ -15,7 +15,21 @@ import {
 process.env.P1_SEED ??= String(Date.now());
 
 const CAL_PROJECT_NAMES = ["cal-setup", "cal-chromium", "cal-firefox"] as const;
-const DOCUMENSO_PROJECT_NAMES = ["documenso-chromium"] as const;
+const DOCUMENSO_PROJECT_NAMES = ["documenso-chromium", "documenso-firefox"] as const;
+
+function documensoRetriesFromEnv(): number {
+  const raw = process.env.P1_DOCUMENSO_RETRIES;
+  if (raw === undefined || raw.trim() === "") {
+    return 0;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`P1_DOCUMENSO_RETRIES must be a non-negative integer, got ${raw}`);
+  }
+  return parsed;
+}
+
+const documensoRetries = documensoRetriesFromEnv();
 
 const projectSelectionArgv = argvForProjectSelection(process.argv);
 
@@ -126,6 +140,7 @@ export default defineConfig({
     {
       name: "documenso-chromium",
       testDir: "./tests/documenso",
+      retries: documensoRetries,
       use: {
         ...devices["Desktop Chrome"],
         ...(runsDocumenso
@@ -138,6 +153,16 @@ export default defineConfig({
               },
             }
           : {}),
+      },
+    },
+    {
+      name: "documenso-firefox",
+      testDir: "./tests/documenso",
+      grep: /P1-DOC-FW-001|P1-DOC-FW-002|P1-DOC-FW-003/,
+      retries: documensoRetries,
+      use: {
+        ...devices["Desktop Firefox"],
+        ...(runsDocumenso ? { baseURL: documensoPublicUrlFromEnv() } : {}),
       },
     },
   ],

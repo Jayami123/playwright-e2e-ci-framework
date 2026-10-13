@@ -163,7 +163,6 @@ test(
     ],
   },
   async ({ twoFactorDocumensoUser }) => {
-    test.fail(true, WRONG_CODE_STATUS_ISSUE);
     const http = await newDocumensoApiContext();
     try {
       const liveCode = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
@@ -220,7 +219,6 @@ test(
     ],
   },
   async ({ twoFactorDocumensoUser }, testInfo) => {
-    test.fail(true, BACKUP_REUSE_ISSUE);
     const backupCode = required(twoFactorDocumensoUser.backupCodes[0], "backupCodes[0]");
     const httpA = await newDocumensoApiContext();
     const httpB = await newDocumensoApiContext();
@@ -271,7 +269,6 @@ test(
     ],
   },
   async ({ twoFactorDocumensoUser }, testInfo) => {
-    test.fail(true, REPLAY_ISSUE);
     const mintEpochMs = await epochMsForStableTotpMint(REPLAY_TOTP_MIN_MS_LEFT);
     const sharedCode = generateTotpCode(twoFactorDocumensoUser.secret, mintEpochMs);
     const mintStep = totpStepNumber(mintEpochMs);
@@ -430,10 +427,6 @@ test(
       }),
       contentType: "application/json",
     });
-
-    if (wrongDisableResponse.status() >= 500 || !twoFactorEnabledAfterWrong) {
-      test.fail(true, DISABLE_WRONG_CODE_ISSUE);
-    }
 
     await expect(
       page.getByText("Unable to disable two-factor authentication", { exact: true }),

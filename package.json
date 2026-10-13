@@ -9,6 +9,7 @@
   "scripts": {
     "test": "playwright test",
     "test:documenso": "playwright test --project=documenso-chromium",
+    "test:documenso:firefox": "playwright test --project=documenso-firefox",
     "test:cal": "playwright test --project=cal-chromium",
     "test:cal:firefox": "playwright test --project=cal-firefox",
     "test:cal:matrix": "playwright test --project=cal-chromium --project=cal-firefox",

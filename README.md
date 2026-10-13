@@ -6,7 +6,7 @@
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.2`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.5`.
 
 ## Scope
 
@@ -120,7 +120,7 @@ npm run report
 
 ## CI
 
-[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, daily schedule `0 18 * * *` (18:00 UTC), and `workflow_dispatch` (optional input `browser_matrix`). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml), which checks out [Jayami123/cal](https://github.com/Jayami123/cal) at `CAL_REF` (`main` in workflow env). Cal build caches are saved only on pushes to `main`. Concurrency group includes `event_name` so scheduled runs do not cancel PRs; PRs still cancel in-progress. Permissions: `contents: read`. Matrix policy: [ADR 0008](docs/adr/0008-cal-browser-matrix.md). On schedule or `browser_matrix` dispatch only, job `nightly-alert` opens or comments on a `nightly-failure` issue when the matrix fails and closes it after the next green run ([ADR 0009](docs/adr/0009-nightly-failure-alerting-via-github-issues.md)).
+[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, daily schedule `0 18 * * *` (18:00 UTC), and `workflow_dispatch` (optional inputs `browser_matrix`, `documenso_probe_only`). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml), which checks out [Jayami123/cal](https://github.com/Jayami123/cal) at `CAL_REF` and [Jayami123/documenso](https://github.com/Jayami123/documenso) at `DOCUMENSO_REF` (`main` in workflow env). Product build caches are saved only on pushes to `main`. PR path filters skip `cal-self-hosted` or `documenso-self-hosted` when unrelated paths change. Concurrency group includes `event_name` so scheduled runs do not cancel PRs; PRs still cancel in-progress. Permissions: `contents: read`. Matrix policy: [ADR 0008](docs/adr/0008-cal-browser-matrix.md). Documenso self-hosted policy: [ADR 0011](docs/adr/0011-documenso-ci.md). On schedule or `browser_matrix` dispatch only, job `nightly-alert` opens or comments on a `nightly-failure` issue when the matrix fails and closes it after the next green run ([ADR 0009](docs/adr/0009-nightly-failure-alerting-via-github-issues.md)).
 
 **Always:** `lint` (actionlint, ESLint, Prettier, and `npm run test:unit`) and `typecheck (always)`.
 
@@ -130,6 +130,8 @@ npm run report
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Set                       | `cal-chromium` shards 1–4 against that URL, then merge Playwright HTML report (job names say they skip without `CAL_E2E_BASE_URL`).                                                                                                                                                                                                                                    |
 | Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed passwords only on the E2E step). Schedule and `workflow_dispatch` with `browser_matrix: true` also run `test:cal:firefox` sequentially with per-browser artifacts. |
+
+**Documenso (always self-hosted, not gated on `CAL_E2E_BASE_URL`):** job `documenso-self-hosted` checks out [Jayami123/documenso](https://github.com/Jayami123/documenso) to `products/documenso`, maps `127.0.0.1 p1.lvh.me`, runs harness `up()` under Node 24, then `npm run test:documenso` on Node 22 (`documenso-chromium`, Chrome channel). `workflow_dispatch` with `documenso_probe_only: true` runs harness `up()`, secure-context preflight, and `playwright --list` only. Nightly / `browser_matrix` also runs `test:documenso:firefox` (`P1-DOC-FW-001..003` only). After the first green PR run, add required check `e2e / documenso-self-hosted` on `main`.
 
 **Browser coverage (`@tz` / `@2fa` matrix cases only)**
 

@@ -24,8 +24,6 @@ import {
 import { serializeKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
 
 const EMPTY_STORAGE = { cookies: [] as [], origins: [] as [] };
-const DUPLICATE_CREDENTIAL_ISSUE =
-  "P7-OBS-DOC-PK-002: Passkey.credentialId has no unique index; duplicate insert succeeded";
 const DUPLICATE_CREDENTIAL_OBSERVATION =
   "P7-OBS-DOC-PK-002: Passkey.credentialId has no unique index (defence-in-depth)";
 
@@ -222,10 +220,6 @@ test(
       });
 
       expect(parsed.procedurePath).toBe(DOCUMENSO_TRPC_PASSKEY_CREATE_PROCEDURE);
-
-      if (secondHttpStatus >= 200 && secondHttpStatus < 300 && passkeyCount === 2) {
-        test.fail(true, DUPLICATE_CREDENTIAL_ISSUE);
-      }
 
       expect(passkeyCount).toBe(1);
       expect(trpcCode).toBe("BAD_REQUEST");
