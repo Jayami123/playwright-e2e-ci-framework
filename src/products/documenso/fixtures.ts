@@ -6,6 +6,7 @@ import { enableTwoFactorViaApi, loginViaApi, setupTwoFactorViaApi } from "./auth
 import { loadDocumensoConfig } from "./env.js";
 import { qaDocumensoUser, type DocumensoQaUser } from "./factories.js";
 import { createDocumensoQaUser, teardownDocumensoQaUserById } from "./qa-user.js";
+import { attachDocumensoTrpc429Guard } from "./trpc-429-guard.js";
 
 export type DocumensoQaUserFixture = DocumensoQaUser & {
   readonly id: number;
@@ -33,96 +34,110 @@ interface DocumensoWorkerFixtures {
   factorySeed: number;
 }
 
-export const test = base.extend<DocumensoFixtures, DocumensoWorkerFixtures>({
-  factorySeed: [
-    // eslint-disable-next-line no-empty-pattern -- Playwright worker fixture declares no upstream dependencies
-    async ({}, use, workerInfo) => {
-      const baseSeed = parsePositiveInt(process.env.P1_SEED, Date.now());
-      const seed = baseSeed + workerInfo.parallelIndex;
-      setFactorySeed(seed);
-      console.log(
-        `P1_SEED=${String(baseSeed)} worker=${String(workerInfo.parallelIndex)} seed=${String(seed)}`,
-      );
-      await use(seed);
-    },
-    { scope: "worker", auto: true },
-  ],
+interface DocumensoAutoFixtures {
+  documensoTrpc429Guard: undefined;
+}
 
-  // eslint-disable-next-line no-empty-pattern -- Playwright fixture declares no upstream dependencies
-  documensoUser: async ({}, use, testInfo) => {
-    const identity = qaDocumensoUser(testInfo.parallelIndex);
-    let userId: number | undefined;
-    const teardownErrors: unknown[] = [];
-    let testError: unknown;
-    try {
-      const created = await createDocumensoQaUser(identity);
-      userId = created.id;
-      await use(created);
-    } catch (error) {
-      testError = error;
-    } finally {
-      if (userId !== undefined) {
-        try {
-          await teardownDocumensoQaUserById(userId);
-        } catch (error) {
-          teardownErrors.push(error);
+export const test = base.extend<DocumensoFixtures & DocumensoAutoFixtures, DocumensoWorkerFixtures>(
+  {
+    documensoTrpc429Guard: [
+      async ({ page }, use) => {
+        attachDocumensoTrpc429Guard(page);
+        await use(undefined);
+      },
+      { auto: true },
+    ],
+
+    factorySeed: [
+      // eslint-disable-next-line no-empty-pattern -- Playwright worker fixture declares no upstream dependencies
+      async ({}, use, workerInfo) => {
+        const baseSeed = parsePositiveInt(process.env.P1_SEED, Date.now());
+        const seed = baseSeed + workerInfo.parallelIndex;
+        setFactorySeed(seed);
+        console.log(
+          `P1_SEED=${String(baseSeed)} worker=${String(workerInfo.parallelIndex)} seed=${String(seed)}`,
+        );
+        await use(seed);
+      },
+      { scope: "worker", auto: true },
+    ],
+
+    // eslint-disable-next-line no-empty-pattern -- Playwright fixture declares no upstream dependencies
+    documensoUser: async ({}, use, testInfo) => {
+      const identity = qaDocumensoUser(testInfo.parallelIndex);
+      let userId: number | undefined;
+      const teardownErrors: unknown[] = [];
+      let testError: unknown;
+      try {
+        const created = await createDocumensoQaUser(identity);
+        userId = created.id;
+        await use(created);
+      } catch (error) {
+        testError = error;
+      } finally {
+        if (userId !== undefined) {
+          try {
+            await teardownDocumensoQaUserById(userId);
+          } catch (error) {
+            teardownErrors.push(error);
+          }
         }
       }
-    }
-    if (testError !== undefined) {
-      teardownErrors.unshift(testError);
-    }
-    if (teardownErrors.length > 0) {
-      throw new AggregateError(teardownErrors, "documensoUser fixture failed");
-    }
-  },
+      if (testError !== undefined) {
+        teardownErrors.unshift(testError);
+      }
+      if (teardownErrors.length > 0) {
+        throw new AggregateError(teardownErrors, "documensoUser fixture failed");
+      }
+    },
 
-  virtualAuthenticator: async ({ page }, use) => {
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send("WebAuthn.enable", { enableUI: false });
-    const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
-      options: {
-        protocol: "ctap2",
-        transport: "internal",
-        hasResidentKey: true,
-        hasUserVerification: true,
-        isUserVerified: true,
-        automaticPresenceSimulation: true,
-      },
-    });
-    try {
-      await use({ authenticatorId, cdp });
-    } finally {
-      await cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }).catch(() => {});
-      await cdp.detach().catch(() => {});
-    }
-  },
+    virtualAuthenticator: async ({ page }, use) => {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("WebAuthn.enable", { enableUI: false });
+      const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+        options: {
+          protocol: "ctap2",
+          transport: "internal",
+          hasResidentKey: true,
+          hasUserVerification: true,
+          isUserVerified: true,
+          automaticPresenceSimulation: true,
+        },
+      });
+      try {
+        await use({ authenticatorId, cdp });
+      } finally {
+        await cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }).catch(() => {});
+        await cdp.detach().catch(() => {});
+      }
+    },
 
-  twoFactorDocumensoUser: async ({ documensoUser }, use) => {
-    const { baseUrl } = loadDocumensoConfig();
-    const http = await request.newContext({ baseURL: baseUrl });
-    try {
-      const login = await loginViaApi(http, {
-        email: documensoUser.email,
-        password: documensoUser.password,
-      });
-      expect(
-        login.status,
-        login.authorizeDiagnostic ?? "twoFactorDocumensoUser password login",
-      ).toBe(201);
-      const setup = await setupTwoFactorViaApi(http);
-      const codeMintedAtMs = Date.now();
-      const enrolCode = generateTotpCode(setup.secret, codeMintedAtMs);
-      const enabled = await enableTwoFactorViaApi(http, enrolCode, codeMintedAtMs);
-      await use({
-        ...documensoUser,
-        secret: setup.secret,
-        backupCodes: enabled.backupCodes,
-      });
-    } finally {
-      await http.dispose();
-    }
+    twoFactorDocumensoUser: async ({ documensoUser }, use) => {
+      const { baseUrl } = loadDocumensoConfig();
+      const http = await request.newContext({ baseURL: baseUrl });
+      try {
+        const login = await loginViaApi(http, {
+          email: documensoUser.email,
+          password: documensoUser.password,
+        });
+        expect(
+          login.status,
+          login.authorizeDiagnostic ?? "twoFactorDocumensoUser password login",
+        ).toBe(201);
+        const setup = await setupTwoFactorViaApi(http);
+        const codeMintedAtMs = Date.now();
+        const enrolCode = generateTotpCode(setup.secret, codeMintedAtMs);
+        const enabled = await enableTwoFactorViaApi(http, enrolCode, codeMintedAtMs);
+        await use({
+          ...documensoUser,
+          secret: setup.secret,
+          backupCodes: enabled.backupCodes,
+        });
+      } finally {
+        await http.dispose();
+      }
+    },
   },
-});
+);
 
 export { expect } from "@playwright/test";

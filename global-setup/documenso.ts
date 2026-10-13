@@ -65,6 +65,8 @@ export default async function documensoGlobalSetup(): Promise<void> {
   }
 
   try {
+    delete process.env.DANGEROUS_BYPASS_RATE_LIMITS;
+    delete process.env.DOCUMENSO_RESTART_WEB;
     const adapter = getAdapter("documenso");
     await adapter.up();
     const deadline = Date.now() + upDeadline;

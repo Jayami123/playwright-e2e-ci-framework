@@ -15,7 +15,20 @@ import {
 process.env.P1_SEED ??= String(Date.now());
 
 const CAL_PROJECT_NAMES = ["cal-setup", "cal-chromium", "cal-firefox"] as const;
-const DOCUMENSO_PROJECT_NAMES = ["documenso-chromium", "documenso-firefox"] as const;
+const DOCUMENSO_PROJECT_NAMES = [
+  "documenso-rate-limit-chromium",
+  "documenso-bypass-setup",
+  "documenso-chromium",
+  "documenso-firefox",
+] as const;
+
+const documensoChromeUse = {
+  baseURL: documensoPublicUrlFromEnv(),
+  channel: "chrome" as const,
+  launchOptions: {
+    args: [documensoTreatInsecureOriginAsSecureLaunchArg()],
+  },
+};
 
 function documensoRetriesFromEnv(): number {
   const raw = process.env.P1_DOCUMENSO_RETRIES;
@@ -138,25 +151,34 @@ export default defineConfig({
       },
     },
     {
+      name: "documenso-rate-limit-chromium",
+      testDir: "./tests/documenso/rate-limit",
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(runsDocumenso ? documensoChromeUse : {}),
+      },
+    },
+    {
+      name: "documenso-bypass-setup",
+      testDir: "./tests/setup",
+      testMatch: /documenso-bypass\.setup\.ts/,
+      dependencies: ["documenso-rate-limit-chromium"],
+      use: { ...devices["Desktop Chrome"], trace: "off" },
+    },
+    {
       name: "documenso-chromium",
+      dependencies: ["documenso-bypass-setup"],
       testDir: "./tests/documenso",
+      testIgnore: /rate-limit\//,
       retries: documensoRetries,
       use: {
         ...devices["Desktop Chrome"],
-        ...(runsDocumenso
-          ? {
-              baseURL: documensoPublicUrlFromEnv(),
-              // Bundled Chromium headless does not honour the insecure-origin flag; Chrome does.
-              channel: "chrome",
-              launchOptions: {
-                args: [documensoTreatInsecureOriginAsSecureLaunchArg()],
-              },
-            }
-          : {}),
+        ...(runsDocumenso ? documensoChromeUse : {}),
       },
     },
     {
       name: "documenso-firefox",
+      dependencies: ["documenso-bypass-setup"],
       testDir: "./tests/documenso",
       grep: /P1-DOC-FW-001|P1-DOC-FW-002|P1-DOC-FW-003/,
       retries: documensoRetries,
