@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import type { APIRequestContext } from "@playwright/test";
+import type { DocumensoSigningRecipient } from "./factories.js";
 import { documensoTimeouts } from "./env.js";
 import { parseDocumensoTrpcHttpBody } from "./trpc.js";
 
@@ -46,6 +48,45 @@ export interface DocumensoTrpcCallResult {
   readonly procedurePath: string | undefined;
   readonly appErrorCode: string | undefined;
   readonly resultStatus: string | undefined;
+}
+
+const FW_EXAMPLE_SIGNATURE_FIELD = {
+  type: "SIGNATURE",
+  page: 1,
+  positionX: 20,
+  positionY: 20,
+  width: 25,
+  height: 5,
+  fieldMeta: { type: "signature" },
+} as const;
+
+function readTrpcJsonId(bodyText: string): string {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(bodyText) as unknown;
+  } catch {
+    throw new Error("tRPC response was not JSON");
+  }
+  if (!isRecord(payload)) {
+    throw new Error("tRPC response JSON was not an object");
+  }
+  const result = payload.result;
+  if (!isRecord(result)) {
+    throw new Error("tRPC response missing result");
+  }
+  const data = result.data;
+  if (!isRecord(data)) {
+    throw new Error("tRPC response missing result.data");
+  }
+  const json = data.json;
+  if (!isRecord(json)) {
+    throw new Error("tRPC response missing result.data.json");
+  }
+  const id = json.id;
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error(`tRPC response missing envelope id: ${bodyText}`);
+  }
+  return id;
 }
 
 async function postTrpc(
@@ -173,6 +214,51 @@ export async function cancelEnvelopeViaTrpc(
   reason: string,
 ): Promise<DocumensoTrpcCallResult> {
   return postTrpc(http, "envelope.cancel", { envelopeId, reason }, teamId);
+}
+
+export async function createAndDistributePendingEnvelopeViaTrpc(
+  http: APIRequestContext,
+  teamId: number,
+  recipient: DocumensoSigningRecipient,
+  pdfPath: string,
+): Promise<{ readonly envelopeId: string }> {
+  const pdf = readFileSync(pdfPath);
+  const payload = {
+    title: "example.pdf",
+    type: "DOCUMENT",
+    recipients: [
+      {
+        email: recipient.email,
+        name: recipient.name,
+        role: "SIGNER",
+        fields: [FW_EXAMPLE_SIGNATURE_FIELD],
+      },
+    ],
+  };
+  const createResponse = await http.post("/api/trpc/envelope.create", {
+    headers: trpcTeamHeaders(teamId),
+    multipart: {
+      payload: JSON.stringify(payload),
+      files: {
+        name: "files",
+        mimeType: "application/pdf",
+        buffer: pdf,
+      },
+    },
+    timeout: documensoTimeouts().request,
+  });
+  const createBody = await createResponse.text();
+  if (!createResponse.ok()) {
+    throw new Error(`envelope.create HTTP ${String(createResponse.status())}: ${createBody}`);
+  }
+  const envelopeId = readTrpcJsonId(createBody);
+  const distribute = await postTrpc(http, "envelope.distribute", { envelopeId }, teamId);
+  if (!distribute.httpStatus.toString().startsWith("2")) {
+    throw new Error(
+      `envelope.distribute HTTP ${String(distribute.httpStatus)}: ${distribute.bodyText}`,
+    );
+  }
+  return { envelopeId };
 }
 
 export function parseEnvelopeIdFromEditorUrl(url: string): string {

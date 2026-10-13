@@ -17,7 +17,7 @@ import {
   setRecipientExpiresAtInPast,
 } from "../../../src/products/documenso/qa-user.js";
 import { expect, test } from "./fixtures.js";
-import { sendExamplePdfToRecipient, teardownRecipientMailbox } from "./send-example-pdf.js";
+import { sendPendingExamplePdfViaTrpc, teardownRecipientMailbox } from "./send-example-pdf.js";
 
 test.setTimeout(documensoTimeouts().journey);
 
@@ -53,7 +53,11 @@ test(
   async ({ browser, page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { sent } = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipient);
+      const { sent } = await sendPendingExamplePdfViaTrpc(
+        page.request,
+        signedInDocumensoUser,
+        recipient,
+      );
       const signingUrl = await pollSigningUrlFromInbucket(recipient.email);
       await signEnvelopeInFreshContext(browser, signingUrl, sent);
 
@@ -94,8 +98,16 @@ test(
     const recipientA = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     const recipientB = qaDocumensoSigningRecipient(testInfo.parallelIndex + 10_000);
     try {
-      const envelopeA = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipientA);
-      const envelopeB = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipientB);
+      const envelopeA = await sendPendingExamplePdfViaTrpc(
+        page.request,
+        signedInDocumensoUser,
+        recipientA,
+      );
+      const envelopeB = await sendPendingExamplePdfViaTrpc(
+        page.request,
+        signedInDocumensoUser,
+        recipientB,
+      );
       const cross = await completeDocumentWithTokenViaTrpc(page.request, {
         token: envelopeA.sent.recipientToken,
         documentId: envelopeB.sent.documentId,
@@ -123,7 +135,11 @@ test(
   async ({ page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { sent } = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipient);
+      const { sent } = await sendPendingExamplePdfViaTrpc(
+        page.request,
+        signedInDocumensoUser,
+        recipient,
+      );
       const signed = await signEnvelopeFieldViaTrpc(page.request, {
         token: sent.recipientToken,
         fieldId: sent.signatureFieldId,
@@ -187,7 +203,11 @@ test(
   async ({ browser, page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { sent } = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipient);
+      const { sent } = await sendPendingExamplePdfViaTrpc(
+        page.request,
+        signedInDocumensoUser,
+        recipient,
+      );
       const tampered = documensoSignPath(`${sent.recipientToken}x`);
       const context = await browser.newContext();
       const tamperedPage = await context.newPage();
@@ -216,7 +236,11 @@ test(
   async ({ browser, page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { sent } = await sendExamplePdfToRecipient(page, signedInDocumensoUser, recipient);
+      const { sent } = await sendPendingExamplePdfViaTrpc(
+        page.request,
+        signedInDocumensoUser,
+        recipient,
+      );
       await setRecipientExpiresAtInPast(sent.recipientToken);
       const signingUrl = await pollSigningUrlFromInbucket(recipient.email);
       const context = await browser.newContext();
@@ -246,8 +270,8 @@ test(
   async ({ browser, page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { envelopeId, sent } = await sendExamplePdfToRecipient(
-        page,
+      const { envelopeId, sent } = await sendPendingExamplePdfViaTrpc(
+        page.request,
         signedInDocumensoUser,
         recipient,
       );
@@ -285,8 +309,8 @@ test(
   async ({ page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { envelopeId, sent } = await sendExamplePdfToRecipient(
-        page,
+      const { envelopeId, sent } = await sendPendingExamplePdfViaTrpc(
+        page.request,
         signedInDocumensoUser,
         recipient,
       );
@@ -354,8 +378,8 @@ test(
   async ({ page, signedInDocumensoUser }, testInfo) => {
     const recipient = qaDocumensoSigningRecipient(testInfo.parallelIndex);
     try {
-      const { envelopeId } = await sendExamplePdfToRecipient(
-        page,
+      const { envelopeId } = await sendPendingExamplePdfViaTrpc(
+        page.request,
         signedInDocumensoUser,
         recipient,
       );
