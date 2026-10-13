@@ -49,7 +49,7 @@ defaults:
 
 env:
   CAL_REF: main
-  DOCUMENSO_REF: main
+  DOCUMENSO_REF: f4105e47eba56f5d8d7e70dd516a8fcc0c870d7c
   DOCUMENSO_E2E_LISTEN_URL: http://127.0.0.1:3001
   DOCUMENSO_E2E_PUBLIC_URL: http://p1.lvh.me:3001
   DOCUMENSO_E2E_DB_URL: postgres://documenso:password@127.0.0.1:5451/documenso
@@ -568,22 +568,42 @@ jobs:
     if: needs.changes.outputs.documenso == 'true'
     env:
       P1_WORKING_DIRECTORY: p1
-      DOCUMENSO_CHECKOUT_PATH: products/documenso
-      PRODUCTS_ROOT: ${{ github.workspace }}/products
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           path: ${{ env.P1_WORKING_DIRECTORY }}
 
-      - name: Checkout Documenso fork
+      - name: Set Documenso paths outside workspace
+        run: |
+          set -euo pipefail
+          # Vite rollup external /playwright/ matches .../playwright-e2e-ci-framework/ entry paths.
+          echo "PRODUCTS_ROOT=${RUNNER_TEMP}/products" >> "$GITHUB_ENV"
+          echo "DOCUMENSO_CHECKOUT_PATH=${RUNNER_TEMP}/products/documenso" >> "$GITHUB_ENV"
+
+      - name: Clone Documenso fork outside workspace
         id: checkout_documenso
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Jayami123/documenso
-          ref: ${{ env.DOCUMENSO_REF }}
-          path: ${{ env.DOCUMENSO_CHECKOUT_PATH }}
-          persist-credentials: false
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${DOCUMENSO_CHECKOUT_PATH}")"
+          if [ -d "${DOCUMENSO_CHECKOUT_PATH}/.git" ]; then
+            rm -rf "${DOCUMENSO_CHECKOUT_PATH}"
+          fi
+          git clone https://github.com/Jayami123/documenso.git "${DOCUMENSO_CHECKOUT_PATH}"
+          git -C "${DOCUMENSO_CHECKOUT_PATH}" checkout "${DOCUMENSO_REF}"
+          head="$(git -C "${DOCUMENSO_CHECKOUT_PATH}" rev-parse HEAD)"
+          if [ "$head" != "${DOCUMENSO_REF}" ]; then
+            echo "::error::Documenso HEAD ${head} does not match DOCUMENSO_REF ${DOCUMENSO_REF}"
+            exit 1
+          fi
+          echo "commit=${head}" >> "$GITHUB_OUTPUT"
+
+      - id: documenso_lockfile
+        name: Hash Documenso package-lock.json
+        run: |
+          set -euo pipefail
+          sum="$(sha256sum "${DOCUMENSO_CHECKOUT_PATH}/package-lock.json" | awk '{print $1}')"
+          echo "hash=${sum}" >> "$GITHUB_OUTPUT"
 
       - name: Stub harness product roots
         run: |
@@ -610,7 +630,7 @@ jobs:
             ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules
             ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules/.prisma
             ${{ env.DOCUMENSO_CHECKOUT_PATH }}/packages/prisma/node_modules
-          key: ${{ runner.os }}-documenso-nm-${{ steps.checkout_documenso.outputs.commit }}-${{ hashFiles(format('{0}/package-lock.json', env.DOCUMENSO_CHECKOUT_PATH)) }}
+          key: ${{ runner.os }}-documenso-nm-${{ steps.checkout_documenso.outputs.commit }}-${{ steps.documenso_lockfile.outputs.hash }}
 
       - name: Restore Documenso Remix build cache
         id: documenso_remix
@@ -636,7 +656,7 @@ jobs:
             ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules
             ${{ env.DOCUMENSO_CHECKOUT_PATH }}/node_modules/.prisma
             ${{ env.DOCUMENSO_CHECKOUT_PATH }}/packages/prisma/node_modules
-          key: ${{ runner.os }}-documenso-nm-${{ steps.checkout_documenso.outputs.commit }}-${{ hashFiles(format('{0}/package-lock.json', env.DOCUMENSO_CHECKOUT_PATH)) }}
+          key: ${{ runner.os }}-documenso-nm-${{ steps.checkout_documenso.outputs.commit }}-${{ steps.documenso_lockfile.outputs.hash }}
 
       - uses: ./p1/.github/actions/setup-p1
         with:
