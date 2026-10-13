@@ -1,0 +1,34 @@
+import "dotenv/config";
+import {
+  countDocumensoEnvelopeLeakRows,
+  countDocumensoQaOrphans,
+  countDocumensoQaPasskeys,
+  countDocumensoQaRateLimitRows,
+  countDocumensoQaUsers,
+} from "../src/products/documenso/qa-user.js";
+
+const users = await countDocumensoQaUsers();
+const orphans = await countDocumensoQaOrphans();
+const passkeys = await countDocumensoQaPasskeys();
+const rateLimitRows = await countDocumensoQaRateLimitRows();
+const envelopeLeaks = await countDocumensoEnvelopeLeakRows();
+console.log(JSON.stringify({ users, orphans, passkeys, rateLimitRows, envelopeLeaks }, null, 2));
+
+const orphanTotal =
+  orphans.orphanOrganisationGlobalSettings +
+  orphans.orphanOrganisationClaim +
+  orphans.orphanOrganisationAuthenticationPortal +
+  orphans.orphanTeamGlobalSettings;
+
+const documentStorageOrphans = envelopeLeaks.orphanDocumentMeta + envelopeLeaks.orphanDocumentData;
+
+if (
+  users > 0 ||
+  orphanTotal > 0 ||
+  passkeys > 0 ||
+  envelopeLeaks.qaEnvelopes > 0 ||
+  envelopeLeaks.qaRecipients > 0 ||
+  documentStorageOrphans > 0
+) {
+  process.exitCode = 1;
+}
