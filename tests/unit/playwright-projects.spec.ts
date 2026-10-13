@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { argvForProjectSelection, selectedProjects } from "../../src/core/projects.js";
 
-const packageJsonPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
+const packageJsonPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "package.json",
+);
 
 const ALL = [
   "cal-setup",
