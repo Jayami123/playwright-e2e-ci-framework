@@ -50,7 +50,9 @@ test(
         const cookies = (await reused.storageState()).cookies;
         expect(documensoHasSessionIdCookie(cookies)).toBe(true);
         await expect(reusedPage).toHaveURL(
-          new RegExp(`${documensoTeamDocumentsPath(documensoUser.teamUrl).replace(/\//g, "\\/")}$`),
+          new RegExp(
+            `${documensoTeamDocumentsPath(documensoUser.teamUrl).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+          ),
         );
       } finally {
         await reused.close();
