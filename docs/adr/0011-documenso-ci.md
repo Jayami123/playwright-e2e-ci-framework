@@ -11,7 +11,7 @@ A full `documenso-chromium` run (~27 tests) exceeds Documenso `apiTrpcRateLimit`
 
 ## Decision
 
-- **Job:** `documenso-self-hosted` in reusable [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml). Independent of `CAL_E2E_BASE_URL`. PR gate: `npm run test:documenso` (runs `P1-DOC-RL-001`, bypass setup, then the full functional project).
+- **Job:** `documenso-self-hosted` in reusable [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml). Independent of `CAL_E2E_BASE_URL`. PR gate: harness `up` (limits enforced) → `npm run test:documenso:rate-limit` → harness `down`/`up` with bypass → `npm run test:documenso` (functional projects only; RL runs in the first phase, not inside `test:documenso`).
 - **Rate limits in functional E2E:** Two harness phases (never edit the Documenso fork `.env`): (1) `up.mjs` without `DANGEROUS_BYPASS_RATE_LIMITS` → `npm run test:documenso:rate-limit` (**P1-DOC-RL-001** only, `P1_PLAYWRIGHT_HARNESS=0`); (2) `down.mjs` then `up.mjs` with `DANGEROUS_BYPASS_RATE_LIMITS=true` → `npm run test:documenso` (functional projects, RL excluded). Bypass is passed via harness `buildDocumensoAppEnv` (read at request time in fork `rate-limit.ts` ~73–79).
 - **P1-DOC-RL-001:** Project `documenso-rate-limit-chromium`; asserts HTTP **429** on the 51st authorize in one IP bucket (`loginRateLimit` globalMax 50 / 15m).
 - **Retries:** `P1_DOCUMENSO_RETRIES` default **0** on functional Documenso projects; Cal keeps CI `retries: 2`.
@@ -21,6 +21,6 @@ A full `documenso-chromium` run (~27 tests) exceeds Documenso `apiTrpcRateLimit`
 
 ## Consequences
 
-- Functional suites are not a substitute for Documenso rate-limit tests; **P1-DOC-RL-001** must stay in the `test:documenso` dependency chain.
+- Functional suites are not a substitute for Documenso rate-limit tests; **P1-DOC-RL-001** must stay in the CI harness phase (`test:documenso:rate-limit`) before the bypass stack, separate from the functional Playwright project graph.
 - Harness **v0.2.6+** is required for bypass env on the Remix child and `down()` stopping the web listener before compose teardown.
 - Required check after first green run: `e2e / documenso-self-hosted`.

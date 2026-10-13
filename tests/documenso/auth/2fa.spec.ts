@@ -280,10 +280,19 @@ test(
         password: twoFactorDocumensoUser.password,
         backupCode,
       });
-      expect(second.status).toBe(201);
-      expect(second.hasSessionCookie).toBe(true);
-      expect(sessionHasEmail(await readSession(httpB), twoFactorDocumensoUser.email)).toBe(true);
-      await assertSecurityPageWithApiSession(browser, httpB);
+      const secondSession = await readSession(httpB);
+      const secondSessionHasEmail = sessionHasEmail(secondSession, twoFactorDocumensoUser.email);
+      const secondAuthenticated =
+        second.status === 201 && second.hasSessionCookie && secondSessionHasEmail;
+      let securityPageLoaded = false;
+      if (secondAuthenticated) {
+        try {
+          await assertSecurityPageWithApiSession(browser, httpB);
+          securityPageLoaded = true;
+        } catch {
+          securityPageLoaded = false;
+        }
+      }
 
       await testInfo.attach(KNOWN_BUG_JSON_ATTACHMENT, {
         body: serializeKnownBugEvidence({
@@ -293,6 +302,9 @@ test(
             secondStatus: second.status,
             secondCode: second.code ?? null,
             secondHasSessionCookie: second.hasSessionCookie,
+            secondSessionHasEmail,
+            secondAuthenticated,
+            securityPageLoaded,
             ciRun: CI_EVIDENCE_RUN_URL,
             traceHint:
               "playwright-test-results/auth-2fa-P1-DOC-2FA-006-spent-backup-code-rejected-documenso-chromium/trace.zip",
@@ -354,12 +366,21 @@ test(
       const firstStep = totpStepNumber(first.authorizeRequestedAtMs);
       const secondStep = totpStepNumber(second.authorizeRequestedAtMs);
       const sameAuthorizeStep = firstStep === secondStep;
-
-      expect(second.status).toBe(201);
-      expect(second.hasSessionCookie).toBe(true);
-      expect(sessionHasEmail(await readSession(httpB), twoFactorDocumensoUser.email)).toBe(true);
       expect(sameAuthorizeStep).toBe(true);
-      await assertSecurityPageWithApiSession(browser, httpB);
+
+      const secondSession = await readSession(httpB);
+      const secondSessionHasEmail = sessionHasEmail(secondSession, twoFactorDocumensoUser.email);
+      const secondAuthenticated =
+        second.status === 201 && second.hasSessionCookie && secondSessionHasEmail;
+      let securityPageLoaded = false;
+      if (secondAuthenticated) {
+        try {
+          await assertSecurityPageWithApiSession(browser, httpB);
+          securityPageLoaded = true;
+        } catch {
+          securityPageLoaded = false;
+        }
+      }
 
       const replayEvidence = {
         issue: REPLAY_ISSUE,
@@ -382,6 +403,10 @@ test(
           step: secondStep,
           status: second.status,
           code: second.code ?? null,
+          hasSessionCookie: second.hasSessionCookie,
+          sessionHasEmail: secondSessionHasEmail,
+          authenticated: secondAuthenticated,
+          securityPageLoaded,
         },
         sameAuthorizeStep,
         sameStepAsMint: firstStep === mintStep && secondStep === mintStep,

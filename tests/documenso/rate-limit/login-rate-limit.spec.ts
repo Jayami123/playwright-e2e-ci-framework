@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../src/products/documenso/fixtures.js";
 import { loginViaApi, newDocumensoApiContext } from "../../../src/products/documenso/auth.js";
 test(
   "P1-DOC-RL-001 login authorize returns 429 after IP bucket exhausted",
