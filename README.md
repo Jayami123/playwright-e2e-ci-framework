@@ -10,11 +10,13 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 ## Scope
 
-Cal.com / Cal.diy only today: auth `storageState`, FW plus timezone/DST booker tests, Chromium, GitHub Actions (self-hosted Cal on PRs or secret-gated external URL).
+**Phase 2e (2026-10-13):** Cal FW, timezone/DST, and 2FA (table below); Documenso auth, 2FA, passkeys, signing framework cases, and rate limits — `P1-DOC-AUTH-000`, `P1-DOC-2FA-001`–`009`, `P1-DOC-PK-001`–`006`, `P1-DOC-FW-001`–`011`, `P1-DOC-RL-001`. PR CI runs Documenso on Chromium (`documenso-chromium`); nightly Firefox covers `P1-DOC-FW-001`–`003`. Self-hosted job: `e2e / documenso-self-hosted` ([ADR 0011](docs/adr/0011-documenso-ci.md)).
 
-**14 of 66** documented P1 cases are implemented: `P1-CAL-FW-001`–`004`, `P1-CAL-TZ-001`–`004`, `P1-CAL-DST-001`–`003`, `P1-CAL-2FA-001`–`003`. Four cases use **`test.fail`** for known Cal issues (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
+Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 2026-10-13** on [CI run 38392549848](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38392549848)): 2FA-004 wrong TOTP HTTP 500; 2FA-006 backup reuse; 2FA-007 TOTP replay; 2FA-009 disable-2FA HTTP 500. Living list: [docs/observations/documenso-2fa-known-issues.md](docs/observations/documenso-2fa-known-issues.md).
 
-Later suites (not in this repo yet): Documenso, Medusa, Twenty; WebKit/Firefox, visual, axe, Slack, GitHub Pages.
+Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
+
+Medusa Admin and Twenty are not in this repo yet; visual, axe, Slack, and GitHub Pages are later.
 
 ## Prerequisites
 
@@ -29,10 +31,12 @@ Later suites (not in this repo yet): Documenso, Medusa, Twenty; WebKit/Firefox, 
 ```
 src/core/                     product-agnostic config, BasePage, console guard, Intl TZ helpers
 src/products/cal/             Cal env, routes, test ids, auth, db, oracle, app shell, pages, fixtures
+src/products/documenso/       Documenso env, auth API, DB, pages, fixtures
 tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/cal/journeys/           FW-001..004
 tests/cal/auth/               2FA-001..003
 tests/cal/tz-i18n/            TZ-001..004, DST-001..003
+tests/documenso/              AUTH, 2FA, passkey, signing FW, rate-limit specs
 tests/unit/                   Intl/timezone helper unit project (no cal-setup)
 global-setup/                 harness up + health + optional dev warmup
 .github/workflows/            lint, typecheck, secret-gated live shards
