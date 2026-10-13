@@ -7,7 +7,7 @@ export class TwentyHomePage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.companiesLink = page.getByRole("link", { name: "Companies" });
-    this.peopleLink = page.getByRole("link", { name: "People" });
+    this.companiesLink = page.getByRole("link", { name: "Companies", exact: true });
+    this.peopleLink = page.getByRole("link", { name: "People", exact: true });
   }
 }

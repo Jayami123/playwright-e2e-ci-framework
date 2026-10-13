@@ -51,6 +51,11 @@ export interface TwentyE2EConfig {
 
 let cached: TwentyE2EConfig | undefined;
 
+/** Clears memoized config so the next `loadTwentyConfig()` re-reads `process.env`. */
+export function resetTwentyConfigCache(): void {
+  cached = undefined;
+}
+
 function assertTwentyBaseUrl(raw: string): string {
   let parsed: URL;
   try {
@@ -88,20 +93,20 @@ export function loadTwentyConfig(): TwentyE2EConfig {
     return cached;
   }
 
-  const baseUrlRaw = (process.env.TWENTY_BASE_URL?.trim() ?? DEFAULT_TWENTY_BASE_URL).trim();
-  const email = (process.env.TWENTY_EMAIL?.trim() ?? TWENTY_HARNESS_DEFAULT_EMAIL).trim();
+  const baseUrlRaw = process.env.TWENTY_BASE_URL?.trim() || DEFAULT_TWENTY_BASE_URL;
+  const email = process.env.TWENTY_EMAIL?.trim() || TWENTY_HARNESS_DEFAULT_EMAIL;
   const password = process.env.TWENTY_PASSWORD?.trim() || TWENTY_HARNESS_DEFAULT_PASSWORD;
-  const dbUrlRaw = (process.env.TWENTY_DB_URL?.trim() ?? DEFAULT_TWENTY_DB_URL).trim();
+  const dbUrlRaw = process.env.TWENTY_DB_URL?.trim() || DEFAULT_TWENTY_DB_URL;
   const productsRoot = process.env.PRODUCTS_ROOT?.trim() || DEFAULT_PRODUCTS_ROOT;
 
   const baseUrl = assertTwentyBaseUrl(baseUrlRaw);
   const dbUrl = assertTwentyDbUrl(dbUrlRaw);
 
-  process.env.PRODUCTS_ROOT ??= productsRoot;
-  process.env.TWENTY_BASE_URL ??= baseUrl;
-  process.env.TWENTY_EMAIL ??= email;
-  process.env.TWENTY_PASSWORD ??= password;
-  process.env.TWENTY_DB_URL ??= dbUrl;
+  process.env.PRODUCTS_ROOT ||= productsRoot;
+  process.env.TWENTY_BASE_URL ||= baseUrl;
+  process.env.TWENTY_EMAIL ||= email;
+  process.env.TWENTY_PASSWORD ||= password;
+  process.env.TWENTY_DB_URL ||= dbUrl;
 
   cached = {
     baseUrl,
@@ -119,5 +124,5 @@ export function twentyTimeouts(): TwentyTimeoutBudget {
 }
 
 export function twentyBaseUrlFromEnv(): string {
-  return (process.env.TWENTY_BASE_URL?.trim() ?? DEFAULT_TWENTY_BASE_URL).trim();
+  return process.env.TWENTY_BASE_URL?.trim() || DEFAULT_TWENTY_BASE_URL;
 }
