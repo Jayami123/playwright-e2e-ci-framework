@@ -1,6 +1,6 @@
 import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
 import { normalizeBaseUrl, parsePositiveInt } from "./src/core/config.js";
-import { selectedProjects } from "./src/core/projects.js";
+import { argvForProjectSelection, selectedProjects } from "./src/core/projects.js";
 import {
   resolvePlaywrightBlobReportDir,
   resolvePlaywrightJsonReportFile,
@@ -8,8 +8,8 @@ import {
 } from "./src/core/playwright-json-summary.js";
 import { loadConfig, parseWebMode, skipLiveCal, TIMEOUTS } from "./src/products/cal/env.js";
 import {
+  documensoPublicUrlFromEnv,
   documensoTreatInsecureOriginAsSecureLaunchArg,
-  loadDocumensoConfig,
 } from "./src/products/documenso/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
@@ -17,22 +17,14 @@ process.env.P1_SEED ??= String(Date.now());
 const CAL_PROJECT_NAMES = ["cal-setup", "cal-chromium", "cal-firefox"] as const;
 const DOCUMENSO_PROJECT_NAMES = ["documenso-chromium"] as const;
 
-/** Playwright often loads config without --project on argv; npm_lifecycle_event disambiguates test:unit / test:documenso. */
+const projectSelectionArgv = argvForProjectSelection(process.argv);
+
 function runsCalProject(): boolean {
-  if (process.env.npm_lifecycle_event === "test:unit") {
-    return false;
-  }
-  return selectedProjects(process.argv, CAL_PROJECT_NAMES);
+  return selectedProjects(projectSelectionArgv, CAL_PROJECT_NAMES);
 }
 
 function runsDocumensoProject(): boolean {
-  if (process.env.npm_lifecycle_event === "test:unit") {
-    return false;
-  }
-  if (process.env.npm_lifecycle_event === "test:documenso") {
-    return true;
-  }
-  return selectedProjects(process.argv, DOCUMENSO_PROJECT_NAMES);
+  return selectedProjects(projectSelectionArgv, DOCUMENSO_PROJECT_NAMES);
 }
 
 const runsCal = runsCalProject();
@@ -138,7 +130,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         ...(runsDocumenso
           ? {
-              baseURL: loadDocumensoConfig().baseUrl,
+              baseURL: documensoPublicUrlFromEnv(),
               // Bundled Chromium headless does not honour the insecure-origin flag; Chrome does.
               channel: "chrome",
               launchOptions: {

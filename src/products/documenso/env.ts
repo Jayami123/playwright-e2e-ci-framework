@@ -155,8 +155,12 @@ export function documensoTimeouts(): DocumensoTimeoutBudget {
   return DOCUMENSO_TIMEOUTS;
 }
 
+/** Public origin for Playwright baseURL / launch flags without requiring DOCUMENSO_DB_URL. */
+export function documensoPublicUrlFromEnv(): string {
+  return (process.env.DOCUMENSO_PUBLIC_URL?.trim() ?? DEFAULT_DOCUMENSO_PUBLIC_URL).trim();
+}
+
 /** Chromium flag so HTTP passkey origin (non-localhost host) is a secure context for WebAuthn. */
 export function documensoTreatInsecureOriginAsSecureLaunchArg(): string {
-  const publicUrl = loadDocumensoConfig().baseUrl;
-  return `--unsafely-treat-insecure-origin-as-secure=${publicUrl}`;
+  return `--unsafely-treat-insecure-origin-as-secure=${documensoPublicUrlFromEnv()}`;
 }

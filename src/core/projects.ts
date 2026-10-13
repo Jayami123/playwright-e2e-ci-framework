@@ -1,3 +1,38 @@
+/** npm scripts that pass --project on the CLI; Playwright config load often omits them from argv. */
+const NPM_SCRIPT_PROJECTS: Readonly<Record<string, readonly string[]>> = {
+  "test:unit": ["unit"],
+  "test:documenso": ["documenso-chromium"],
+  "test:cal": ["cal-chromium"],
+  "test:cal:firefox": ["cal-firefox"],
+  "test:cal:matrix": ["cal-chromium", "cal-firefox"],
+  "test:smoke": ["cal-chromium"],
+  "test:cal:headed": ["cal-chromium"],
+  "test:cal:debug": ["cal-chromium"],
+};
+
+/**
+ * When Playwright loads config, argv may lack --project even though npm run test:cal did.
+ * Infer projects from npm_lifecycle_event only when argv has no --project flags.
+ */
+export function argvForProjectSelection(argv: readonly string[]): readonly string[] {
+  if (parseProjectFlags(argv).length > 0) {
+    return argv;
+  }
+  const lifecycle = process.env.npm_lifecycle_event?.trim();
+  if (lifecycle === undefined || lifecycle === "") {
+    return argv;
+  }
+  const projects = NPM_SCRIPT_PROJECTS[lifecycle];
+  if (projects === undefined) {
+    return argv;
+  }
+  const injected: string[] = [];
+  for (const name of projects) {
+    injected.push("--project", name);
+  }
+  return [...argv, ...injected];
+}
+
 /**
  * Mirrors Playwright's --project selection: case-insensitive names, * wildcards,
  * both --project=a and --project a b. With no --project flag, every name matches.

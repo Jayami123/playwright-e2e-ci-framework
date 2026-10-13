@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { selectedProjects } from "../../src/core/projects.js";
+import {
+  argvForProjectSelection,
+  selectedProjects,
+} from "../../src/core/projects.js";
 
 const ALL = ["cal-setup", "unit", "cal-chromium", "cal-firefox", "documenso-chromium"];
 
@@ -42,4 +45,22 @@ test.describe("Playwright --project argv selection", () => {
       expect(selectedProjects(argv, ["cal-chromium", "documenso-chromium"])).toBe(false);
     },
   );
+
+  test("npm test:cal infers cal-chromium when argv lacks --project", {
+    tag: ["@unit"],
+  }, () => {
+    const prior = process.env.npm_lifecycle_event;
+    process.env.npm_lifecycle_event = "test:cal";
+    try {
+      const argv = argvForProjectSelection(["node", "playwright", "test"]);
+      expect(selectedProjects(argv, ["cal-chromium"])).toBe(true);
+      expect(selectedProjects(argv, ["documenso-chromium"])).toBe(false);
+    } finally {
+      if (prior === undefined) {
+        delete process.env.npm_lifecycle_event;
+      } else {
+        process.env.npm_lifecycle_event = prior;
+      }
+    }
+  });
 });
