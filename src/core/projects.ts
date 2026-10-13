@@ -1,5 +1,6 @@
 /** npm scripts that pass --project on the CLI; Playwright config load often omits them from argv. */
 const NPM_SCRIPT_PROJECTS: Readonly<Record<string, readonly string[]>> = {
+  test: ["unit"],
   "test:unit": ["unit"],
   "test:documenso": ["documenso-chromium"],
   "test:documenso:rate-limit": ["documenso-rate-limit-chromium"],
