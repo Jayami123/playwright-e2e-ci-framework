@@ -7,7 +7,7 @@
   },
   "packageManager": "npm@10.9.3",
   "scripts": {
-    "test": "playwright test",
+    "test": "playwright test --project=unit",
     "test:documenso": "playwright test --project=documenso-chromium",
     "test:documenso:rate-limit": "playwright test --project=documenso-rate-limit-chromium",
     "test:documenso:firefox": "playwright test --project=documenso-firefox",

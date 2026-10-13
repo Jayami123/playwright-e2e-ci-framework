@@ -1,5 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { argvForProjectSelection, selectedProjects } from "../../src/core/projects.js";
+
+const packageJsonPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
 
 const ALL = [
   "cal-setup",
@@ -123,5 +128,13 @@ test.describe("Playwright --project argv selection", () => {
     const argv = ["playwright", "test", "--project=twenty-chromium"];
     expect(selectedProjects(argv, ["twenty-chromium"])).toBe(true);
     expect(selectedProjects(argv, ["cal-chromium", "cal-setup", "documenso-chromium"])).toBe(false);
+  });
+
+  test("npm test script limits Playwright to the unit project", { tag: ["@unit"] }, () => {
+    const raw = fs.readFileSync(packageJsonPath, "utf8");
+    const scripts = JSON.parse(raw) as { scripts?: { test?: string } };
+    const testScript = scripts.scripts?.test ?? "";
+    expect(testScript).toContain("--project=unit");
+    expect(testScript).not.toMatch(/\btest:twenty\b/);
   });
 });
