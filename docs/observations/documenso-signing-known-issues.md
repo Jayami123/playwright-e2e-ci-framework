@@ -8,6 +8,14 @@
 
 **Classification:** UX inconsistency (stale signing chrome while mutations reject). Not a harness `test.fail` item; API coverage lives in **P1-DOC-FW-010**.
 
+## P7-OBS-DOC-FW-005 (low): orphan DocumentMeta / DocumentData after envelope delete
+
+**Observed (verified, CI run [38390915947](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38390915947), `documenso-self-hosted`):** After the full Documenso chromium suite (27 tests: 23 passed, 4 expected 2FA failures), `scripts/count-documenso-qa-leaks.mts` reported **orphanDocumentMeta=11** and **orphanDocumentData=14**. **users**, organisation orphans, **passkeys**, **qaEnvelopes**, and **qaRecipients** were all **0**.
+
+**Cause:** Documenso does not always remove `DocumentMeta` / `DocumentData` rows when envelopes are deleted during signing tests (product cleanup gap), not missing P1 teardown.
+
+**Harness:** The leak script still fails on QA users, org orphans, passkeys, `qaEnvelopes`, and `qaRecipients`. Orphan document storage is printed and appended to the GitHub job summary under this finding; the job fails only if either count exceeds the script ceiling (100).
+
 ## P7-OBS-DOC-FW-009 (TEST BUG, fixed 2026-10-13)
 
 **Evidence:** FW-009 failed in full `@fw` after tests 001–007. Trace `test.trace` (monotonic ms): navigate `/t/personal_15e2e48730a33702/documents` at **75687**; `waitForURL` done **76561**; `GET /api/limits` waiter done **76879**; **Documents** heading + upload `aria-disabled` checks passed at **76880–77052**; upload click at **77077** — button **detached from DOM** during retry; failure screenshot **404 Team not found**.
