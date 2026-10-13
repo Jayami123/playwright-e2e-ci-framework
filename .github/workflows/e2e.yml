@@ -292,6 +292,13 @@ jobs:
           corepack enable
           yarn install --immutable
 
+      - name: Generate Cal Prisma client
+        working-directory: ${{ env.CAL_CHECKOUT_PATH }}
+        run: |
+          set -euo pipefail
+          corepack enable
+          yarn workspace @calcom/prisma prisma generate
+
       - name: Save Cal Yarn cache
         if: >-
           ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -1,10 +1,6 @@
 import type { APIRequestContext, Browser, Response } from "@playwright/test";
-import {
-  epochMsForStableTotpMint,
-  generateTotpCode,
-  totpMsLeftInStep,
-  totpStepNumber,
-} from "../../../src/core/totp.js";
+import { totpMsLeftInStep, totpStepNumber } from "../../../src/core/totp.js";
+import { mintDocumensoTotpCode } from "../../../src/products/documenso/totp-mint.js";
 import { required } from "../../../src/core/required.js";
 import {
   KNOWN_BUG_JSON_ATTACHMENT,
@@ -85,8 +81,7 @@ test(
     const security = new SecuritySettingsPage(page);
     await security.goto();
     const secret = await security.openEnableTwoFactorFlow();
-    const codeMintedAtMs = Date.now();
-    const enrolCode = generateTotpCode(secret, codeMintedAtMs);
+    const { code: enrolCode, mintedAtMs: codeMintedAtMs } = await mintDocumensoTotpCode(secret);
     const backupCodes = await security.submitEnrolmentToken(enrolCode, codeMintedAtMs);
     expect(backupCodes.length).toBe(10);
     await security.expectRecoveryCodesSection();
@@ -123,7 +118,7 @@ test(
       twoFactorDocumensoUser.email,
       twoFactorDocumensoUser.password,
     );
-    const code = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
+    const { code } = await mintDocumensoTotpCode(twoFactorDocumensoUser.secret);
     await signIn.fillTotpToken(code);
     const response = await signIn.submitTwoFactorSignIn();
     expect(response.status(), await signIn.authorizeFailureMessage(response)).toBe(201);
@@ -151,7 +146,7 @@ test(
       twoFactorDocumensoUser.email,
       twoFactorDocumensoUser.password,
     );
-    const liveCode = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
+    const { code: liveCode } = await mintDocumensoTotpCode(twoFactorDocumensoUser.secret);
     const wrongCode = wrongTotpCodeFromLive(liveCode);
     await signIn.fillTotpToken(wrongCode);
     const response = await signIn.submitTwoFactorSignIn();
@@ -184,7 +179,7 @@ test(
 
     const http = await newDocumensoApiContext();
     try {
-      const liveCode = generateTotpCode(twoFactorDocumensoUser.secret, Date.now());
+      const { code: liveCode } = await mintDocumensoTotpCode(twoFactorDocumensoUser.secret);
       const wrongCode = wrongTotpCodeFromLive(liveCode);
       expect(wrongCode).not.toBe(liveCode);
 
@@ -343,8 +338,10 @@ test(
   async ({ twoFactorDocumensoUser, browser }, testInfo) => {
     expect(await readDocumensoTwoFactorEnabled(twoFactorDocumensoUser.id)).toBe(true);
 
-    const mintEpochMs = await epochMsForStableTotpMint(REPLAY_TOTP_MIN_MS_LEFT);
-    const sharedCode = generateTotpCode(twoFactorDocumensoUser.secret, mintEpochMs);
+    const { code: sharedCode, mintedAtMs: mintEpochMs } = await mintDocumensoTotpCode(
+      twoFactorDocumensoUser.secret,
+      REPLAY_TOTP_MIN_MS_LEFT,
+    );
     const mintStep = totpStepNumber(mintEpochMs);
     const httpA = await newDocumensoApiContext();
     const httpB = await newDocumensoApiContext();
@@ -489,8 +486,7 @@ test(
     ],
   },
   async ({ page, twoFactorDocumensoUser }, testInfo) => {
-    const loginMintedAtMs = Date.now();
-    const loginTotp = generateTotpCode(twoFactorDocumensoUser.secret, loginMintedAtMs);
+    const { code: loginTotp } = await mintDocumensoTotpCode(twoFactorDocumensoUser.secret);
     const sessionLogin = await loginViaApi(page.request, {
       email: twoFactorDocumensoUser.email,
       password: twoFactorDocumensoUser.password,
@@ -544,8 +540,7 @@ test(
     expect(wrongDisableResponse.status()).toBeGreaterThanOrEqual(400);
     expect(wrongDisableResponse.status()).toBeLessThan(500);
 
-    const disableMintedAtMs = Date.now();
-    const disableTotp = generateTotpCode(twoFactorDocumensoUser.secret, disableMintedAtMs);
+    const { code: disableTotp } = await mintDocumensoTotpCode(twoFactorDocumensoUser.secret);
     await security.fillDisableTotpCode(disableTotp);
     const disableResponse = await security.submitDisableTwoFactor();
     expect(disableResponse.status()).toBe(201);

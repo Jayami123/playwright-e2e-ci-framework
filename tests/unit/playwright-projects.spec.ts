@@ -57,6 +57,22 @@ test.describe("Playwright --project argv selection", () => {
     expect(selectedProjects(argv, ["cal-chromium", "cal-firefox", "cal-setup"])).toBe(false);
   });
 
+  test("npm test infers unit only when argv lacks --project", { tag: ["@unit"] }, () => {
+    const prior = process.env.npm_lifecycle_event;
+    process.env.npm_lifecycle_event = "test";
+    try {
+      const argv = argvForProjectSelection(["node", "playwright", "test"]);
+      expect(selectedProjects(argv, ["unit"])).toBe(true);
+      expect(selectedProjects(argv, ["cal-chromium", "documenso-chromium"])).toBe(false);
+    } finally {
+      if (prior === undefined) {
+        delete process.env.npm_lifecycle_event;
+      } else {
+        process.env.npm_lifecycle_event = prior;
+      }
+    }
+  });
+
   test(
     "npm test:cal infers cal-chromium when argv lacks --project",
     {

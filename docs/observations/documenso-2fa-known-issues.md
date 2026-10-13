@@ -1,8 +1,10 @@
 # Documenso 2FA known product issues (Phase 2e)
 
-Recorded for `P1-DOC-2FA-004`, `006`, `007`, and `009`. Playwright `test.fail()` runs after setup assertions and evidence attach, immediately before the strict security oracle. CI proof: GitHub Actions run [38388797450](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38388797450) (`documenso-self-hosted`, `documenso-chromium`: 23 passed, 4 expected failures).
+Recorded for `P1-DOC-2FA-004`, `006`, `007`, and `009`. Playwright `test.fail()` runs after setup assertions and evidence attach, immediately before the strict security oracle.
 
-Download traces from the `playwright-test-results` artifact on that run (paths below are relative to the artifact root).
+**CI proof:** GitHub Actions run [38392549848](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38392549848) (`documenso-self-hosted`, `documenso-chromium`: 23 passed, 4 expected failures). Run [38388797450](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38388797450) was the first run that showed these bugs (that job failed the leak check).
+
+Download traces from the `playwright-test-results` artifact on run **38392549848** (paths below are relative to the artifact root).
 
 ## P7-OBS-DOC-2FA-003 (P1-DOC-2FA-004)
 
@@ -18,7 +20,7 @@ Download traces from the `playwright-test-results` artifact on that run (paths b
 
 **Trace:** `auth-2fa-P1-DOC-2FA-006-spent-backup-code-rejected-documenso-chromium/trace.zip`
 
-**Test:** first backup login asserts 201 + session API; second reuse asserts 201 + session API + security page; then `test.fail` before spent-code rejection asserts.
+**Test:** first backup login asserts HTTP 201, session cookie, and session API email; second reuse is recorded (`secondStatus`, cookie, session email, `securityPageLoaded`) into `known-bug.json`; then `test.fail`; then spent-code oracle (`INVALID_TWO_FACTOR_CODE`, no session cookie). Product still accepts the backup twice (**Observed** above).
 
 ## P7-OBS-DOC-2FA-002 (P1-DOC-2FA-007)
 
@@ -27,6 +29,8 @@ Download traces from the `playwright-test-results` artifact on that run (paths b
 **Trace:** `auth-2fa-P1-DOC-2FA-007-same-window-TOTP-replay-rejected-documenso-chromium/trace.zip`
 
 **Attachment:** `replay-totp-evidence.json` (mint step, authorize timestamps, statuses).
+
+**Test:** first TOTP login asserts HTTP 201, session cookie, and session API email; second login is recorded into `replay-totp-evidence.json` and `known-bug.json` (including `securityPageLoaded`); same TOTP window step is asserted on both authorize calls; then `test.fail`; then replay-reject oracle (`INVALID_TWO_FACTOR_CODE`, no session cookie).
 
 ## P7-OBS-DOC-2FA-004 (P1-DOC-2FA-009)
 
