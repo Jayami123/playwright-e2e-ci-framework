@@ -39,19 +39,14 @@ export default async function twentyGlobalSetup(): Promise<void> {
     );
   } else {
     try {
-      await adapter.waitHealthy(deadline - Date.now());
+      await adapter.up();
+      await waitForHealthz(adapter.baseUrl, deadline);
       console.log(`Twenty healthy at ${adapter.baseUrl} (${adapter.productRoot})`);
-    } catch (waitError) {
-      try {
-        await adapter.up();
-        await waitForHealthz(adapter.baseUrl, deadline);
-        console.log(`Twenty healthy at ${adapter.baseUrl} (${adapter.productRoot})`);
-      } catch (error) {
-        throw new Error(
-          "Twenty did not become healthy. From qa-portfolio-harness run: node scripts/up.mjs twenty",
-          { cause: error ?? waitError },
-        );
-      }
+    } catch (error) {
+      throw new Error(
+        "Twenty did not become healthy. From qa-portfolio-harness run: node scripts/up.mjs twenty",
+        { cause: error },
+      );
     }
   }
 
