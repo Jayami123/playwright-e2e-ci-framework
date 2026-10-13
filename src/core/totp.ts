@@ -42,6 +42,11 @@ function delay(ms: number): Promise<void> {
  * rechecks (setTimeout can fire ~1 ms early).
  */
 export async function epochMsForStableTotpMint(minMsLeftInStep: number): Promise<number> {
+  if (!Number.isFinite(minMsLeftInStep) || minMsLeftInStep < 0 || minMsLeftInStep > TOTP_STEP_MS) {
+    throw new RangeError(
+      `minMsLeftInStep must be between 0 and ${String(TOTP_STEP_MS)} ms, got ${String(minMsLeftInStep)}`,
+    );
+  }
   let now = Date.now();
   while (totpMsLeftInStep(now) < minMsLeftInStep) {
     const nextBoundary = (totpStepNumber(now) + 1) * TOTP_STEP_MS;
