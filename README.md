@@ -6,7 +6,7 @@
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.6`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.7`.
 
 ## Scope
 
@@ -16,7 +16,7 @@ Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 202
 
 Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
 
-Medusa Admin and Twenty are not in this repo yet; visual, axe, Slack, and GitHub Pages are later.
+**Phase 2f (2026-10-13):** Twenty smoke wiring (`npm run test:twenty`, `@twenty-smoke`); timezone cases P1-TW-TZ-001..003 are planned next. Twenty is **not in CI yet** (known gap). Medusa Admin is not wired here yet; visual, axe, Slack, and GitHub Pages are later.
 
 ## Prerequisites
 
@@ -32,7 +32,10 @@ Medusa Admin and Twenty are not in this repo yet; visual, axe, Slack, and GitHub
 src/core/                     product-agnostic config, BasePage, console guard, Intl TZ helpers
 src/products/cal/             Cal env, routes, test ids, auth, db, oracle, app shell, pages, fixtures
 src/products/documenso/       Documenso env, auth API, DB, pages, fixtures
+src/products/twenty/          Twenty env, login/home pages
 tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
+tests/setup/twenty.setup.ts   UI login writes .auth/twenty-jane.json every run
+tests/twenty/smoke/           @twenty-smoke home spec (no P1-TW-TZ IDs yet)
 tests/cal/journeys/           FW-001..004
 tests/cal/auth/               2FA-001..003
 tests/cal/tz-i18n/            TZ-001..004, DST-001..003
@@ -92,6 +95,27 @@ npm run report
 
 `npm run test:cal` `globalSetup` calls `getAdapter('cal').up()` then waits until `GET /api/auth/csrf` returns 200.
 
+### Run Twenty locally
+
+Twenty needs the [twenty-CRM](https://github.com/twentyhq/twenty) fork under `PRODUCTS_ROOT` (default `../products/twenty-CRM`). Start the stack through the harness only (do not run fork `docker compose` by hand):
+
+```powershell
+$env:PRODUCTS_ROOT = "D:\Jayami\Portfolio\products"
+node node_modules/qa-portfolio-harness/scripts/up.mjs twenty
+npm run test:twenty
+```
+
+`globalSetup` waits on `GET /healthz` (HTTP 200), calls `getAdapter('twenty').up()` when needed, then `seed()`. `twenty-setup` UI-logs in as Jane and writes `.auth/twenty-jane.json` on every run ([ADR 0012](docs/adr/0012-twenty-ui-storage-state.md)).
+
+If `node node_modules/qa-portfolio-harness/scripts/smoke.mjs twenty` or `npm run test:twenty` prints `dist/ is missing. Run npm run build first`, npm skipped harness `prepare` (`allowScripts`). Build the harness package once:
+
+```powershell
+cd node_modules/qa-portfolio-harness
+npx tsc
+```
+
+CI `npm ci` still runs `prepare`.
+
 ## Debug
 
 | Command                            | What it does                              |
@@ -100,6 +124,7 @@ npm run report
 | `npm run test:cal:firefox`         | Firefox `@tz` and `@2fa` only             |
 | `npm run test:cal:matrix`          | Chromium + Firefox matrix (CI nightly)    |
 | `npm run test:cal:debug`           | Playwright Inspector                      |
+| `npm run test:twenty`              | Twenty Chromium smoke (`twenty-chromium`) |
 | `npx playwright test --ui`         | UI mode                                   |
 | `npx playwright show-trace <path>` | Trace viewer (`trace: retain-on-failure`) |
 

@@ -11,6 +11,7 @@ const NPM_SCRIPT_PROJECTS: Readonly<Record<string, readonly string[]>> = {
   "test:smoke": ["cal-chromium"],
   "test:cal:headed": ["cal-chromium"],
   "test:cal:debug": ["cal-chromium"],
+  "test:twenty": ["twenty-chromium"],
 };
 
 /**

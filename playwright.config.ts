@@ -11,6 +11,11 @@ import {
   documensoPublicUrlFromEnv,
   documensoTreatInsecureOriginAsSecureLaunchArg,
 } from "./src/products/documenso/env.js";
+import {
+  loadTwentyConfig,
+  twentyBaseUrlFromEnv,
+  twentyTimeouts,
+} from "./src/products/twenty/env.js";
 
 process.env.P1_SEED ??= String(Date.now());
 
@@ -20,6 +25,7 @@ const DOCUMENSO_PROJECT_NAMES = [
   "documenso-chromium",
   "documenso-firefox",
 ] as const;
+const TWENTY_PROJECT_NAMES = ["twenty-setup", "twenty-chromium"] as const;
 
 const documensoChromeUse = {
   baseURL: documensoPublicUrlFromEnv(),
@@ -53,8 +59,13 @@ function runsDocumensoProject(): boolean {
   return selectedProjects(projectSelectionArgv, DOCUMENSO_PROJECT_NAMES);
 }
 
+function runsTwentyProject(): boolean {
+  return selectedProjects(projectSelectionArgv, TWENTY_PROJECT_NAMES);
+}
+
 const runsCal = runsCalProject();
 const runsDocumenso = runsDocumensoProject();
+const runsTwenty = runsTwentyProject();
 
 /** Set by `npm run test:unit` so globalSetup does not start product harnesses. */
 function shouldStartHarness(): boolean {
@@ -84,7 +95,14 @@ if (shouldStartHarness()) {
   if (runsDocumenso) {
     harnessSetups.push("./global-setup/documenso.ts");
   }
+  if (runsTwenty) {
+    harnessSetups.push("./global-setup/twenty.ts");
+  }
 }
+
+const twentyChromeUse = {
+  baseURL: runsTwenty ? loadTwentyConfig().baseUrl : twentyBaseUrlFromEnv(),
+};
 
 const jsonReportFile = resolvePlaywrightJsonReportFile();
 const junitReportFile = resolvePlaywrightJUnitReportFile();
@@ -176,6 +194,32 @@ export default defineConfig({
       use: {
         ...devices["Desktop Firefox"],
         ...(runsDocumenso ? { baseURL: documensoPublicUrlFromEnv() } : {}),
+      },
+    },
+    {
+      name: "twenty-setup",
+      testDir: "./tests/setup",
+      testMatch: /twenty\.setup\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(runsTwenty ? twentyChromeUse : {}),
+        trace: "off",
+      },
+    },
+    {
+      name: "twenty-chromium",
+      dependencies: ["twenty-setup"],
+      testDir: "./tests/twenty",
+      timeout: twentyTimeouts().test,
+      expect: { timeout: twentyTimeouts().expect },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(runsTwenty
+          ? {
+              ...twentyChromeUse,
+              storageState: loadTwentyConfig().authStatePath,
+            }
+          : {}),
       },
     },
   ],

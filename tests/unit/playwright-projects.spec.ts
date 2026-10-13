@@ -1,5 +1,15 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { argvForProjectSelection, selectedProjects } from "../../src/core/projects.js";
+
+const packageJsonPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "package.json",
+);
 
 const ALL = [
   "cal-setup",
@@ -9,6 +19,8 @@ const ALL = [
   "documenso-rate-limit-chromium",
   "documenso-chromium",
   "documenso-firefox",
+  "twenty-setup",
+  "twenty-chromium",
 ];
 
 test.describe("Playwright --project argv selection", () => {
@@ -38,6 +50,7 @@ test.describe("Playwright --project argv selection", () => {
     const argv = ["test", "--project=*chromium"];
     expect(selectedProjects(argv, ["cal-chromium"])).toBe(true);
     expect(selectedProjects(argv, ["documenso-chromium"])).toBe(true);
+    expect(selectedProjects(argv, ["twenty-chromium"])).toBe(true);
     expect(selectedProjects(argv, ["cal-firefox"])).toBe(false);
   });
 
@@ -85,6 +98,7 @@ test.describe("Playwright --project argv selection", () => {
         const argv = argvForProjectSelection(["node", "playwright", "test"]);
         expect(selectedProjects(argv, ["cal-chromium"])).toBe(true);
         expect(selectedProjects(argv, ["documenso-chromium"])).toBe(false);
+        expect(selectedProjects(argv, ["twenty-chromium", "twenty-setup"])).toBe(false);
       } finally {
         if (prior === undefined) {
           delete process.env.npm_lifecycle_event;
@@ -94,4 +108,38 @@ test.describe("Playwright --project argv selection", () => {
       }
     },
   );
+
+  test(
+    "npm test:twenty infers twenty-chromium when argv lacks --project",
+    { tag: ["@unit"] },
+    () => {
+      const prior = process.env.npm_lifecycle_event;
+      process.env.npm_lifecycle_event = "test:twenty";
+      try {
+        const argv = argvForProjectSelection(["node", "playwright", "test"]);
+        expect(selectedProjects(argv, ["twenty-chromium"])).toBe(true);
+        expect(selectedProjects(argv, ["cal-chromium", "documenso-chromium"])).toBe(false);
+      } finally {
+        if (prior === undefined) {
+          delete process.env.npm_lifecycle_event;
+        } else {
+          process.env.npm_lifecycle_event = prior;
+        }
+      }
+    },
+  );
+
+  test("--project=twenty-chromium does not select Cal or Documenso", { tag: ["@unit"] }, () => {
+    const argv = ["playwright", "test", "--project=twenty-chromium"];
+    expect(selectedProjects(argv, ["twenty-chromium"])).toBe(true);
+    expect(selectedProjects(argv, ["cal-chromium", "cal-setup", "documenso-chromium"])).toBe(false);
+  });
+
+  test("npm test script limits Playwright to the unit project", { tag: ["@unit"] }, () => {
+    const raw = fs.readFileSync(packageJsonPath, "utf8");
+    const scripts = JSON.parse(raw) as { scripts?: { test?: string } };
+    const testScript = scripts.scripts?.test ?? "";
+    expect(testScript).toContain("--project=unit");
+    expect(testScript).not.toMatch(/\btest:twenty\b/);
+  });
 });
