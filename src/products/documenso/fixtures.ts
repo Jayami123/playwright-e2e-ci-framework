@@ -1,6 +1,6 @@
 import { expect, request, test as base, type CDPSession } from "@playwright/test";
 import { setFactorySeed } from "qa-portfolio-harness";
-import { generateTotpCode } from "../../core/totp.js";
+import { mintDocumensoTotpCode } from "./totp-mint.js";
 import { parsePositiveInt } from "../../core/config.js";
 import { enableTwoFactorViaApi, loginViaApi, setupTwoFactorViaApi } from "./auth.js";
 import { loadDocumensoConfig } from "./env.js";
@@ -125,8 +125,9 @@ export const test = base.extend<DocumensoFixtures & DocumensoAutoFixtures, Docum
           login.authorizeDiagnostic ?? "twoFactorDocumensoUser password login",
         ).toBe(201);
         const setup = await setupTwoFactorViaApi(http);
-        const codeMintedAtMs = Date.now();
-        const enrolCode = generateTotpCode(setup.secret, codeMintedAtMs);
+        const { code: enrolCode, mintedAtMs: codeMintedAtMs } = await mintDocumensoTotpCode(
+          setup.secret,
+        );
         const enabled = await enableTwoFactorViaApi(http, enrolCode, codeMintedAtMs);
         await use({
           ...documensoUser,
