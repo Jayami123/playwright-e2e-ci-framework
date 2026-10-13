@@ -48,8 +48,8 @@ async function assertSecurityPageWithApiSession(
 ): Promise<void> {
   const storageState = await http.storageState();
   const context = await browser.newContext({ storageState });
-  const page = await context.newPage();
   try {
+    const page = await context.newPage();
     const security = new SecuritySettingsPage(page);
     await security.gotoWithTwoFactorEnabled();
   } finally {

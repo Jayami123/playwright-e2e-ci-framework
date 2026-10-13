@@ -152,6 +152,7 @@ export default defineConfig({
     {
       name: "documenso-rate-limit-chromium",
       testDir: "./tests/documenso/rate-limit",
+      retries: 0,
       use: {
         ...devices["Desktop Chrome"],
         ...(runsDocumenso ? documensoChromeUse : {}),
