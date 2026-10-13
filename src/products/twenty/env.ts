@@ -102,11 +102,11 @@ export function loadTwentyConfig(): TwentyE2EConfig {
   const baseUrl = assertTwentyBaseUrl(baseUrlRaw);
   const dbUrl = assertTwentyDbUrl(dbUrlRaw);
 
-  process.env.PRODUCTS_ROOT ||= productsRoot;
-  process.env.TWENTY_BASE_URL ||= baseUrl;
-  process.env.TWENTY_EMAIL ||= email;
-  process.env.TWENTY_PASSWORD ||= password;
-  process.env.TWENTY_DB_URL ||= dbUrl;
+  process.env.PRODUCTS_ROOT = productsRoot;
+  process.env.TWENTY_BASE_URL = baseUrl;
+  process.env.TWENTY_EMAIL = email;
+  process.env.TWENTY_PASSWORD = password;
+  process.env.TWENTY_DB_URL = dbUrl;
 
   cached = {
     baseUrl,
