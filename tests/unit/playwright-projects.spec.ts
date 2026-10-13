@@ -7,7 +7,6 @@ const ALL = [
   "cal-chromium",
   "cal-firefox",
   "documenso-rate-limit-chromium",
-  "documenso-bypass-setup",
   "documenso-chromium",
   "documenso-firefox",
 ];

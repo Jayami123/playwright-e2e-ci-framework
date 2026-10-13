@@ -17,7 +17,6 @@ process.env.P1_SEED ??= String(Date.now());
 const CAL_PROJECT_NAMES = ["cal-setup", "cal-chromium", "cal-firefox"] as const;
 const DOCUMENSO_PROJECT_NAMES = [
   "documenso-rate-limit-chromium",
-  "documenso-bypass-setup",
   "documenso-chromium",
   "documenso-firefox",
 ] as const;
@@ -159,15 +158,7 @@ export default defineConfig({
       },
     },
     {
-      name: "documenso-bypass-setup",
-      testDir: "./tests/setup",
-      testMatch: /documenso-bypass\.setup\.ts/,
-      dependencies: ["documenso-rate-limit-chromium"],
-      use: { ...devices["Desktop Chrome"], trace: "off" },
-    },
-    {
       name: "documenso-chromium",
-      dependencies: ["documenso-bypass-setup"],
       testDir: "./tests/documenso",
       testIgnore: /rate-limit\//,
       retries: documensoRetries,
@@ -178,7 +169,6 @@ export default defineConfig({
     },
     {
       name: "documenso-firefox",
-      dependencies: ["documenso-bypass-setup"],
       testDir: "./tests/documenso",
       grep: /P1-DOC-FW-001|P1-DOC-FW-002|P1-DOC-FW-003/,
       retries: documensoRetries,

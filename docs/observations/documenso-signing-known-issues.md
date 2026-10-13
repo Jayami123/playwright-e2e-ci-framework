@@ -20,7 +20,7 @@
 
 **Observed (verified):** Full `documenso-chromium` job (27 tests, 2FA + passkey before `@fw`) hit `organisation.internal.getOrganisationSession` **429** during **P1-DOC-FW-002**; `envelope-editor-step-addFields` never appeared (120s wait). Locally, `@fw`-only runs stayed under the per-minute tRPC budget.
 
-**Mitigation (ADR 0011):** Harness restarts Remix with `DANGEROUS_BYPASS_RATE_LIMITS=true` after **P1-DOC-RL-001**; functional tests attach a browser **429 fail-fast** on any `/api/trpc/*` response. FW-002 and FW-003 remain full UI journeys; FW-004..011 still use API envelope setup where implemented (not for rate-limit budgeting).
+**Mitigation (ADR 0011):** CI and local scripts run harness **down/up** with `DANGEROUS_BYPASS_RATE_LIMITS=true` after **P1-DOC-RL-001** (limits enforced on the first stack); functional tests attach a browser **429 fail-fast** on any `/api/trpc/*` response. FW-002 and FW-003 remain full UI journeys; FW-004..011 still use API envelope setup where implemented (not for rate-limit budgeting).
 
 ### Rate-limit primitive **P1-DOC-RL-001**
 
@@ -33,7 +33,7 @@ With bypass **off**, 51 failed authorize calls in one 15m IP bucket must yield H
 | `DANGEROUS_BYPASS_RATE_LIMITS` | `rate-limit.ts` ~73–79                           | Skips all `createRateLimit` checks (login, passkey, tRPC, etc.) |
 | same                           | `assert-organisation-rates-and-limits.ts` ~32–34 | Skips organisation quota assertions                             |
 
-P1 sets this only via harness app env after RL-001 (`documenso-bypass.setup.ts`).
+P1 sets this only via harness `up.mjs` env on the second stack (after RL-001); never in the Documenso fork `.env`.
 
 ## Phase 4d: user-facing asserts in the browser (FW-004..011)
 

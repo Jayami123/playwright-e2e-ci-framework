@@ -12,8 +12,8 @@ A full `documenso-chromium` run (~27 tests) exceeds Documenso `apiTrpcRateLimit`
 ## Decision
 
 - **Job:** `documenso-self-hosted` in reusable [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml). Independent of `CAL_E2E_BASE_URL`. PR gate: `npm run test:documenso` (runs `P1-DOC-RL-001`, bypass setup, then the full functional project).
-- **Rate limits in functional E2E:** After **P1-DOC-RL-001**, harness restarts Remix with `DANGEROUS_BYPASS_RATE_LIMITS=true` in the app env (`buildDocumensoAppEnv` in harness `documenso-env.ts`, read at request time in `packages/lib/server-only/rate-limit/rate-limit.ts` ~73–79 and `assert-organisation-rates-and-limits.ts` ~32–34). Triggered by Playwright setup `tests/setup/documenso-bypass.setup.ts` via `DOCUMENSO_RESTART_WEB=1` (harness `documenso.adapter.ts` `restartWebServer()`). Never edit the Documenso fork `.env`; never start/stop outside harness `up.mjs`.
-- **P1-DOC-RL-001:** Project `documenso-rate-limit-chromium` runs first with bypass **off**, asserts HTTP **429** on the 51st `POST /api/auth/email-password/authorize` in one IP bucket (`loginRateLimit` globalMax 50 / 15m).
+- **Rate limits in functional E2E:** Two harness phases (never edit the Documenso fork `.env`): (1) `up.mjs` without `DANGEROUS_BYPASS_RATE_LIMITS` → `npm run test:documenso:rate-limit` (**P1-DOC-RL-001** only, `P1_PLAYWRIGHT_HARNESS=0`); (2) `down.mjs` then `up.mjs` with `DANGEROUS_BYPASS_RATE_LIMITS=true` → `npm run test:documenso` (functional projects, RL excluded). Bypass is passed via harness `buildDocumensoAppEnv` (read at request time in fork `rate-limit.ts` ~73–79).
+- **P1-DOC-RL-001:** Project `documenso-rate-limit-chromium`; asserts HTTP **429** on the 51st authorize in one IP bucket (`loginRateLimit` globalMax 50 / 15m).
 - **Retries:** `P1_DOCUMENSO_RETRIES` default **0** on functional Documenso projects; Cal keeps CI `retries: 2`.
 - **tRPC 429 fail-fast:** `attachDocumensoTrpc429Guard` on functional Documenso pages fails immediately with the tRPC URL (avoids 120s editor waits when rate limited).
 - **Browsers / matrix / caches / path filters:** unchanged from the initial 0011 draft (Chrome channel, Firefox FW-001..003, `RUNNER_TEMP` clone path, caches, leak gate, failure artifacts).
@@ -22,5 +22,5 @@ A full `documenso-chromium` run (~27 tests) exceeds Documenso `apiTrpcRateLimit`
 ## Consequences
 
 - Functional suites are not a substitute for Documenso rate-limit tests; **P1-DOC-RL-001** must stay in the `test:documenso` dependency chain.
-- Harness **v0.2.6+** is required for bypass env on the Remix child and `DOCUMENSO_RESTART_WEB`.
+- Harness **v0.2.6+** is required for bypass env on the Remix child and `down()` stopping the web listener before compose teardown.
 - Required check after first green run: `e2e / documenso-self-hosted`.
