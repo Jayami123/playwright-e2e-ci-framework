@@ -22,6 +22,7 @@
     "tests",
     "scripts",
     "global-setup",
+    "global-teardown",
     "playwright.config.ts",
     "playwright.merge.config.ts"
   ]

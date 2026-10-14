@@ -128,6 +128,7 @@ export default defineConfig({
   timeout: TIMEOUTS[webMode].test,
   expect: { timeout: TIMEOUTS[webMode].expect },
   ...(harnessSetups.length > 0 ? { globalSetup: harnessSetups } : {}),
+  ...(runsTwenty && shouldStartHarness() ? { globalTeardown: "./global-teardown/twenty.ts" } : {}),
   use: {
     ...(baseURL === undefined ? {} : { baseURL }),
     navigationTimeout: TIMEOUTS[webMode].navigation,
