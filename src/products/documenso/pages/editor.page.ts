@@ -77,5 +77,13 @@ export class EditorPage extends BasePage {
     await dialog.getByRole("button", { name: "Send", exact: true }).click();
     const distribute = await distributeDone;
     expect(distribute.ok(), `envelope.distribute HTTP ${String(distribute.status())}`).toBeTruthy();
+    // After distribute, Documenso client-navigates off the editor to the document page.
+    // Returning before that finishes lets a caller's page.goto race it; on Firefox the
+    // aborted route-module load makes Documenso reload the page and kill the caller's
+    // navigation (NS_BINDING_ABORTED, nightly run 38475954875).
+    await expect(this.page).not.toHaveURL(/\/edit(?:\?.*)?$/, {
+      timeout: documensoTimeouts().journey,
+    });
+    await this.page.waitForLoadState("load", { timeout: documensoTimeouts().journey });
   }
 }
