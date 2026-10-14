@@ -16,6 +16,8 @@ export const TWENTY_ROUTES = {
   welcome: "/welcome",
   healthz: "/healthz",
   companiesHome: "/objects/companies",
+  graphql: "/graphql",
+  metadata: "/metadata",
 } as const;
 
 export interface TwentyTimeoutBudget {
