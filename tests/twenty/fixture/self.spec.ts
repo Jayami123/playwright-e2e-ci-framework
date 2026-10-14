@@ -1,5 +1,5 @@
 import { expect, test, type TwentyQaFixture } from "../../../src/products/twenty/fixtures/index.js";
-import { p1QaCompanyName } from "../../../src/products/twenty/fixtures/names.js";
+import { p1QaCompanyName, p1QaPrefix } from "../../../src/products/twenty/fixtures/names.js";
 import { createCompany, destroyCompany } from "../../../src/products/twenty/fixtures/records.js";
 import { sweepTwentyQaRecords } from "../../../src/products/twenty/fixtures/sweep.js";
 
@@ -52,29 +52,42 @@ test.describe("Twenty QA fixture worker isolation", { tag: ["@twenty", "@twenty-
 
   test("prefix filters separate own and sibling SameLeaf companies", async ({
     twentyQa,
+    factorySeed,
   }, testInfo) => {
     const otherWorkerIndex = testInfo.parallelIndex === 0 ? 1 : 0;
-    const siblingPrefix = twentyQa.prefix.replace(
-      new RegExp(`-${String(testInfo.parallelIndex)}$`),
-      `-${String(otherWorkerIndex)}`,
-    );
+    const baseSeed = factorySeed - testInfo.parallelIndex;
+    const otherWorkerRealPrefix = p1QaPrefix(baseSeed + otherWorkerIndex, otherWorkerIndex);
     const leaf = "SameLeaf";
     let siblingId: string | undefined;
 
     try {
       const own = await twentyQa.createCompany(leaf);
-      const sibling = await createCompany(twentyQa.api, p1QaCompanyName(siblingPrefix, leaf));
+      const sibling = await createCompany(
+        twentyQa.api,
+        p1QaCompanyName(otherWorkerRealPrefix, leaf),
+      );
       siblingId = sibling.id;
 
       const ownFilter = `${twentyQa.prefix}-${leaf}`;
-      const siblingFilter = `${siblingPrefix}-${leaf}`;
+      const siblingFilter = `${otherWorkerRealPrefix}-${leaf}`;
 
       expect(await companyIdsForNameFilter(twentyQa.api, ownFilter)).toEqual([own.id]);
       expect(await companyIdsForNameFilter(twentyQa.api, siblingFilter)).toEqual([sibling.id]);
 
+      const otherPrefixPattern = `${otherWorkerRealPrefix}%`;
+      const otherIdsBefore =
+        testInfo.config.workers > 1
+          ? await companyIdsForNameFilter(twentyQa.api, otherPrefixPattern)
+          : [];
+
       await destroyCompany(twentyQa.api, own.id);
       twentyQa.forgetCapturedCompany(own.id);
       expect(await companyIdsForNameFilter(twentyQa.api, siblingFilter)).toEqual([sibling.id]);
+
+      if (testInfo.config.workers > 1) {
+        const otherIdsAfter = await companyIdsForNameFilter(twentyQa.api, otherPrefixPattern);
+        expect(otherIdsAfter).toEqual(otherIdsBefore);
+      }
     } finally {
       if (siblingId !== undefined) {
         await destroyCompany(twentyQa.api, siblingId);
