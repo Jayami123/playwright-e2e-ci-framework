@@ -3,18 +3,24 @@ import type { TwentyPinnedApiSession } from "../../src/products/twenty/fixtures/
 import type { TwentyGraphqlPath } from "../../src/products/twenty/fixtures/graphql.js";
 import {
   destroyListedCompanies,
+  destroyListedPets,
   listCompanyIds,
 } from "../../src/products/twenty/fixtures/sweep.js";
 
-function mockApi(handlers: {
-  listPages: Array<{
-    after: string | null;
-    ids: string[];
-    hasNextPage: boolean;
-    endCursor?: string | null;
-  }>;
-  onDestroy?: (id: string) => void;
-}): { api: TwentyPinnedApiSession; callLog: string[] } {
+function mockApi(
+  handlers: {
+    listPages: Array<{
+      after: string | null;
+      ids: string[];
+      hasNextPage: boolean;
+      endCursor?: string | null;
+    }>;
+    onDestroy?: (id: string) => void;
+  },
+  listDocument = "CompaniesByPrefix",
+  destroyDocument = "DestroyCompany",
+  destroyVariable = "companyId",
+): { api: TwentyPinnedApiSession; callLog: string[] } {
   const callLog: string[] = [];
   let listCall = 0;
 
@@ -28,7 +34,7 @@ function mockApi(handlers: {
       variables?: Record<string, unknown>,
     ): Promise<T> => {
       await Promise.resolve();
-      if (document.includes("CompaniesByPrefix")) {
+      if (document.includes(listDocument)) {
         const rawAfter = variables?.after;
         const after =
           rawAfter === null || rawAfter === undefined
@@ -43,8 +49,9 @@ function mockApi(handlers: {
         }
         expect(after).toBe(page.after);
         callLog.push(`list:${after === null ? "null" : after}`);
+        const connectionKey = listDocument.includes("Pets") ? "pets" : "companies";
         return {
-          companies: {
+          [connectionKey]: {
             edges: page.ids.map((id) => ({ node: { id, name: id } })),
             pageInfo: {
               hasNextPage: page.hasNextPage,
@@ -53,15 +60,16 @@ function mockApi(handlers: {
           },
         } as T;
       }
-      if (document.includes("DestroyCompany")) {
-        const rawId = variables?.companyId;
+      if (document.includes(destroyDocument)) {
+        const rawId = variables?.[destroyVariable];
         if (typeof rawId !== "string") {
-          throw new Error("DestroyCompany mock expected companyId string");
+          throw new Error(`${destroyDocument} mock expected ${destroyVariable} string`);
         }
-        const companyId = rawId;
-        callLog.push(`destroy:${companyId}`);
-        handlers.onDestroy?.(companyId);
-        return { destroyCompany: { id: companyId } } as T;
+        const recordId = rawId;
+        callLog.push(`destroy:${recordId}`);
+        handlers.onDestroy?.(recordId);
+        const destroyField = destroyDocument.includes("Pet") ? "destroyPet" : "destroyCompany";
+        return { [destroyField]: { id: recordId } } as T;
       }
       throw new Error(`Unexpected query: ${document.slice(0, 40)}`);
     },
@@ -114,5 +122,23 @@ test.describe("Twenty sweep pagination", { tag: ["@unit", "@twenty-fixture"] }, 
     const deleted = await destroyListedCompanies(api, "P1-QA-");
     expect(deleted).toBe(2);
     expect(callLog).toEqual(["list:null", "list:cursor1", "destroy:c1", "destroy:c2"]);
+  });
+
+  test("pets list paginates and destroys each listed id", async () => {
+    const { api, callLog } = mockApi(
+      {
+        listPages: [
+          { after: null, ids: ["p1"], hasNextPage: true, endCursor: "cursor1" },
+          { after: "cursor1", ids: ["p2"], hasNextPage: false },
+        ],
+      },
+      "PetsByPrefix",
+      "DestroyPet",
+      "petId",
+    );
+
+    const deleted = await destroyListedPets(api, "P1-QA-");
+    expect(deleted).toBe(2);
+    expect(callLog).toEqual(["list:null", "list:cursor1", "destroy:p1", "destroy:p2"]);
   });
 });

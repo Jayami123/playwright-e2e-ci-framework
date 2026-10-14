@@ -1,7 +1,7 @@
 import { TWENTY_ROUTES } from "../env.js";
 import { createPinnedTwentyApiSession, loadUiWorkspaceIds } from "./auth.js";
 import { loadTwentyConfig } from "../env.js";
-import { destroyCompany, destroyOpportunity, destroyPerson } from "./records.js";
+import { destroyCompany, destroyOpportunity, destroyPerson, destroyPet } from "./records.js";
 import type { TwentyPinnedApiSession } from "./auth.js";
 
 const PAGE_SIZE = 100;
@@ -24,6 +24,13 @@ const LIST_OPPORTUNITIES = `query OpportunitiesByPrefix($filter: OpportunityFilt
 const LIST_PEOPLE = `query PeopleByPrefix($filter: PersonFilterInput!, $first: Int!, $after: String) {
   people(filter: $filter, first: $first, after: $after) {
     edges { node { id name { firstName lastName } } }
+    pageInfo { hasNextPage endCursor }
+  }
+}`;
+
+const LIST_PETS = `query PetsByPrefix($filter: PetFilterInput!, $first: Int!, $after: String) {
+  pets(filter: $filter, first: $first, after: $after) {
+    edges { node { id name } }
     pageInfo { hasNextPage endCursor }
   }
 }`;
@@ -132,6 +139,43 @@ async function listOpportunityIds(api: TwentyPinnedApiSession, prefix: string): 
   });
 }
 
+async function listPetIds(api: TwentyPinnedApiSession, prefix: string): Promise<string[]> {
+  return paginateConnectionIds(async (after) => {
+    const data = await api.query<{
+      pets?: {
+        edges?: Array<{ node?: { id: string } | null } | null> | null;
+        pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } | null;
+      } | null;
+    }>(TWENTY_ROUTES.graphql, LIST_PETS, {
+      filter: { name: { ilike: `${prefix}%` } },
+      first: PAGE_SIZE,
+      after,
+    });
+    const edges = data.pets?.edges ?? [];
+    const ids: string[] = [];
+    for (const edge of edges) {
+      const id = edge?.node?.id;
+      if (typeof id === "string") {
+        ids.push(id);
+      }
+    }
+    const pageInfo = data.pets?.pageInfo;
+    return {
+      ids,
+      hasNextPage: pageInfo?.hasNextPage === true,
+      endCursor: pageInfo?.endCursor,
+    };
+  });
+}
+
+/** @internal Used by unit tests to verify pets list-then-destroy ordering. */
+export async function listPetIdsForSweep(
+  api: TwentyPinnedApiSession,
+  prefix: string,
+): Promise<string[]> {
+  return listPetIds(api, prefix);
+}
+
 async function listPersonIds(api: TwentyPinnedApiSession, prefix: string): Promise<string[]> {
   return paginateConnectionIds(async (after) => {
     const data = await api.query<{
@@ -162,12 +206,18 @@ async function listPersonIds(api: TwentyPinnedApiSession, prefix: string): Promi
 }
 
 async function countQaRecords(api: TwentyPinnedApiSession, prefix: string): Promise<number> {
-  const [companies, opportunities, people] = await Promise.all([
+  const [companies, opportunities, people, pets] = await Promise.all([
     listCompanyIds(api, prefix),
     listOpportunityIds(api, prefix),
     listPersonIds(api, prefix),
+    listPetIds(api, prefix),
   ]);
-  return companies.length + opportunities.length + people.length;
+  return companies.length + opportunities.length + people.length + pets.length;
+}
+
+async function countPetRecords(api: TwentyPinnedApiSession, prefix: string): Promise<number> {
+  const pets = await listPetIds(api, prefix);
+  return pets.length;
 }
 
 /** @internal Used by unit tests to verify list-then-destroy ordering. */
@@ -182,11 +232,24 @@ export async function destroyListedCompanies(
   return companyIds.length;
 }
 
+/** @internal Used by unit tests to verify pets list-then-destroy ordering. */
+export async function destroyListedPets(
+  api: TwentyPinnedApiSession,
+  prefix: string,
+): Promise<number> {
+  const petIds = await listPetIds(api, prefix);
+  for (const id of petIds) {
+    await destroyPet(api, id);
+  }
+  return petIds.length;
+}
+
 async function destroyListed(api: TwentyPinnedApiSession, prefix: string): Promise<number> {
-  const [companyIds, opportunityIds, personIds] = await Promise.all([
+  const [companyIds, opportunityIds, personIds, petIds] = await Promise.all([
     listCompanyIds(api, prefix),
     listOpportunityIds(api, prefix),
     listPersonIds(api, prefix),
+    listPetIds(api, prefix),
   ]);
   let deleted = 0;
   for (const id of companyIds) {
@@ -201,6 +264,10 @@ async function destroyListed(api: TwentyPinnedApiSession, prefix: string): Promi
     await destroyPerson(api, id);
     deleted += 1;
   }
+  for (const id of petIds) {
+    await destroyPet(api, id);
+    deleted += 1;
+  }
   return deleted;
 }
 
@@ -213,10 +280,11 @@ export async function sweepTwentyQaRecords(prefix: string): Promise<{
   const ui = loadUiWorkspaceIds(authStatePath);
   const api = await createPinnedTwentyApiSession(ui.workspaceId, ui.memberId);
   const before = await countQaRecords(api, prefix);
+  const petsBefore = await countPetRecords(api, prefix);
   const deleted = await destroyListed(api, prefix);
   const after = await countQaRecords(api, prefix);
   console.log(
-    `Local Twenty qa-record sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)})`,
+    `Local Twenty qa-record sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)}, pets=${String(petsBefore)})`,
   );
   return { before, deleted, after };
 }
