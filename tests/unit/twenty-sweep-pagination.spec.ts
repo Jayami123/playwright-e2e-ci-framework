@@ -91,6 +91,18 @@ test.describe("Twenty sweep pagination", { tag: ["@unit", "@twenty-fixture"] }, 
     await expect(listCompanyIds(api, "P1-QA-")).rejects.toThrow(/endCursor missing/);
   });
 
+  test("throws when endCursor does not advance", async () => {
+    const { api, callLog } = mockApi({
+      listPages: [
+        { after: null, ids: ["c1"], hasNextPage: true, endCursor: "c1" },
+        { after: "c1", ids: ["c2"], hasNextPage: true, endCursor: "c1" },
+      ],
+    });
+
+    await expect(listCompanyIds(api, "P1-QA-")).rejects.toThrow(/endCursor did not advance/);
+    expect(callLog).toEqual(["list:null", "list:c1"]);
+  });
+
   test("destroys only after all list pages complete", async () => {
     const { api, callLog } = mockApi({
       listPages: [

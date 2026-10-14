@@ -54,6 +54,9 @@ async function paginateConnectionIds(
     if (cursor === null || cursor === undefined || cursor === "") {
       throw new Error("Twenty sweep pagination: hasNextPage true but endCursor missing");
     }
+    if (cursor === after) {
+      throw new Error("Twenty sweep pagination: endCursor did not advance");
+    }
     after = cursor;
   }
   return all;
