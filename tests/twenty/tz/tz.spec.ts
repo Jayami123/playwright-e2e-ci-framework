@@ -17,6 +17,8 @@ const BIRTHDAY_YMD = "2027-01-01";
 
 const SETTINGS_TZ_COLOMBO = "(GMT+05:30) India Standard Time - Colombo";
 const SETTINGS_TZ_UTC = "(GMT+00:00) Coordinated Universal Time";
+const SETTINGS_TZ_HONOLULU = "(GMT-10:00) Hawaii-Aleutian Standard Time - Honolulu";
+const SETTINGS_TZ_KIRITIMATI = "(GMT+14:00) Line Islands Time - Kiritimati";
 
 async function shortTimeZoneName(page: Page, timeZone: string, iso: string): Promise<string> {
   return page.evaluate(
@@ -61,37 +63,38 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
 
       const petsTable = new TwentyObjectTablePage(page, "pets");
       const record = new TwentyRecordPage(page);
+      const settings = new TwentySettingsExperiencePage(page);
 
       await test.step("Honolulu: record and table show same civil date", async () => {
         await twentyQa.setTimeZone(HONOLULU_TZ);
+        await settings.goto();
+        await settings.expectTimeZoneValueLabel(SETTINGS_TZ_HONOLULU);
         await record.goto("pet", pet.id);
         await expect(record.dateValueExact(expectedDate)).toBeVisible({
           timeout: twentyTimeouts().page,
         });
-        await expect(record.fieldsWidget.getByText("Dec 31, 2026", { exact: true })).toHaveCount(0);
+        await expect(record.fieldsWidget.getByText(/Dec 31, 2026/)).toHaveCount(0);
         await petsTable.gotoIndex();
         await expect(petsTable.cellWithExactText(pet.id, expectedDate)).toBeVisible({
           timeout: twentyTimeouts().page,
         });
-        await expect(petsTable.row(pet.id).getByText("Dec 31, 2026", { exact: true })).toHaveCount(
-          0,
-        );
+        await expect(petsTable.row(pet.id).getByText(/Dec 31, 2026/)).toHaveCount(0);
       });
 
       await test.step("Kiritimati: record and table still show same civil date", async () => {
         await twentyQa.setTimeZone(KIRITIMATI_TZ);
+        await settings.goto();
+        await settings.expectTimeZoneValueLabel(SETTINGS_TZ_KIRITIMATI);
         await record.goto("pet", pet.id);
         await expect(record.dateValueExact(expectedDate)).toBeVisible({
           timeout: twentyTimeouts().page,
         });
-        await expect(record.fieldsWidget.getByText("Dec 31, 2026", { exact: true })).toHaveCount(0);
+        await expect(record.fieldsWidget.getByText(/Dec 31, 2026/)).toHaveCount(0);
         await petsTable.gotoIndex();
         await expect(petsTable.cellWithExactText(pet.id, expectedDate)).toBeVisible({
           timeout: twentyTimeouts().page,
         });
-        await expect(petsTable.row(pet.id).getByText("Dec 31, 2026", { exact: true })).toHaveCount(
-          0,
-        );
+        await expect(petsTable.row(pet.id).getByText(/Dec 31, 2026/)).toHaveCount(0);
       });
     },
   );
@@ -156,13 +159,13 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
 
       await record.goto("opportunity", opp.id);
       await expect(record.dateValueExact(expected)).toBeVisible({ timeout: twentyTimeouts().page });
-      await expect(record.fieldsWidget.getByText("6:00 AM", { exact: true })).toHaveCount(0);
+      await expect(record.fieldsWidget.getByText(/6:00 AM/)).toHaveCount(0);
 
       await table.gotoIndex();
       await expect(table.cellWithExactText(opp.id, expected)).toBeVisible({
         timeout: twentyTimeouts().page,
       });
-      await expect(table.row(opp.id).getByText("6:00 AM", { exact: true })).toHaveCount(0);
+      await expect(table.row(opp.id).getByText(/6:00 AM/)).toHaveCount(0);
     },
   );
 
@@ -228,7 +231,7 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
         await expect(record.dateValueExact(utcExpected)).toBeVisible({
           timeout: twentyTimeouts().page,
         });
-        await expect(record.fieldsWidget.getByText("6:00 AM", { exact: true })).toHaveCount(0);
+        await expect(record.fieldsWidget.getByText(/6:00 AM/)).toHaveCount(0);
       });
 
       await test.step("Restore proof before test end", async () => {

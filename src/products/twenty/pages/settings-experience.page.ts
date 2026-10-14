@@ -1,4 +1,4 @@
-import { type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { TWENTY_ROUTES } from "../env.js";
 
@@ -29,5 +29,9 @@ export class TwentySettingsExperiencePage extends BasePage {
     const search = this.timeZoneDialog.getByRole("searchbox", { name: "Search" });
     await search.fill(exactLabel.split(" ")[0] ?? exactLabel);
     await this.timeZoneDialog.getByRole("button", { name: exactLabel, exact: true }).click();
+  }
+
+  async expectTimeZoneValueLabel(label: string | RegExp): Promise<void> {
+    await expect(this.timeZoneValueButton).toHaveText(label);
   }
 }
