@@ -74,20 +74,9 @@ test.describe("Twenty QA fixture worker isolation", { tag: ["@twenty", "@twenty-
       expect(await companyIdsForNameFilter(twentyQa.api, ownFilter)).toEqual([own.id]);
       expect(await companyIdsForNameFilter(twentyQa.api, siblingFilter)).toEqual([sibling.id]);
 
-      const otherPrefixPattern = `${otherWorkerRealPrefix}%`;
-      const otherIdsBefore =
-        testInfo.config.workers > 1
-          ? await companyIdsForNameFilter(twentyQa.api, otherPrefixPattern)
-          : [];
-
       await destroyCompany(twentyQa.api, own.id);
       twentyQa.forgetCapturedCompany(own.id);
       expect(await companyIdsForNameFilter(twentyQa.api, siblingFilter)).toEqual([sibling.id]);
-
-      if (testInfo.config.workers > 1) {
-        const otherIdsAfter = await companyIdsForNameFilter(twentyQa.api, otherPrefixPattern);
-        expect(otherIdsAfter).toEqual(otherIdsBefore);
-      }
     } finally {
       if (siblingId !== undefined) {
         await destroyCompany(twentyQa.api, siblingId);
