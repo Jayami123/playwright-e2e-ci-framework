@@ -7,17 +7,26 @@ import {
   loadUiWorkspaceIds,
   type TwentyPinnedApiSession,
 } from "./auth.js";
-import { p1QaCompanyName, p1QaOpportunityName, p1QaPersonName, p1QaPrefix } from "./names.js";
+import {
+  p1QaCompanyName,
+  p1QaOpportunityName,
+  p1QaPersonName,
+  p1QaPetName,
+  p1QaPrefix,
+} from "./names.js";
 import {
   createCompany,
   createOpportunity,
   createPerson,
+  createPet,
   destroyCompany,
   destroyOpportunity,
   destroyPerson,
+  destroyPet,
   type TwentyCompanyRecord,
   type TwentyOpportunityRecord,
   type TwentyPersonRecord,
+  type TwentyPetRecord,
 } from "./records.js";
 import { readMemberTimeZone, setMemberTimeZone } from "./timezone.js";
 
@@ -25,6 +34,7 @@ export interface TwentyQaCapturedIds {
   readonly companyIds: string[];
   readonly personIds: string[];
   readonly opportunityIds: string[];
+  readonly petIds: string[];
 }
 
 export interface TwentyQaFixture {
@@ -35,7 +45,10 @@ export interface TwentyQaFixture {
   createCompany: (leaf?: string) => Promise<TwentyCompanyRecord>;
   createPerson: (leaf?: string) => Promise<TwentyPersonRecord>;
   createOpportunity: (leaf?: string, closeDateIso?: string) => Promise<TwentyOpportunityRecord>;
+  createPet: (leaf?: string, birthday?: string) => Promise<TwentyPetRecord>;
   setTimeZone: (timeZone: string) => Promise<void>;
+  /** Registers fixture TZ restore without changing member TZ (Settings UI writes). */
+  rememberTimeZone: () => Promise<void>;
   readTimeZone: () => Promise<string>;
   /** Runs TZ restore early (fixture `finally` still runs destroy + restore again). */
   restoreTimeZoneIfNeeded: () => Promise<void>;
@@ -83,6 +96,13 @@ export async function runTwentyQaFixtureCleanup(params: {
       failures.push(error);
     }
   }
+  for (const petId of params.captured.petIds) {
+    try {
+      await destroyPet(params.api, petId);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
 
   if (params.restoreTimeZone !== undefined) {
     try {
@@ -122,6 +142,7 @@ export const test = base.extend<TwentyQaFixtures, TwentyWorkerFixtures>({
       companyIds: [],
       personIds: [],
       opportunityIds: [],
+      petIds: [],
     };
 
     let originalTimeZone: string | undefined;
@@ -160,7 +181,23 @@ export const test = base.extend<TwentyQaFixtures, TwentyWorkerFixtures>({
         captured.opportunityIds.push(created.id);
         return created;
       },
+      createPet: async (leaf?: string, birthday = "2027-01-01") => {
+        const created = await createPet(api, p1QaPetName(prefix, leaf), birthday);
+        captured.petIds.push(created.id);
+        return created;
+      },
       readTimeZone: async () => readMemberTimeZone(api, api.memberId),
+      rememberTimeZone: async () => {
+        await ensureTimeZoneBaseline();
+        if (restoreTimeZone === undefined) {
+          const baseline = originalTimeZone;
+          restoreTimeZone = async () => {
+            if (baseline !== undefined) {
+              await setMemberTimeZone(api, api.memberId, baseline);
+            }
+          };
+        }
+      },
       restoreTimeZoneIfNeeded: async () => {
         if (restoreTimeZone !== undefined) {
           await restoreTimeZone();

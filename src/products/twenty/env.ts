@@ -16,6 +16,11 @@ export const TWENTY_ROUTES = {
   welcome: "/welcome",
   healthz: "/healthz",
   companiesHome: "/objects/companies",
+  pets: "/objects/pets",
+  opportunities: "/objects/opportunities",
+  petRecord: (id: string) => `/object/pet/${id}`,
+  opportunityRecord: (id: string) => `/object/opportunity/${id}`,
+  settingsExperience: "/settings/experience",
   graphql: "/graphql",
   metadata: "/metadata",
 } as const;

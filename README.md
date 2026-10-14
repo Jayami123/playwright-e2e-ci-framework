@@ -16,7 +16,7 @@ Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 202
 
 Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
 
-**Phase 2f (2026-10-13):** Twenty smoke wiring (`npm run test:twenty`, `@twenty-smoke`); timezone cases P1-TW-TZ-001..003 are planned next. Twenty is **not in CI yet** (known gap). Medusa Admin is not wired here yet; visual, axe, Slack, and GitHub Pages are later.
+**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases **P1-TW-TZ-001**, **P1-TW-TZ-002**, **P1-TW-TZ-X01**, **P1-TW-TZ-X02** (`@twenty-tz`, serial Jane TZ). OBS-001 (bare date on DATE_TIME) is recorded in [ADR 0014](docs/adr/0014-twenty-timezone-testing.md), not automated. TZ-003 deferred (task 5). Twenty is **not in CI yet**. Medusa Admin is not wired here yet.
 
 ## Prerequisites
 
@@ -35,7 +35,8 @@ src/products/documenso/       Documenso env, auth API, DB, pages, fixtures
 src/products/twenty/          Twenty env, login/home pages
 tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/setup/twenty.setup.ts   UI login writes .auth/twenty-jane.json every run
-tests/twenty/smoke/           @twenty-smoke home spec (no P1-TW-TZ IDs yet)
+tests/twenty/smoke/           @twenty-smoke home spec
+tests/twenty/tz/              @twenty-tz P1-TW-TZ-001, 002, X01, X02
 tests/cal/journeys/           FW-001..004
 tests/cal/auth/               2FA-001..003
 tests/cal/tz-i18n/            TZ-001..004, DST-001..003

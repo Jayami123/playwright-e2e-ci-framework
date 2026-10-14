@@ -18,7 +18,7 @@ test.describe("Twenty fixture teardown order", { tag: ["@unit", "@twenty-fixture
     await expect(
       runTwentyQaFixtureCleanup({
         api,
-        captured: { companyIds: ["company-1"], personIds: [], opportunityIds: [] },
+        captured: { companyIds: ["company-1"], personIds: [], opportunityIds: [], petIds: [] },
         restoreTimeZone: async () => {
           await Promise.resolve();
           tzRestoreCalls += 1;

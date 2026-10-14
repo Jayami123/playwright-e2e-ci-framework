@@ -13,6 +13,14 @@ const CREATE_OPPORTUNITY = `mutation CreateOpportunity($input: OpportunityCreate
   createOpportunity(data: $input) { id name closeDate createdAt }
 }`;
 
+const CREATE_PET = `mutation CreatePet($input: PetCreateInput!) {
+  createPet(data: $input) { id name birthday }
+}`;
+
+const READ_OPPORTUNITY_CLOSE = `query OpportunityCloseDate($filter: OpportunityFilterInput!) {
+  opportunity(filter: $filter) { id closeDate }
+}`;
+
 const DESTROY_COMPANY = `mutation DestroyCompany($companyId: UUID!) {
   destroyCompany(id: $companyId) { id }
 }`;
@@ -23,6 +31,10 @@ const DESTROY_PERSON = `mutation DestroyPerson($personId: UUID!) {
 
 const DESTROY_OPPORTUNITY = `mutation DestroyOpportunity($opportunityId: UUID!) {
   destroyOpportunity(id: $opportunityId) { id }
+}`;
+
+const DESTROY_PET = `mutation DestroyPet($petId: UUID!) {
+  destroyPet(id: $petId) { id }
 }`;
 
 export interface TwentyCompanyRecord {
@@ -40,6 +52,12 @@ export interface TwentyOpportunityRecord {
   readonly id: string;
   readonly name: string;
   readonly closeDate: string;
+}
+
+export interface TwentyPetRecord {
+  readonly id: string;
+  readonly name: string;
+  readonly birthday: string;
 }
 
 export async function createCompany(
@@ -115,6 +133,58 @@ export async function destroyPerson(api: TwentyPinnedApiSession, personId: strin
   if (data.destroyPerson === null || data.destroyPerson === undefined) {
     throw new Error(`destroyPerson missing id=${personId} (RECORD_NOT_FOUND)`);
   }
+}
+
+export async function createPet(
+  api: TwentyPinnedApiSession,
+  name: string,
+  birthday = "2027-01-01",
+): Promise<TwentyPetRecord> {
+  const data = await api.query<{
+    createPet?: { id: string; name: string; birthday?: string | null } | null;
+  }>(TWENTY_ROUTES.graphql, CREATE_PET, {
+    input: { name, birthday },
+  });
+  const row = data.createPet;
+  if (row === null || row === undefined) {
+    throw new Error("Twenty createPet returned no record");
+  }
+  const birthdayValue = row.birthday;
+  if (birthdayValue === null || birthdayValue === undefined || birthdayValue.trim() === "") {
+    throw new Error("Twenty createPet returned no birthday");
+  }
+  return { id: row.id, name: row.name, birthday: birthdayValue };
+}
+
+export async function destroyPet(api: TwentyPinnedApiSession, petId: string): Promise<void> {
+  const data = await api.query<{ destroyPet?: { id: string } | null }>(
+    TWENTY_ROUTES.graphql,
+    DESTROY_PET,
+    { petId },
+  );
+  if (data.destroyPet === null || data.destroyPet === undefined) {
+    throw new Error(`destroyPet missing id=${petId} (RECORD_NOT_FOUND)`);
+  }
+}
+
+export async function readOpportunityCloseDate(
+  api: TwentyPinnedApiSession,
+  opportunityId: string,
+): Promise<string> {
+  const data = await api.query<{
+    opportunity?: { id: string; closeDate?: string | null } | null;
+  }>(TWENTY_ROUTES.graphql, READ_OPPORTUNITY_CLOSE, {
+    filter: { id: { eq: opportunityId } },
+  });
+  const row = data.opportunity;
+  if (row === null || row === undefined) {
+    throw new Error(`Twenty opportunity missing id=${opportunityId}`);
+  }
+  const closeDate = row.closeDate;
+  if (closeDate === null || closeDate === undefined || closeDate.trim() === "") {
+    throw new Error(`Twenty opportunity id=${opportunityId} has no closeDate`);
+  }
+  return closeDate;
 }
 
 export async function destroyOpportunity(

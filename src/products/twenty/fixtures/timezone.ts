@@ -48,5 +48,10 @@ export async function setMemberTimeZone(
   if (written === null || written === undefined || written.trim() === "") {
     throw new Error(`Twenty updateWorkspaceMember id=${memberId} returned no timeZone`);
   }
+  if (written !== timeZone) {
+    throw new Error(
+      `Twenty updateWorkspaceMember id=${memberId} returned timeZone=${JSON.stringify(written)}, expected ${JSON.stringify(timeZone)}`,
+    );
+  }
   return written;
 }
