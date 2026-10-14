@@ -18,7 +18,7 @@ export class TwentyRecordPage extends BasePage {
   }
 
   async goto(kind: TwentyRecordKind, id: string): Promise<void> {
-    await this.page.goto(RECORD_PATH[kind](id), { waitUntil: "domcontentloaded" });
+    await this.gotoPath(RECORD_PATH[kind](id));
   }
 
   dateValueExact(expected: string): Locator {

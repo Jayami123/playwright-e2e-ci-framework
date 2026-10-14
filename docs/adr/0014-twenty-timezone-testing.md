@@ -11,7 +11,9 @@ Phase 2f task 4 (`twentycrm/twenty:v2.44.0`, Jane `jane.austen@apple.dev`). Step
 
 **DATE vs DATE_TIME:** `pet.birthday` is DATE (`createPet({ name, birthday: "YYYY-MM-DD" })`). `opportunity.closeDate` is DATE_TIME ISO. TZ-001 uses pets; TZ-002/X01/X02 use opportunities with `2027-01-01T00:30:00.000Z`.
 
-**Oracles:** Civil strings from `src/products/twenty/display.ts` (Node `Intl`, `en-US` MONTH_FIRST + 12-hour). E2E TZ abbrev from browser `page.evaluate` when the inline Close date cell renders `TimeZoneAbbreviation` (v2.44 live: **UTC** and **Honolulu** show `UTC` / `HST`; **Asia/Colombo** member TZ shows civil time only on record/table — no `GMT+5:30` suffix in the widget).
+**Oracles:** Civil strings from `src/products/twenty/display.ts` (Node `Intl`, `en-US` MONTH_FIRST + 12-hour). E2E TZ abbrev from browser `page.evaluate` when `TimeZoneAbbreviation` renders.
+
+**Why TZ-002 Colombo omits `GMT+5:30` on this harness (verified in source + live E2E):** Twenty `useUserTimezone` sets `isSystemTimezone` when `userTimezone === Intl.DateTimeFormat().resolvedOptions().timeZone` (`packages/twenty-front/.../useUserTimezone.ts` L7–L13), not only when the stored member value is the literal `"system"`. `TimeZoneAbbreviation` returns an empty fragment when `!shouldShowTimezoneAbbreviation`, with `shouldShowTimezoneAbbreviation = !isSystemTimezone || (field timeZone override differs from host)` (`TimeZoneAbbreviation.tsx` L29–L40). Local probe machine host TZ is **Asia/Colombo**; after `setTimeZone("Asia/Colombo")`, `userTimezone` and host TZ match → `isSystemTimezone === true` → suffix hidden on Close date (same mechanism as Jane `"system"` on a Colombo host). **UTC** / **Honolulu** IANA members differ from host → abbrev shown (`UTC`, `HST` in Chromium). TZ-002 Colombo assertions use civil time only (`includeAbbrev: false`); UTC/X01 keep civil + browser abbrev.
 
 **Settings Experience:** Time zone opener is the Formats **value** button whose name starts with `(GMT` or `System settings · (GMT` (excludes Date/Time/Number format buttons). UTC option: `(GMT+00:00) Coordinated Universal Time`. Colombo: `(GMT+05:30) India Standard Time - Colombo`.
 

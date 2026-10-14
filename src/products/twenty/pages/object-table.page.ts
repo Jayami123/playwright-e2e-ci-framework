@@ -18,7 +18,7 @@ export class TwentyObjectTablePage extends BasePage {
   }
 
   async gotoIndex(): Promise<void> {
-    await this.page.goto(INDEX_ROUTES[this.objectKey], { waitUntil: "domcontentloaded" });
+    await this.gotoPath(INDEX_ROUTES[this.objectKey]);
   }
 
   row(recordId: string): Locator {

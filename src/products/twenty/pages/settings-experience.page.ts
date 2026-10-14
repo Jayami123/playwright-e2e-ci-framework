@@ -16,7 +16,7 @@ export class TwentySettingsExperiencePage extends BasePage {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto(TWENTY_ROUTES.settingsExperience, { waitUntil: "domcontentloaded" });
+    await this.gotoPath(TWENTY_ROUTES.settingsExperience);
   }
 
   async openTimeZonePicker(): Promise<void> {
