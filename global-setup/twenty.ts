@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { getAdapter } from "qa-portfolio-harness";
 import { getStatus } from "../src/core/http-status.js";
 import { normalizeBaseUrl } from "../src/core/config.js";
@@ -54,6 +55,10 @@ export default async function twentyGlobalSetup(): Promise<void> {
   await adapter.seed();
 
   if (!process.env.CI) {
-    await sweepTwentyQaRecords("P1-QA-");
+    if (fs.existsSync(config.authStatePath)) {
+      await sweepTwentyQaRecords("P1-QA-");
+    } else {
+      console.log("Local Twenty qa-record sweep skipped: no auth state yet");
+    }
   }
 }

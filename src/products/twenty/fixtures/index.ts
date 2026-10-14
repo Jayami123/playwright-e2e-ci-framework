@@ -39,6 +39,8 @@ export interface TwentyQaFixture {
   readTimeZone: () => Promise<string>;
   /** Runs TZ restore early (fixture `finally` still runs destroy + restore again). */
   restoreTimeZoneIfNeeded: () => Promise<void>;
+  /** Stops fixture teardown from destroying a company already removed in the test. */
+  forgetCapturedCompany: (companyId: string) => void;
 }
 
 interface TwentyQaFixtures {
@@ -174,6 +176,12 @@ export const test = base.extend<TwentyQaFixtures, TwentyWorkerFixtures>({
               await setMemberTimeZone(api, api.memberId, baseline);
             }
           };
+        }
+      },
+      forgetCapturedCompany: (companyId: string) => {
+        const index = captured.companyIds.indexOf(companyId);
+        if (index >= 0) {
+          captured.companyIds.splice(index, 1);
         }
       },
     };

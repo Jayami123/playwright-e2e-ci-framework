@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { TwentyGraphqlError, twentyGraphql } from "../../src/products/twenty/fixtures/graphql.js";
 
+const originalFetch = globalThis.fetch;
+
 test.describe("Twenty GraphQL client", { tag: ["@unit", "@twenty-fixture"] }, () => {
   test.afterEach(() => {
-    globalThis.fetch = fetch;
+    globalThis.fetch = originalFetch;
   });
 
   test("HTTP 200 with errors[] throws readable error", async () => {

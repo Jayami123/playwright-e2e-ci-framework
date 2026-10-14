@@ -5,6 +5,8 @@ import { TWENTY_ROUTES } from "../../src/products/twenty/env.js";
 const UI_WORKSPACE = "20202020-1c25-4d02-bf25-6aeccf7ea419";
 const UI_MEMBER = "20202020-463f-435b-828c-107e007a2711";
 
+const originalFetch = globalThis.fetch;
+
 function jwt(payload: Record<string, unknown>): string {
   const header = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url");
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -13,7 +15,7 @@ function jwt(payload: Record<string, unknown>): string {
 
 test.describe("Twenty UNAUTHENTICATED retry", { tag: ["@unit", "@twenty-fixture"] }, () => {
   test.afterEach(() => {
-    globalThis.fetch = fetch;
+    globalThis.fetch = originalFetch;
   });
 
   test("re-exchanges exactly once then throws", async () => {
