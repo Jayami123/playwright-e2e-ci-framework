@@ -21,7 +21,7 @@ test.describe("Twenty QA fixture TZ restore", { tag: ["@twenty", "@twenty-fixtur
     }).rejects.toThrow(/inner failure/);
 
     await twentyQa.restoreTimeZoneIfNeeded();
-    await expect(await twentyQa.readTimeZone()).toBe(original);
+    expect(await twentyQa.readTimeZone()).toBe(original);
   });
 });
 
