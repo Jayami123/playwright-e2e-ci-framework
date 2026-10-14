@@ -22,7 +22,16 @@ export function formatTwentyDate(birthdayYmd: string): string {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const instant = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  if (
+    instant.getUTCFullYear() !== year ||
+    instant.getUTCMonth() !== month - 1 ||
+    instant.getUTCDate() !== day
+  ) {
+    throw new RangeError(`formatTwentyDate invalid calendar date: ${birthdayYmd}`);
+  }
+  instant.setUTCHours(12, 0, 0, 0);
   return new Intl.DateTimeFormat("en-US", { ...CIVIL_DATE_FORMAT, timeZone: "UTC" }).format(
     instant,
   );

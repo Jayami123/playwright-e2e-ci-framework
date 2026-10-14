@@ -35,17 +35,8 @@ async function shortTimeZoneName(page: Page, timeZone: string, iso: string): Pro
   );
 }
 
-/** Civil + browser abbrev when inline Close date renders the abbrev span (v2.44: Colombo omits GMT+5:30 on record/table). */
-async function expectedDateTimeLabel(
-  page: Page,
-  iso: string,
-  timeZone: string,
-  includeAbbrev: boolean,
-): Promise<string> {
+async function expectedDateTimeLabel(page: Page, iso: string, timeZone: string): Promise<string> {
   const civil = formatTwentyDateTime(iso, timeZone);
-  if (!includeAbbrev) {
-    return civil;
-  }
   const abbrev = await shortTimeZoneName(page, timeZone, iso);
   return `${civil} ${abbrev}`;
 }
@@ -53,7 +44,7 @@ async function expectedDateTimeLabel(
 test.describe.configure({ mode: "serial" });
 
 test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, () => {
-  test.use({ locale: "en-US" });
+  test.use({ locale: "en-US", timezoneId: "America/Sao_Paulo" });
 
   test(
     "P1-TW-TZ-001 DATE field does not shift with member timezone",
@@ -117,13 +108,27 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
       const opp = await test.step("Create opportunity with closeDate ISO", async () =>
         twentyQa.createOpportunity("tz002-colombo", CLOSE_DATE_ISO));
       await twentyQa.setTimeZone(COLOMBO_TZ);
-      const expected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, COLOMBO_TZ, false);
+      const expected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, COLOMBO_TZ);
 
       const record = new TwentyRecordPage(page);
       const table = new TwentyObjectTablePage(page, "opportunities");
 
+      await test.step("Probe: Playwright timezoneId drives browser host TZ for Twenty abbrev", async () => {
+        const browserHostTz = await page.evaluate(
+          () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+        );
+        expect(browserHostTz).toBe("America/Sao_Paulo");
+      });
+
       await record.goto("opportunity", opp.id);
       await expect(record.dateValueExact(expected)).toBeVisible({ timeout: twentyTimeouts().page });
+      console.log(
+        JSON.stringify({
+          probe: "colombo-close-date-ui",
+          browserHostTz: "America/Sao_Paulo",
+          expectedColomboCloseDate: expected,
+        }),
+      );
 
       await table.gotoIndex();
       await expect(table.cellWithExactText(opp.id, expected)).toBeVisible({
@@ -144,7 +149,7 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
       const opp = await test.step("Create opportunity with closeDate ISO", async () =>
         twentyQa.createOpportunity("tz002-utc", CLOSE_DATE_ISO));
       await twentyQa.setTimeZone(UTC_TZ);
-      const expected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, UTC_TZ, true);
+      const expected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, UTC_TZ);
 
       const record = new TwentyRecordPage(page);
       const table = new TwentyObjectTablePage(page, "opportunities");
@@ -173,7 +178,7 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
       const opp = await test.step("Create opportunity with closeDate ISO", async () =>
         twentyQa.createOpportunity("x01", CLOSE_DATE_ISO));
       await twentyQa.setTimeZone(HONOLULU_TZ);
-      const expected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, HONOLULU_TZ, true);
+      const expected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, HONOLULU_TZ);
 
       const record = new TwentyRecordPage(page);
       const table = new TwentyObjectTablePage(page, "opportunities");
@@ -208,12 +213,7 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
       await test.step("Settings: Colombo then verify record UI", async () => {
         await settings.goto();
         await settings.selectTimeZoneOption(SETTINGS_TZ_COLOMBO);
-        const colomboExpected = await expectedDateTimeLabel(
-          page,
-          CLOSE_DATE_ISO,
-          COLOMBO_TZ,
-          false,
-        );
+        const colomboExpected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, COLOMBO_TZ);
         await record.goto("opportunity", opp.id);
         await expect(record.dateValueExact(colomboExpected)).toBeVisible({
           timeout: twentyTimeouts().page,
@@ -223,7 +223,7 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
       await test.step("Settings: UTC then verify record UI and negative", async () => {
         await settings.goto();
         await settings.selectTimeZoneOption(SETTINGS_TZ_UTC);
-        const utcExpected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, UTC_TZ, true);
+        const utcExpected = await expectedDateTimeLabel(page, CLOSE_DATE_ISO, UTC_TZ);
         await record.goto("opportunity", opp.id);
         await expect(record.dateValueExact(utcExpected)).toBeVisible({
           timeout: twentyTimeouts().page,

@@ -224,7 +224,7 @@ async function shortTimeZoneName(page: Page, timeZone: string, iso: string): Pro
 }
 ```
 
-DATE_TIME expected UI text is `${formatTwentyDateTime(iso, tz)} ${abbrev}` (spacing as live HTML). Never omit `abbrev`. Never compute abbrev in Node for an E2E assertion.
+DATE_TIME expected UI text is `${formatTwentyDateTime(iso, tz)} ${abbrev}` (spacing as live HTML). Never omit `abbrev`. Never compute abbrev in Node for an E2E assertion. `abbrev` visibility follows Twenty `TimeZoneAbbreviation` (member TZ vs browser host TZ from `Intl.DateTimeFormat().resolvedOptions().timeZone`). `@twenty-tz` pins `test.use({ timezoneId: "America/Sao_Paulo" })` so every member zone under test differs from host and abbrev is always asserted.
 
 DATE `2027-01-01` (any member TZ): **`Jan 1, 2027`**. Same string in Honolulu and Kiritimati.
 

@@ -27,4 +27,16 @@ test.describe("Twenty display oracles", { tag: ["@unit", "@twenty"] }, () => {
     const ymd = `${String(year)}-01-01`;
     expect(formatTwentyDate(ymd)).toBe("Jan 1, 2027");
   });
+
+  test("rejects invalid calendar dates", () => {
+    expect(() => formatTwentyDate("2026-02-31")).toThrow(RangeError);
+  });
+
+  test("preserves year 0-99 without Date.UTC remapping", () => {
+    expect(formatTwentyDate("0099-01-01")).toBe("Jan 1, 99");
+  });
+
+  test("accepts leap day 2024-02-29", () => {
+    expect(formatTwentyDate("2024-02-29")).toBe("Feb 29, 2024");
+  });
 });
