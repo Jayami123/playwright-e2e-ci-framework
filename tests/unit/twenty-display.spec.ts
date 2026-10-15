@@ -14,6 +14,7 @@ import {
   formatTwentyDateTime,
   kiritimatiHalfPastIso,
   monthClicksFromHeading,
+  calendarCloseDateYmd,
   parseCalendarMonthHeading,
   zonedDayNumber,
 } from "../../src/products/twenty/display.js";
@@ -107,6 +108,11 @@ test.describe("Twenty display oracles", { tag: ["@unit", "@twenty"] }, () => {
     expect(() => {
       assertKiritimatiDateUnchanged(before, before + 1);
     }).not.toThrow();
+  });
+
+  test("calendarCloseDateYmd formats month grid host suffix", () => {
+    expect(calendarCloseDateYmd(2027, 3, 28)).toBe("2027-03-28");
+    expect(() => calendarCloseDateYmd(2027, 2, 30)).toThrow(/invalid civil date/);
   });
 
   test("month heading parse and click count from UI heading", () => {

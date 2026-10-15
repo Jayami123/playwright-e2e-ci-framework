@@ -141,6 +141,24 @@ export function assertKiritimatiDateUnchanged(startMs: number, endMs: number): v
   }
 }
 
+/** `YYYY-MM-DD` for Twenty month calendar card hosts (`record-calendar-card-*-{ymd}`). */
+export function calendarCloseDateYmd(year: number, month: number, day: number): string {
+  const monthPadded = String(month).padStart(2, "0");
+  const dayPadded = String(day).padStart(2, "0");
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  if (
+    instant.getUTCFullYear() !== year ||
+    instant.getUTCMonth() !== month - 1 ||
+    instant.getUTCDate() !== day
+  ) {
+    throw new RangeError(
+      `calendarCloseDateYmd invalid civil date: ${String(year)}-${monthPadded}-${dayPadded}`,
+    );
+  }
+  return `${String(year)}-${monthPadded}-${dayPadded}`;
+}
+
 export function parseCalendarMonthHeading(heading: string): { year: number; month: number } {
   const match =
     /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/.exec(

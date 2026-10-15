@@ -1,6 +1,11 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
-import { calendarMonthHeading, monthClicksFromHeading } from "../display.js";
+import {
+  calendarCloseDateYmd,
+  calendarMonthHeading,
+  monthClicksFromHeading,
+  parseCalendarMonthHeading,
+} from "../display.js";
 import { twentyTimeouts, TWENTY_ROUTES } from "../env.js";
 
 export class TwentyObjectCalendarPage extends BasePage {
@@ -26,10 +31,6 @@ export class TwentyObjectCalendarPage extends BasePage {
 
   recordCard(exactName: string): Locator {
     return this.page.getByRole("link", { name: exactName, exact: true });
-  }
-
-  dayNumber(day: number): Locator {
-    return this.page.getByText(String(day), { exact: true });
   }
 
   async readMonthHeading(): Promise<string> {
@@ -74,16 +75,31 @@ export class TwentyObjectCalendarPage extends BasePage {
     return viewId;
   }
 
-  // Adjacent-month days reuse the number; the cell is the nearest same-column label above the card.
-  async expectRecordOnDay(exactName: string, dayNumber: number): Promise<void> {
+  /**
+   * Month body day cell host inside RecordCalendarMonthBodyDay (grid day). Live DOM (v2.44.0,
+   * 2026-10-15): `id="record-calendar-card-{uuid}-{YYYY-MM-DD}"` on the cell card shell.
+   */
+  private recordCalendarCardHost(closeDateYmd: string): Locator {
+    return this.page.locator(`[id^="record-calendar-card-"][id$="-${closeDateYmd}"]`);
+  }
+
+  private recordCalendarCardHosts(): Locator {
+    // eslint-disable-next-line playwright/no-raw-locators -- detects month grid day cells
+    return this.page.locator('[id^="record-calendar-card-"]');
+  }
+
+  // Fallback when month cells lack `record-calendar-card-*` hosts (not seen on v2.44.0).
+  private async expectRecordOnDayByNearestLabel(
+    exactName: string,
+    dayNumber: number,
+  ): Promise<void> {
     const card = this.recordCard(exactName);
-    await expect(card).toBeVisible();
     await card.scrollIntoViewIfNeeded();
     const cardBox = await card.boundingBox();
     if (cardBox === null) {
       throw new Error(`calendar card ${exactName} has no box`);
     }
-    const labels = await this.dayNumber(dayNumber).all();
+    const labels = await this.page.getByText(String(dayNumber), { exact: true }).all();
     if (labels.length === 0) {
       throw new Error(`calendar day ${String(dayNumber)} not found`);
     }
@@ -108,5 +124,21 @@ export class TwentyObjectCalendarPage extends BasePage {
         `calendar card ${exactName} is not in a day cell numbered ${String(dayNumber)} (card=${JSON.stringify(cardBox)})`,
       );
     }
+  }
+
+  async expectRecordOnDay(exactName: string, dayNumber: number): Promise<void> {
+    const card = this.recordCard(exactName);
+    await expect(card).toBeVisible();
+    const heading = await this.readMonthHeading();
+    const { year, month } = parseCalendarMonthHeading(heading);
+    const closeDateYmd = calendarCloseDateYmd(year, month, dayNumber);
+
+    if ((await this.recordCalendarCardHosts().count()) > 0) {
+      const dayCellHost = this.recordCalendarCardHost(closeDateYmd).filter({ has: card });
+      await expect(dayCellHost).toBeVisible();
+      return;
+    }
+
+    await this.expectRecordOnDayByNearestLabel(exactName, dayNumber);
   }
 }
