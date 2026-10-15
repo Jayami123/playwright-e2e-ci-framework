@@ -95,7 +95,7 @@ jobs:
             mapfile -t changed < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
             cal_re='^(tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             doc_re='^(tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
-            tw_re='^(tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            tw_re='^(tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             for file in "${changed[@]}"; do
               if [[ "$file" =~ $cal_re ]]; then cal=true; fi
               if [[ "$file" =~ $doc_re ]]; then documenso=true; fi
