@@ -221,17 +221,13 @@ test.describe("visual docker argv", () => {
 });
 
 test.describe("axe allowlist partition", () => {
+  const RESOLVED = new Map([['[data-testid="overlay-calendar-switch"]', ["#radix-_r_r_"]]]);
   const switchViolation: AxeViolationLike = {
     id: "button-name",
     impact: "critical",
     help: "Buttons must have discernible text",
     helpUrl: "https://example.test/button-name",
-    nodes: [
-      {
-        target: ["#radix-_r_r_"],
-        html: '<button role="switch" data-testid="overlay-calendar-switch" id="radix-_r_r_">',
-      },
-    ],
+    nodes: [{ target: ["#radix-_r_r_"] }],
   };
 
   test("no violations: nothing blocking or allowed, allowlist is stale", { tag: ["@unit"] }, () => {
@@ -242,7 +238,7 @@ test.describe("axe allowlist partition", () => {
   });
 
   test("an allowlisted violation only is allowed and not stale", { tag: ["@unit"] }, () => {
-    const result = partitionViolations([switchViolation], AXE_ALLOWLIST);
+    const result = partitionViolations([switchViolation], AXE_ALLOWLIST, RESOLVED);
     expect(result.blocking).toEqual([]);
     expect(result.allowed.map((v) => v.id)).toEqual(["button-name"]);
     expect(result.staleAllowlist).toEqual([]);
@@ -250,7 +246,7 @@ test.describe("axe allowlist partition", () => {
 
   test("a new critical violation is blocking", { tag: ["@unit"] }, () => {
     const fresh = violation("color-contrast", "critical", ["#new-thing"]);
-    const result = partitionViolations([switchViolation, fresh], AXE_ALLOWLIST);
+    const result = partitionViolations([switchViolation, fresh], AXE_ALLOWLIST, RESOLVED);
     expect(result.blocking.map((v) => v.id)).toEqual(["color-contrast"]);
     expect(result.allowed.map((v) => v.id)).toEqual(["button-name"]);
     expect(result.staleAllowlist).toEqual([]);
@@ -263,24 +259,36 @@ test.describe("axe allowlist partition", () => {
     expect(result.staleAllowlist).toEqual(AXE_ALLOWLIST);
   });
 
-  test("matches the truncated data-testid axe puts in node.html", { tag: ["@unit"] }, () => {
-    const truncated: AxeViolationLike = {
+  test("exact data-testid in the target is allowed", { tag: ["@unit"] }, () => {
+    const exact = violation("button-name", "critical", ['[data-testid="overlay-calendar-switch"]']);
+    const result = partitionViolations([exact], AXE_ALLOWLIST);
+    expect(result.blocking).toEqual([]);
+    expect(result.allowed).toHaveLength(1);
+  });
+
+  test("a test id sharing the prefix stays blocking", { tag: ["@unit"] }, () => {
+    const secondary = violation("button-name", "critical", [
+      '[data-testid="overlay-calendar-switch-secondary"]',
+    ]);
+    const result = partitionViolations([secondary], AXE_ALLOWLIST, RESOLVED);
+    expect(result.blocking).toHaveLength(1);
+    expect(result.allowed).toEqual([]);
+    expect(result.staleAllowlist).toEqual(AXE_ALLOWLIST);
+  });
+
+  test("a truncated html snippet alone never allows", { tag: ["@unit"] }, () => {
+    const htmlOnly: AxeViolationLike = {
       ...switchViolation,
       nodes: [
         {
-          target: ["#radix-_r_r_"],
-          html: '<button role="switch" data-testid="overlay-calendar-swi..." id="radix-_r_r_">',
+          target: ["#some-other-id"],
+          html: '<button role="switch" data-testid="overlay-calendar-swi..." id="some-other-id">',
         },
       ],
     };
-    const result = partitionViolations([truncated], AXE_ALLOWLIST);
-    expect(result.blocking).toEqual([]);
-    expect(result.allowed).toHaveLength(1);
-    const other: AxeViolationLike = {
-      ...switchViolation,
-      nodes: [{ target: ["#x"], html: '<button data-testid="overlay-other-thing..." id="x">' }],
-    };
-    expect(partitionViolations([other], AXE_ALLOWLIST).blocking).toHaveLength(1);
+    const result = partitionViolations([htmlOnly], AXE_ALLOWLIST, RESOLVED);
+    expect(result.blocking).toHaveLength(1);
+    expect(result.allowed).toEqual([]);
   });
 
   test("viewport-scoped entries apply only to their projects", { tag: ["@unit"] }, () => {
@@ -300,7 +308,7 @@ test.describe("axe allowlist partition", () => {
 
   test("an allowlist entry that matches nothing is stale", { tag: ["@unit"] }, () => {
     const entry = { rule: "image-alt", target: "#gone", finding: "fixed upstream" };
-    const result = partitionViolations([switchViolation], [...AXE_ALLOWLIST, entry]);
+    const result = partitionViolations([switchViolation], [...AXE_ALLOWLIST, entry], RESOLVED);
     expect(result.staleAllowlist).toEqual([entry]);
     expect(result.blocking).toEqual([]);
   });

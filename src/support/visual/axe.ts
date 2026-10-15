@@ -51,28 +51,38 @@ export interface AxePartition<T extends AxeViolationLike> {
 }
 
 const TEST_ID_SELECTOR = /^\[data-testid="([^"]+)"\]$/;
-const HTML_TEST_ID = /data-testid="([^"]*)"/;
+const TEST_ID_ATTRIBUTE = /\[data-testid="([^"]*)"\]/g;
 
-function nodeMatches(node: AxeViolationLike["nodes"][number], selector: string): boolean {
-  if (node.target.map(targetToString).includes(selector)) {
-    return true;
-  }
-  const testId = TEST_ID_SELECTOR.exec(selector)?.[1];
-  if (testId === undefined || node.html === undefined) {
-    return false;
-  }
-  // axe truncates long attribute values in node.html to a prefix ending in "...".
-  const shown = HTML_TEST_ID.exec(node.html)?.[1];
-  if (shown === undefined) {
-    return false;
-  }
-  return shown.endsWith("...") ? testId.startsWith(shown.slice(0, -3)) : shown === testId;
+/** Extra axe selectors per allowlist target (see resolveAllowlistTargets), keyed by AxeAllowlistEntry.target. */
+export type ResolvedTargets = ReadonlyMap<string, readonly string[]>;
+
+/** True when the selector holds the exact attribute [data-testid="<testId>"] (whole value, not a prefix). */
+function selectorHasTestId(selector: string, testId: string): boolean {
+  return [...selector.matchAll(TEST_ID_ATTRIBUTE)].some((m) => m[1] === testId);
+}
+
+/** Matches on node.target only; node.html is truncated by axe and never decides. */
+function nodeMatches(
+  node: AxeViolationLike["nodes"][number],
+  entry: AxeAllowlistEntry,
+  resolved: ResolvedTargets,
+): boolean {
+  const selectors = node.target.map(targetToString);
+  const testId = TEST_ID_SELECTOR.exec(entry.target)?.[1];
+  const extra = resolved.get(entry.target) ?? [];
+  return selectors.some(
+    (selector) =>
+      selector === entry.target ||
+      extra.includes(selector) ||
+      (testId !== undefined && selectorHasTestId(selector, testId)),
+  );
 }
 
 /** Pure. Only serious and critical violations are partitioned; others are ignored. */
 export function partitionViolations<T extends AxeViolationLike>(
   violations: readonly T[],
   allowlist: readonly AxeAllowlistEntry[],
+  resolved: ResolvedTargets = new Map(),
 ): AxePartition<T> {
   const used = new Set<AxeAllowlistEntry>();
   const blocking: T[] = [];
@@ -84,7 +94,9 @@ export function partitionViolations<T extends AxeViolationLike>(
     const open: T["nodes"][number][] = [];
     const covered: T["nodes"][number][] = [];
     for (const node of violation.nodes) {
-      const entry = allowlist.find((e) => e.rule === violation.id && nodeMatches(node, e.target));
+      const entry = allowlist.find(
+        (e) => e.rule === violation.id && nodeMatches(node, e, resolved),
+      );
       if (entry === undefined) {
         open.push(node);
       } else {
@@ -105,6 +117,29 @@ export function partitionViolations<T extends AxeViolationLike>(
 export function describeViolation(violation: AxeViolationLike): string {
   const targets = violation.nodes.flatMap((n) => n.target.map(targetToString)).join(", ");
   return `${violation.id} (${String(violation.impact)}) at ${targets}`;
+}
+
+interface ElementWithId {
+  readonly id: string;
+}
+
+/**
+ * axe reports #id selectors, not data-testid ones. Turn each test-id allowlist target into the ids
+ * of the elements currently matching it, so partitionViolations can compare whole target selectors.
+ */
+export async function resolveAllowlistTargets(
+  page: Page,
+  allowlist: readonly AxeAllowlistEntry[],
+): Promise<ResolvedTargets> {
+  const resolved = new Map<string, readonly string[]>();
+  for (const entry of allowlist) {
+    const ids = await page
+      .locator(entry.target)
+      .evaluateAll((elements: readonly ElementWithId[]) => elements.map((e) => e.id));
+    const selectors = ids.filter((id) => id !== "").map((id) => `#${id}`);
+    resolved.set(entry.target, selectors);
+  }
+  return resolved;
 }
 
 export interface AxeScanOptions {
@@ -134,9 +169,11 @@ export async function axeScan(page: Page, opts: AxeScanOptions = {}): Promise<Ax
     builder = builder.include(selector);
   }
   const results = await builder.analyze();
+  const allowlist = allowlistForProject(opts.allowlist ?? AXE_ALLOWLIST, opts.project);
   const partition = partitionViolations(
     results.violations,
-    allowlistForProject(opts.allowlist ?? AXE_ALLOWLIST, opts.project),
+    allowlist,
+    await resolveAllowlistTargets(page, allowlist),
   );
   return {
     report: buildAxeReport(page.url(), results.violations, new Date().toISOString()),
