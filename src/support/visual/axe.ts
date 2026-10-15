@@ -56,9 +56,38 @@ const TEST_ID_ATTRIBUTE = /\[data-testid="([^"]*)"\]/g;
 /** Extra axe selectors per allowlist target (see resolveAllowlistTargets), keyed by AxeAllowlistEntry.target. */
 export type ResolvedTargets = ReadonlyMap<string, readonly string[]>;
 
-/** True when the selector holds the exact attribute [data-testid="<testId>"] (whole value, not a prefix). */
+/**
+ * The last compound of a selector: split on combinators (whitespace, >, +, ~) that sit outside
+ * [...] brackets, quotes and \ escapes, and keep the final part.
+ */
+function lastCompound(selector: string): string {
+  let depth = 0;
+  let quote: string | undefined;
+  let start = 0;
+  for (let i = 0; i < selector.length; i += 1) {
+    const ch = selector.charAt(i);
+    if (ch === "\\") {
+      i += 1;
+    } else if (quote !== undefined) {
+      if (ch === quote) {
+        quote = undefined;
+      }
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === "[") {
+      depth += 1;
+    } else if (ch === "]") {
+      depth -= 1;
+    } else if (depth === 0 && /[\s>+~]/.test(ch)) {
+      start = i + 1;
+    }
+  }
+  return selector.slice(start);
+}
+
+/** True when the selector's last compound holds the exact attribute [data-testid="<testId>"] (whole value). */
 function selectorHasTestId(selector: string, testId: string): boolean {
-  return [...selector.matchAll(TEST_ID_ATTRIBUTE)].some((m) => m[1] === testId);
+  return [...lastCompound(selector).matchAll(TEST_ID_ATTRIBUTE)].some((m) => m[1] === testId);
 }
 
 /** Matches on node.target only; node.html is truncated by axe and never decides. */
@@ -119,10 +148,6 @@ export function describeViolation(violation: AxeViolationLike): string {
   return `${violation.id} (${String(violation.impact)}) at ${targets}`;
 }
 
-interface ElementWithId {
-  readonly id: string;
-}
-
 /**
  * axe reports #id selectors, not data-testid ones. Turn each test-id allowlist target into the ids
  * of the elements currently matching it, so partitionViolations can compare whole target selectors.
@@ -133,10 +158,12 @@ export async function resolveAllowlistTargets(
 ): Promise<ResolvedTargets> {
   const resolved = new Map<string, readonly string[]>();
   for (const entry of allowlist) {
-    const ids = await page
-      .locator(entry.target)
-      .evaluateAll((elements: readonly ElementWithId[]) => elements.map((e) => e.id));
-    const selectors = ids.filter((id) => id !== "").map((id) => `#${id}`);
+    // String expression: tsconfig has no DOM lib. CSS.escape matches how axe writes #id selectors.
+    const selectors = await page.evaluate<string[]>(
+      `[...document.querySelectorAll(${JSON.stringify(entry.target)})]
+        .filter((e) => e.id !== "")
+        .map((e) => "#" + CSS.escape(e.id))`,
+    );
     resolved.set(entry.target, selectors);
   }
   return resolved;

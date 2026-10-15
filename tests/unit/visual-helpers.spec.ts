@@ -276,6 +276,36 @@ test.describe("axe allowlist partition", () => {
     expect(result.staleAllowlist).toEqual(AXE_ALLOWLIST);
   });
 
+  test("an ancestor test id with a descendant target stays blocking", { tag: ["@unit"] }, () => {
+    for (const target of [
+      '[data-testid="overlay-calendar-switch"] > button',
+      '[data-testid="overlay-calendar-switch"] button',
+      '[data-testid="overlay-calendar-switch"]+button',
+    ]) {
+      const descendant = violation("button-name", "critical", [target]);
+      const result = partitionViolations([descendant], AXE_ALLOWLIST);
+      expect(result.blocking, target).toHaveLength(1);
+      expect(result.allowed, target).toEqual([]);
+    }
+  });
+
+  test("the test id in the last compound is allowed", { tag: ["@unit"] }, () => {
+    const nested = violation("button-name", "critical", [
+      'main > div [data-testid="overlay-calendar-switch"]',
+    ]);
+    expect(partitionViolations([nested], AXE_ALLOWLIST).allowed).toHaveLength(1);
+  });
+
+  test("an escaped id selector matches its resolved target", { tag: ["@unit"] }, () => {
+    const entry = { rule: "button-name", target: '[data-testid="item"]', finding: "f" };
+    const escaped = violation("button-name", "critical", ["#item\\:42"]);
+    const resolved = new Map([[entry.target, ["#item\\:42"]]]);
+    const result = partitionViolations([escaped], [entry], resolved);
+    expect(result.blocking).toEqual([]);
+    expect(result.allowed).toHaveLength(1);
+    expect(partitionViolations([escaped], [entry]).blocking).toHaveLength(1);
+  });
+
   test("a truncated html snippet alone never allows", { tag: ["@unit"] }, () => {
     const htmlOnly: AxeViolationLike = {
       ...switchViolation,
