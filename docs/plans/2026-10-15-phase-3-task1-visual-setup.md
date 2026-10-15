@@ -840,7 +840,7 @@ Expected: the first run pulls `mcr.microsoft.com/playwright:v1.63.0-jammy` (abou
 
 ```bash
 ls tests/cal/visual/__screenshots__/*/
-sha256sum tests/cal/visual/__screenshots__/*/*.png | tee /tmp/p1-vis-sha-1.txt
+mkdir -p /tmp/p1-vis-1 && for v in mobile tablet desktop; do cp tests/cal/visual/__screenshots__/visual-$v/booker-pro-30min.png /tmp/p1-vis-1/$v.png; done
 ```
 
 You should see exactly three files: `visual-desktop/booker-pro-30min.png`, `visual-mobile/booker-pro-30min.png` and `visual-tablet/booker-pro-30min.png`. Open each one and check it shows "January 2030", Mon 14 selected, slots from `9:00am`, and a black box over the avatar (mask).
@@ -856,10 +856,11 @@ npm run check                                   # exit 0
 npm run test:unit                               # exit 0, "105 passed"
 npm run visual:test                             # exit 0, "6 passed"
 npm run visual:test                             # exit 0, "6 passed" again
-npm run visual:update && sha256sum tests/cal/visual/__screenshots__/*/*.png | diff - /tmp/p1-vis-sha-1.txt && echo "0 diff"
+npm run visual:update
+mkdir -p /tmp/p1-vis-2 && for v in mobile tablet desktop; do cp tests/cal/visual/__screenshots__/visual-$v/booker-pro-30min.png /tmp/p1-vis-2/$v.png; done
 ```
 
-The last line proves 0 px drift: regenerating writes byte-identical PNGs. `toHaveScreenshot` passing alone only proves "within 1%".
+Then compare each of the three pairs (`/tmp/p1-vis-1/<v>.png` against `/tmp/p1-vis-2/<v>.png`) pixel by pixel. Two regenerations count as **stable** when at most 0.01% of the pixels differ and no colour channel differs by more than 2. Report the differing pixel count, percentage, bounding box and maximum channel delta for each pair. Byte-identical hashes are not required: Chromium anti-aliases the rounded card corners differently between runs (measured on desktop: 0–40 px, max delta 1/255, all on the four corners of the booker card). Keep the compare script outside the repo (a throwaway script in a temp directory; `PNG` is exported by `playwright-core/lib/utilsBundle`). `toHaveScreenshot` passing alone only proves "within 1%"; this check proves the baselines themselves don't wander.
 
 a11y attachment:
 
@@ -931,9 +932,17 @@ Commit with explicit paths only: every file in the Files table plus the 3 PNGs. 
 ## Final report (implementation) must include
 
 - The Step 1 and Step 10 list-count tables side by side.
-- Output tails of `npm run check`, `npm run test:unit`, `npm run visual:update`, two `visual:test` runs, and the sha256 `0 diff` line.
+- Output tails of `npm run check`, `npm run test:unit`, `npm run visual:update`, two `visual:test` runs, and the pixel-comparison result per viewport (differing px, %, max channel delta).
 - The axe `counts` per viewport and any blocking rule ids. These are **findings only**, labelled PRODUCT BUG or TEST BUG with evidence. Nothing gets `test.fail` in this task.
 - Which AxeBuilder import form worked, and whether the `node_modules` fallback was needed.
+
+## Deviations from this plan found during the build (2026-10-15)
+
+- **`screenshot.ts` string evaluate:** `page.evaluate`/`waitForFunction` use string expressions instead of callbacks, because `tsconfig` has no DOM lib (`document` fails typecheck). Same precedent as `tests/documenso/auth/passkey-register.spec.ts`.
+- **ESLint `.mjs` block:** also sets `@typescript-eslint/explicit-function-return-type` to `off`, because plain JS cannot carry return-type annotations.
+- **Axe import:** use the named form `import { AxeBuilder } from "@axe-core/playwright";`. The default import fails `tsc` ("not constructable"), and the planned fallback `AxeBuilderModule.default` typechecks but throws "AxeBuilder is not a constructor" at runtime in the container (Playwright's TS loader). The named export works for both.
+- **Docker `node_modules` fallback:** not needed. The container ran Playwright from the Windows-installed `node_modules`.
+- **0-diff check:** replaced the sha256 equality with a pixel comparison (Step 10) after measuring corner anti-aliasing drift.
 
 ## Resolved questions (decided in review, 2026-10-15)
 
