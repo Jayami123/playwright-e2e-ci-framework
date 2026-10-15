@@ -998,7 +998,7 @@ jobs:
           key: ${{ runner.os }}-documenso-remix-${{ steps.checkout_documenso.outputs.commit }}
 
   twenty-chromium:
-    name: twenty-chromium
+    name: twenty-self-hosted
     needs: [structural, changes]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.twenty_chromium_timeout_minutes }}
