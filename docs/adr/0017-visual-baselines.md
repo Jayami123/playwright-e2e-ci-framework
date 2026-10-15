@@ -25,7 +25,7 @@ The Step 0 probe on 2026-10-15 (Chromium 1.63.0, each viewport loaded twice per 
 - Who updates baselines: a manual `workflow_dispatch` job (task 6) runs `visual:update` on Linux and opens a PR with the PNG diff; locally only via `npm run visual:update` (Docker). Never commit PNGs made outside the pinned image.
 - Docker on Windows: an in-container TCP proxy `127.0.0.1:<port>` to `host.docker.internal` keeps the baseURL origin. Linux hosts use `--network host` plus `--user uid:gid`; CI (task 6) runs on a GitHub-hosted `ubuntu-latest` runner with `--network host`.
 - Reproducibility: regenerating baselines in the pinned image is stable at the pixel level, not the byte level. Two regenerations count as stable when at most 0.01% of pixels differ and no colour channel differs by more than 2. Measured on 2026-10-15: desktop differed by 0–40 px (max delta 1/255), all on the anti-aliased rounded corners of the booker card; mobile and tablet matched.
-- a11y: `@axe-core/playwright` exact pin, WCAG 2.0/2.1 A+AA tags, serious and critical reported as a JSON attachment. Task 1 does not fail on violations.
+- a11y: `@axe-core/playwright` exact pin, WCAG 2.0/2.1 A+AA tags, serious and critical reported as a JSON attachment. The a11y specs fail on serious and critical violations; known product bugs go on the allowlist in `src/support/visual/axe.ts` with a finding, and an allowlist entry that matches nothing fails as stale.
 
 ## Consequences
 

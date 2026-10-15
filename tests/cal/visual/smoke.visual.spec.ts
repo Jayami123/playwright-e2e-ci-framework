@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../src/products/cal/fixtures.js";
 import { BookerPage } from "../../../src/products/cal/pages/booker.page.js";
 import { CAL_FROZEN_SLOT_COUNT } from "../../../src/products/cal/visual.js";
 import { freezeClock, VISUAL_FROZEN_INSTANT } from "../../../src/support/visual/clock.js";
