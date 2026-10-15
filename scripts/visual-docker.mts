@@ -4,10 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import { getAdapter } from "qa-portfolio-harness";
 import { getStatus } from "../src/core/http-status.js";
 import {
   buildDockerRunArgs,
   calPortFromBaseUrl,
+  buildVisualDockerEnv,
+  dbPortFromUrl,
+  redactDockerArgs,
   playwrightImage,
   type VisualMode,
 } from "../src/support/visual/docker.js";
@@ -36,6 +40,8 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
+  const hostDbUrl = getAdapter("cal").dbUrl;
+  const dbPort = dbPortFromUrl(hostDbUrl);
   const image = playwrightImage(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   const userInfo = process.platform === "linux" ? os.userInfo() : undefined;
   const args = buildDockerRunArgs({
@@ -44,18 +50,14 @@ async function main(): Promise<void> {
     hostRoot: ROOT,
     hostPlatform: process.platform,
     calPort,
+    dbPort,
     ...(userInfo === undefined
       ? {}
       : { uidGid: `${String(userInfo.uid)}:${String(userInfo.gid)}` }),
-    env: {
-      P1_PLAYWRIGHT_HARNESS: "0",
-      CAL_E2E_BASE_URL: `http://127.0.0.1:${String(calPort)}`,
-      CAL_WEB_MODE: process.env.CAL_WEB_MODE ?? "prod",
-      HOME: "/tmp",
-    },
+    env: buildVisualDockerEnv(calPort, hostDbUrl, process.env.CAL_WEB_MODE ?? "prod"),
     extraArgs: process.argv.slice(3),
   });
-  console.log(`docker ${args.slice(0, -1).join(" ")} '<inner command>'`);
+  console.log(`docker ${redactDockerArgs(args).slice(0, -1).join(" ")} '<inner command>'`);
   const result = spawnSync("docker", args, { stdio: "inherit" });
   if (result.error !== undefined) {
     console.error(`docker failed to start (is Docker Desktop running?): ${result.error.message}`);

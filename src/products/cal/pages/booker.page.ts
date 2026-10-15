@@ -66,6 +66,11 @@ export class BookerPage extends BasePage {
     return this.page.getByTestId(CAL_TEST_IDS.timeSlot);
   }
 
+  firstSlot(): Locator {
+    // eslint-disable-next-line playwright/no-nth-methods -- the earliest slot of the day is the first in DOM order
+    return this.slotButtons().first();
+  }
+
   async gotoUserEvent(user: string, event: string, query?: BookerQuery): Promise<void> {
     await this.gotoPath(bookerPath(user, event, query));
   }

@@ -2,6 +2,10 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { twentyTimeouts } from "../env.js";
 
+/** Step 0 2026-10-15: one Escape leaves the floating-ui portal (listbox) mounted; a second closes it. */
+const FLOATING_PORTAL = "[data-floating-ui-portal]";
+const MAX_PORTAL_ESCAPES = 3;
+
 export class TwentyObjectFilterPage extends BasePage {
   readonly filterButton: Locator;
   readonly todayChip: Locator;
@@ -25,8 +29,16 @@ export class TwentyObjectFilterPage extends BasePage {
     await expect(this.todayChip).toBeVisible();
   }
 
+  async closeFloatingPortals(): Promise<void> {
+    // ADR 0006 rule gap: no-raw-locators flags string literals only; the portal has no role or test id of its own.
+    const portals = this.page.locator(FLOATING_PORTAL);
+    for (let i = 0; i < MAX_PORTAL_ESCAPES && (await portals.count()) > 0; i += 1) {
+      await this.page.keyboard.press("Escape");
+    }
+    await expect(portals).toHaveCount(0, { timeout: twentyTimeouts().action });
+  }
+
   async resetAndExpectChipGone(): Promise<void> {
-    await this.page.keyboard.press("Escape");
     await this.resetUnsavedViewEdits();
     await expect(this.todayChip).toHaveCount(0);
   }
@@ -42,6 +54,7 @@ export class TwentyObjectFilterPage extends BasePage {
   }
 
   async resetUnsavedViewEdits(): Promise<void> {
+    await this.closeFloatingPortals();
     await this.page.getByRole("button", { name: "Reset", exact: true }).click();
   }
 }

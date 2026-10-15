@@ -9,10 +9,10 @@ test.describe("Cal visual pipeline smoke", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test(
-    "booker /pro/30min matches the frozen-clock baseline",
+    "P1-CAL-VIS-001 booker /pro/30min matches the frozen-clock baseline",
     {
       tag: ["@cal", "@visual"],
-      annotation: { type: "testId", description: "P1-CAL-VIS-SMOKE" },
+      annotation: { type: "testId", description: "P1-CAL-VIS-001" },
     },
     async ({ page }) => {
       await freezeClock(page, VISUAL_FROZEN_INSTANT);

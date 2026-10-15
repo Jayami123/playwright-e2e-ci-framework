@@ -33,9 +33,13 @@ const VISUAL_VIEWPORTS: Readonly<Record<VisualProjectName, { width: number; heig
   "visual-tablet": { width: 820, height: 1180 },
   "visual-desktop": { width: 1440, height: 900 },
 };
-/** ADR 0017: visual and a11y specs run only in visual-* projects. */
-const VISUAL_A11Y_MATCH = ["**/visual/**/*.spec.ts", "**/a11y/**/*.spec.ts"];
-const VISUAL_A11Y_IGNORE = ["**/visual/**", "**/a11y/**"];
+/** ADR 0017: visual, a11y and i18n specs run only in visual-* projects. */
+const VISUAL_A11Y_MATCH = [
+  "**/visual/**/*.spec.ts",
+  "**/a11y/**/*.spec.ts",
+  "**/i18n/**/*.spec.ts",
+];
+const VISUAL_A11Y_IGNORE = ["**/visual/**", "**/a11y/**", "**/i18n/**"];
 
 const documensoChromeUse = {
   baseURL: documensoPublicUrlFromEnv(),

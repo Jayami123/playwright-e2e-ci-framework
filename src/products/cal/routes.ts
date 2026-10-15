@@ -12,6 +12,8 @@ export const CAL_ROUTES = {
   eventTypes: "/event-types",
   eventTypeEditor: (id: string): string => `/event-types/${id}`,
   eventTypesHeavyCreate: "eventTypesHeavy/create",
+  trpcUpdateProfile: "me/updateProfile",
+  slotsGetSchedule: "slots/getSchedule",
   eventTypesHeavyUpdate: "eventTypesHeavy/update",
   availability: "/availability",
   scheduleUpdate: "availability/schedule.update",
@@ -32,3 +34,6 @@ export const DST_ORGANISER = {
 export function isEventTypeEditorPath(pathname: string): boolean {
   return /\/event-types\/\d+$/.test(pathname);
 }
+
+/** Step 0: one GET per month; React Query retries a 500 four times. */
+export const CAL_SLOTS_ROUTE = /\/api\/trpc\/slots\/getSchedule/;
