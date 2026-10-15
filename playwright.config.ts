@@ -201,6 +201,7 @@ export default defineConfig({
       name: "twenty-setup",
       testDir: "./tests/setup",
       testMatch: /twenty\.setup\.ts/,
+      retries: 0,
       timeout: twentyTimeouts().test,
       expect: { timeout: twentyTimeouts().expect },
       use: {
@@ -215,6 +216,7 @@ export default defineConfig({
       name: "twenty-chromium",
       dependencies: ["twenty-setup"],
       testDir: "./tests/twenty",
+      retries: 0,
       timeout: twentyTimeouts().test,
       expect: { timeout: twentyTimeouts().expect },
       use: {
