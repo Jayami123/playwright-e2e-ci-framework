@@ -217,13 +217,30 @@ test.describe("visual docker argv", () => {
   });
 
   test("buildVisualDockerEnv points the container at IPv4 Cal and DB", { tag: ["@unit"] }, () => {
-    const env = buildVisualDockerEnv(3000, 5450, "prod");
+    const env = buildVisualDockerEnv(
+      3000,
+      "postgresql://postgres:@localhost:5450/calendso",
+      "prod",
+    );
     expect(env.PRODUCTS_ROOT).toBe("/tmp/p1-products");
-    expect(env.CAL_DB_URL).toBe("postgresql://postgres:@127.0.0.1:5450/calendso");
+    expect(env.CAL_DB_URL).toBe("postgresql://postgres@127.0.0.1:5450/calendso");
     expect(env.CAL_E2E_BASE_URL).toBe("http://127.0.0.1:3000");
     expect(env.P1_PLAYWRIGHT_HARNESS).toBe("0");
     expect(env.CAL_WEB_MODE).toBe("prod");
   });
+
+  test(
+    "buildVisualDockerEnv keeps custom DB credentials, database and query",
+    { tag: ["@unit"] },
+    () => {
+      const env = buildVisualDockerEnv(
+        3000,
+        "postgresql://qa:p%40ss@localhost:6543/caldb?sslmode=disable",
+        "prod",
+      );
+      expect(env.CAL_DB_URL).toBe("postgresql://qa:p%40ss@127.0.0.1:6543/caldb?sslmode=disable");
+    },
+  );
 
   test("both platforms stub the product roots before running", { tag: ["@unit"] }, () => {
     expect(CONTAINER_PRODUCTS_ROOT).toBe("/tmp/p1-products");

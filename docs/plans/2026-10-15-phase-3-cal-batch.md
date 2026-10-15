@@ -100,7 +100,7 @@ All cases run in the visual-* projects. "Only" means the other projects skip the
 | I18N-002              | i18n/german        | all          | –                                             | –                                                         |
 | I18N-003              | i18n/rtl           | all          | `booker-ar` (3)                               | –                                                         |
 | A11Y-001              | a11y/keyboard      | desktop only | –                                             | yes (proven, last assert: focus after slot select)        |
-| A11Y-002              | a11y/keyboard      | desktop only | –                                             | –                                                         |
+| A11Y-002              | a11y/keyboard      | desktop only | –                                             | yes (proven, last assert: timezone select focus ring)     |
 | A11Y-003              | a11y/display       | mobile only  | –                                             | yes (proven, last assert)                                 |
 | A11Y-004              | a11y/display       | all          | –                                             | –                                                         |
 | A11Y-005              | a11y/display       | desktop only | –                                             | –                                                         |
@@ -112,7 +112,7 @@ Per project: **15 tests in 10 files**. Expected run results:
 - tablet: 9 run, 6 skipped
 - desktop: 13 run, 2 skipped
 
-That's 33 run and 12 skipped in total. Five runs are expected failures and count as passed: VIS-004 (desktop), A11Y-001 (desktop), A11Y-003 (mobile), A11Y-006 (tablet and desktop). A11Y-006 on mobile is a normal pass (no `$` radios there).
+That's 33 run and 12 skipped in total. Six runs are expected failures and count as passed: VIS-004 (desktop), A11Y-001 (desktop), A11Y-002 (desktop), A11Y-003 (mobile), A11Y-006 (tablet and desktop). A11Y-006 on mobile is a normal pass (no `$` radios there).
 
 ---
 
@@ -843,7 +843,7 @@ await expect(alerts, "slots failure must show exactly one user-facing error").to
     2. Take a `clip` screenshot of its box plus 8 px.
     3. Blur it and take a second screenshot.
     4. `expect(focused.equals(idle), label).toBe(false)`.
-  - All controls passed in Step 0, so there's **no `test.fail`**. A11Y-002 covers focus ring and no-trap only; the focus-after-select bug lives in A11Y-001.
+  - The timezone select is the known bug: hard-assert focus is on its combobox input, attach the evidence, then `test.fail(true, A11Y002_TIMEZONE_FOCUS_ISSUE)` and the ring assert last. The other five controls stay hard asserts. The no-trap check stays a hard assert.
 
 **`display.a11y.spec.ts`:**
 
@@ -933,7 +933,7 @@ Then every other case. **`--grep-invert "P1-CAL-VIS-001"` is mandatory**: the wr
 PRODUCTS_ROOT=D:/Jayami/Portfolio/products npm run visual:update -- --grep-invert "P1-CAL-VIS-001"
 ```
 
-Expected: exit 0, `30 passed, 12 skipped`. That's 33 minus the three VIS-001 runs; the five expected failures (VIS-004, A11Y-001, A11Y-003, A11Y-006 on tablet and desktop) count as passed.
+Expected: exit 0, `30 passed, 12 skipped`. That's 33 minus the three VIS-001 runs; the six expected failures (VIS-004, A11Y-001, A11Y-002, A11Y-003, A11Y-006 on tablet and desktop) count as passed.
 
 New PNGs, 10 of them:
 

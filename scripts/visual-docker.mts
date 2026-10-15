@@ -39,7 +39,8 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
-  const dbPort = dbPortFromUrl(getAdapter("cal").dbUrl);
+  const hostDbUrl = getAdapter("cal").dbUrl;
+  const dbPort = dbPortFromUrl(hostDbUrl);
   const image = playwrightImage(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   const userInfo = process.platform === "linux" ? os.userInfo() : undefined;
   const args = buildDockerRunArgs({
@@ -52,7 +53,7 @@ async function main(): Promise<void> {
     ...(userInfo === undefined
       ? {}
       : { uidGid: `${String(userInfo.uid)}:${String(userInfo.gid)}` }),
-    env: buildVisualDockerEnv(calPort, dbPort, process.env.CAL_WEB_MODE ?? "prod"),
+    env: buildVisualDockerEnv(calPort, hostDbUrl, process.env.CAL_WEB_MODE ?? "prod"),
     extraArgs: process.argv.slice(3),
   });
   console.log(`docker ${args.slice(0, -1).join(" ")} '<inner command>'`);

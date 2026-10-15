@@ -40,9 +40,19 @@ export const CONTAINER_PRODUCTS_ROOT = "/tmp/p1-products";
 const STUB_PRODUCTS = ["cal", "documenso", "medusa-dtc-starter", "twenty-CRM"] as const;
 
 /** Container env for a visual run: IPv4 URLs only (localhost can be ::1; the proxies bind 127.0.0.1). */
+/** Keep the configured credentials, port, database and query; only the host moves to IPv4 loopback. */
+export function containerDbUrl(dbUrl: string): string {
+  const url = new URL(dbUrl);
+  if (url.port === "") {
+    throw new Error(`Cal DB URL needs an explicit port, got ${dbUrl}`);
+  }
+  url.hostname = "127.0.0.1";
+  return url.toString();
+}
+
 export function buildVisualDockerEnv(
   calPort: number,
-  dbPort: number,
+  hostDbUrl: string,
   webMode: string,
 ): Record<string, string> {
   return {
@@ -51,7 +61,7 @@ export function buildVisualDockerEnv(
     CAL_WEB_MODE: webMode,
     HOME: "/tmp",
     PRODUCTS_ROOT: CONTAINER_PRODUCTS_ROOT,
-    CAL_DB_URL: `postgresql://postgres:@127.0.0.1:${String(dbPort)}/calendso`,
+    CAL_DB_URL: containerDbUrl(hostDbUrl),
   };
 }
 
