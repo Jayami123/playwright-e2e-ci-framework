@@ -28,6 +28,10 @@ on:
         description: Start Documenso via harness, secure-context preflight, and --list only
         type: boolean
         default: false
+      twenty_chromium_timeout_minutes:
+        description: Timeout for the twenty-chromium job
+        type: number
+        default: 60
     secrets:
       CAL_E2E_BASE_URL:
         required: false
@@ -53,6 +57,10 @@ env:
   DOCUMENSO_E2E_LISTEN_URL: http://127.0.0.1:3001
   DOCUMENSO_E2E_PUBLIC_URL: http://p1.lvh.me:3001
   DOCUMENSO_E2E_DB_URL: postgres://documenso:password@127.0.0.1:5451/documenso
+  TWENTY_REF: 7cbdfec6f346b43715bc2056932f4fad5886f733
+  TWENTY_IMAGE_TAG: v2.44.0
+  TWENTY_E2E_BASE_URL: http://127.0.0.1:3002
+  TWENTY_E2E_DB_URL: postgres://postgres:postgres@127.0.0.1:5434/default
   CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
   CAL_DEFAULT_E2E_EMAIL: pro@example.com
   CAL_DEFAULT_DST_EMAIL: trial@example.com
@@ -67,6 +75,7 @@ jobs:
     outputs:
       cal: ${{ steps.paths.outputs.cal }}
       documenso: ${{ steps.paths.outputs.documenso }}
+      twenty: ${{ steps.paths.outputs.twenty }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -77,20 +86,27 @@ jobs:
           set -euo pipefail
           cal=false
           documenso=false
+          twenty=false
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             cal=true
             documenso=true
+            twenty=true
           else
             mapfile -t changed < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
             cal_re='^(tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             doc_re='^(tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            tw_re='^(tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             for file in "${changed[@]}"; do
               if [[ "$file" =~ $cal_re ]]; then cal=true; fi
               if [[ "$file" =~ $doc_re ]]; then documenso=true; fi
+              if [[ "$file" =~ $tw_re ]]; then twenty=true; fi
             done
           fi
-          echo "cal=$cal" >> "$GITHUB_OUTPUT"
-          echo "documenso=$documenso" >> "$GITHUB_OUTPUT"
+          {
+            echo "cal=$cal"
+            echo "documenso=$documenso"
+            echo "twenty=$twenty"
+          } >> "$GITHUB_OUTPUT"
 
   lint:
     name: lint
@@ -957,7 +973,7 @@ jobs:
           retention-days: 14
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: failure() && steps.documenso_up_bypass.outcome == 'success' && !inputs.run_browser_matrix
+        if: ${{ !cancelled() && steps.documenso_up_bypass.outcome == 'success' && !inputs.run_browser_matrix }}
         with:
           name: playwright-test-results-documenso-chromium
           path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
@@ -980,3 +996,278 @@ jobs:
         with:
           path: ${{ env.DOCUMENSO_CHECKOUT_PATH }}/apps/remix/build
           key: ${{ runner.os }}-documenso-remix-${{ steps.checkout_documenso.outputs.commit }}
+
+  twenty-chromium:
+    name: twenty-self-hosted
+    needs: [structural, changes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.twenty_chromium_timeout_minutes }}
+    if: needs.changes.outputs.twenty == 'true'
+    env:
+      P1_WORKING_DIRECTORY: p1
+      PRODUCTS_ROOT: ${{ github.workspace }}/products
+      TWENTY_CHECKOUT_PATH: products/twenty-CRM
+      TWENTY_IMAGES_TAR: twenty-images.tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Checkout Twenty fork
+        id: checkout_twenty
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Jayami123/twenty-CRM
+          ref: ${{ env.TWENTY_REF }}
+          path: ${{ env.TWENTY_CHECKOUT_PATH }}
+          persist-credentials: false
+
+      - name: Verify Twenty fork HEAD
+        run: |
+          set -euo pipefail
+          head="$(git -C "${TWENTY_CHECKOUT_PATH}" rev-parse HEAD)"
+          if [ "$head" != "${TWENTY_REF}" ]; then
+            echo "::error::Twenty HEAD ${head} does not match TWENTY_REF ${TWENTY_REF}"
+            exit 1
+          fi
+
+      - name: Stub harness product roots
+        run: |
+          set -euo pipefail
+          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa"
+
+      - name: Restore Twenty docker image cache
+        id: twenty_images
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TWENTY_IMAGES_TAR }}
+          key: ${{ runner.os }}-twenty-images-v2.44.0
+
+      - name: Load Twenty docker images
+        if: steps.twenty_images.outputs.cache-hit == 'true'
+        run: |
+          set -euo pipefail
+          gunzip -c "${TWENTY_IMAGES_TAR}" | docker load
+
+      - name: Pull Twenty docker images
+        if: steps.twenty_images.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          docker pull "twentycrm/twenty:${TWENTY_IMAGE_TAG}"
+          docker pull postgres:16
+          docker pull redis
+          docker pull axllent/mailpit:v1.22.3
+
+      - uses: ./p1/.github/actions/setup-p1
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - uses: ./p1/.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Start Twenty (harness up)
+        id: twenty_up
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_DB_URL: ${{ env.TWENTY_E2E_DB_URL }}
+          TWENTY_IMAGE_TAG: ${{ env.TWENTY_IMAGE_TAG }}
+        run: |
+          set -euo pipefail
+          UP_START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          SECONDS=0
+          node node_modules/qa-portfolio-harness/scripts/up.mjs twenty
+          UP_SECONDS=$SECONDS
+          UP_END="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          {
+            echo "### Twenty harness up"
+            echo ""
+            echo "- start: ${UP_START}"
+            echo "- end: ${UP_END}"
+            echo "- seconds: ${UP_SECONDS}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "TWENTY_UP_START=${UP_START}"
+            echo "TWENTY_UP_END=${UP_END}"
+            echo "TWENTY_UP_SECONDS=${UP_SECONDS}"
+          } >> "$GITHUB_ENV"
+
+      - name: Record Twenty Redis image digest
+        if: steps.twenty_up.outcome == 'success'
+        run: |
+          set -euo pipefail
+          image_id="$(docker inspect qa-harness-twenty-redis-1 --format '{{.Image}}' 2>/dev/null || true)"
+          digest=""
+          if [ -n "$image_id" ]; then
+            digest="$(docker image inspect "$image_id" --format '{{index .RepoDigests 0}}' 2>/dev/null || true)"
+          fi
+          if [ -z "$digest" ]; then
+            digest="redis digest: unavailable"
+          fi
+          {
+            echo "### Twenty Redis image"
+            echo ""
+            echo "- digest: ${digest}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Twenty E2E suite
+        if: >-
+          ${{ steps.twenty_up.outcome == 'success'
+          && github.event_name != 'schedule' && !inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PW_WORKERS: "2"
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_DB_URL: ${{ env.TWENTY_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          TWENTY_IMAGE_TAG: ${{ env.TWENTY_IMAGE_TAG }}
+          TWENTY_PASSWORD: tim@apple.dev
+        run: |
+          set -euo pipefail
+          npm run test:twenty -- --retries=0
+
+      - name: Run Twenty E2E suite (nightly / matrix)
+        if: >-
+          ${{ steps.twenty_up.outcome == 'success'
+          && (github.event_name == 'schedule' || inputs.run_browser_matrix) }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PW_WORKERS: "2"
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_DB_URL: ${{ env.TWENTY_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          TWENTY_IMAGE_TAG: ${{ env.TWENTY_IMAGE_TAG }}
+          TWENTY_PASSWORD: tim@apple.dev
+          P1_PW_REPORT_ID: twenty-chromium
+        run: |
+          set -euo pipefail
+          npm run test:twenty -- --retries=0
+
+      - name: Write Playwright job summary
+        if: ${{ !cancelled() && steps.twenty_up.outcome == 'success' }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.run_browser_matrix }}" = "true" ]; then
+            npx tsx scripts/write-ci-job-summary.mts test-results/results-twenty-chromium.json twenty-chromium "${TWENTY_UP_SECONDS:-}"
+          else
+            npx tsx scripts/write-ci-job-summary.mts test-results/results.json
+          fi
+
+      - name: Merge blob reports into HTML
+        if: ${{ !cancelled() && steps.twenty_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.run_browser_matrix }}" = "true" ]; then
+            if [ -d blob-report-twenty-chromium ] && [ -n "$(find blob-report-twenty-chromium -type f -print -quit)" ]; then
+              npx playwright merge-reports --reporter html ./blob-report-twenty-chromium
+              rm -rf playwright-report-twenty
+              mv playwright-report playwright-report-twenty
+            else
+              echo "No blob report to merge for twenty-chromium."
+            fi
+          else
+            if [ -d blob-report ] && [ -n "$(find blob-report -type f -print -quit)" ]; then
+              npx playwright merge-reports --reporter html ./blob-report
+              rm -rf playwright-report-twenty
+              mv playwright-report playwright-report-twenty
+            else
+              echo "No blob report to merge (tests may have failed before reporters ran)."
+            fi
+          fi
+
+      - name: Count Twenty QA leaks
+        if: ${{ always() && !cancelled() && steps.twenty_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_DB_URL: ${{ env.TWENTY_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          TWENTY_IMAGE_TAG: ${{ env.TWENTY_IMAGE_TAG }}
+          P1_TWENTY_SWEEP_FAIL_ON_BEFORE: ${{ github.event_name == 'schedule' && '1' || '' }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/count-twenty-qa-leaks.mts
+
+      - name: Capture Twenty compose logs
+        if: failure() && steps.twenty_up.outcome == 'success'
+        env:
+          P1_DIR: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          compose_dir="${TWENTY_CHECKOUT_PATH}/packages/twenty-docker"
+          docker compose -p qa-harness-twenty \
+            -f "${compose_dir}/docker-compose.yml" \
+            -f "${P1_DIR}/node_modules/qa-portfolio-harness/docker/twenty.compose.yml" \
+            logs --no-color server worker db > twenty-compose-logs.txt || true
+          sed -i -E \
+            -e '/(ENCRYPTION_KEY|APP_SECRET|PASSWORD)=/Id' \
+            twenty-compose-logs.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure() && steps.twenty_up.outcome == 'success'
+        with:
+          name: twenty-compose-logs
+          path: twenty-compose-logs.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Stop Twenty (harness down)
+        if: always()
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_DB_URL: ${{ env.TWENTY_E2E_DB_URL }}
+          TWENTY_IMAGE_TAG: ${{ env.TWENTY_IMAGE_TAG }}
+        run: |
+          set -euo pipefail
+          node node_modules/qa-portfolio-harness/scripts/down.mjs twenty
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.twenty_up.outcome == 'success' }}
+        with:
+          name: playwright-report-twenty
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-twenty
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.twenty_up.outcome == 'success' }}
+        with:
+          name: playwright-test-results-twenty-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Save Twenty docker image cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.twenty_images.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          docker save \
+            "twentycrm/twenty:${TWENTY_IMAGE_TAG}" \
+            postgres:16 \
+            redis \
+            axllent/mailpit:v1.22.3 \
+            | gzip > "${TWENTY_IMAGES_TAR}"
+
+      - name: Upload Twenty docker image cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.twenty_images.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TWENTY_IMAGES_TAR }}
+          key: ${{ runner.os }}-twenty-images-v2.44.0

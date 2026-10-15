@@ -26,5 +26,5 @@ Reusing **that run's** Playwright `storageState` at `/` opened `/objects/compani
 ## Consequences
 
 - Future TZ cases (P1-TW-TZ-001..003) build on this session model.
-- Twenty is not in CI yet; local runs need `PRODUCTS_ROOT` with `twenty-CRM` and harness `up`/`seed`.
+- CI job `twenty-chromium` ([ADR 0016](./0016-twenty-ci.md)) uses the same UI login model; local runs still need `PRODUCTS_ROOT` with `twenty-CRM` and harness `up`/`seed`.
 - Login a11y gap (placeholder-only Email/Password) is tracked in [twenty-login-a11y.md](../observations/twenty-login-a11y.md), not `test.fail`.

@@ -52,7 +52,28 @@ export default async function twentyGlobalSetup(): Promise<void> {
     }
   }
 
+  const seedStartMs = Date.now();
+  const seedStartIso = new Date(seedStartMs).toISOString();
+  console.log(`Twenty seed start ${seedStartIso}`);
   await adapter.seed();
+  const seedEndMs = Date.now();
+  const seedEndIso = new Date(seedEndMs).toISOString();
+  const seedSeconds = Math.round((seedEndMs - seedStartMs) / 1000);
+  console.log(`Twenty seed end ${seedEndIso} (${String(seedSeconds)}s)`);
+
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (summaryPath !== undefined && summaryPath !== "") {
+    const block = [
+      "",
+      "### Twenty seed",
+      "",
+      `- start: ${seedStartIso}`,
+      `- end: ${seedEndIso}`,
+      `- seconds: ${String(seedSeconds)}`,
+      "",
+    ].join("\n");
+    fs.appendFileSync(summaryPath, block, "utf8");
+  }
 
   if (!process.env.CI) {
     if (fs.existsSync(config.authStatePath)) {

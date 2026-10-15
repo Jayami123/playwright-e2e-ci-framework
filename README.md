@@ -6,7 +6,7 @@
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.7`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.8`.
 
 ## Scope
 
@@ -16,7 +16,19 @@ Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 202
 
 Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
 
-**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases **P1-TW-TZ-001**, **P1-TW-TZ-002**, **P1-TW-TZ-003**, **P1-TW-TZ-X01**, **P1-TW-TZ-X02**, **P1-TW-TZ-X03**, **P1-TW-TZ-X04** (CSV observation), **P1-TW-TZ-X05** (`@twenty-tz`, serial Jane TZ). OBS-001 (bare date on DATE_TIME) is recorded in [ADR 0014](docs/adr/0014-twenty-timezone-testing.md), not automated. DST/relative-date notes: [ADR 0015](docs/adr/0015-twenty-dst-relative-date.md). Twenty is **not in CI yet**. Medusa Admin is not wired here yet.
+**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases in the table below (`@twenty-tz`, serial Jane TZ). PR CI job `e2e / twenty-chromium` ([ADR 0016](docs/adr/0016-twenty-ci.md)). Typical Twenty CI duration: **TBD** (first green job summary). After **two** green `e2e / twenty-chromium` runs on `main`, add that check as required in GitHub settings (not automated in this repo). Medusa Admin is not wired here yet.
+
+| Case                                             | Status                                                | ADR                                               |
+| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------- |
+| P1-TW-TZ-001 DATE no-shift Honolulu / Kiritimati | CI test (`@twenty-tz`)                                | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-002 DATE_TIME Colombo + UTC             | CI test                                               | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-003 Berlin calendar DST days            | CI test                                               | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
+| P1-TW-TZ-X01 Honolulu DATE_TIME                  | CI test                                               | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-X02 Settings TZ round-trip (last)       | CI test                                               | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-X03 relative today Kiritimati           | CI test                                               | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
+| P1-TW-TZ-X05 fall-back 02:30 labels              | CI test                                               | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
+| P1-TW-TZ-X04 CSV vs fixture UTC                  | Observation (assert CSV = stored ISO, no `test.fail`) | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
+| OBS-001 bare date on DATE_TIME                   | Observation (not automated)                           | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
 
 ## Prerequisites
 

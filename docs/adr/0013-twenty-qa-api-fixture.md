@@ -28,4 +28,4 @@ Live probe (2026-10-14):
 
 - P1-TW-TZ-001..003 (tasks 4–5) can depend on `twentyQa` without rediscovering auth or sweep rules.
 - **Open for task 4:** TZ-001 oracle vs live DATE_TIME `closeDate` — not decided here.
-- Twenty remains local-only (no CI); isolation proof requires `PW_WORKERS=2` with `@twenty-fixture`.
+- CI runs `PW_WORKERS=2` under `twenty-chromium` ([ADR 0016](./0016-twenty-ci.md)); local isolation proof still uses `PW_WORKERS=2` with `@twenty-fixture`.
