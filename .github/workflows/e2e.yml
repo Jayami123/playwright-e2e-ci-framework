@@ -271,7 +271,7 @@ jobs:
         run: |
           set -euo pipefail
           # qa-portfolio-harness loadConfig() resolves every product under PRODUCTS_ROOT.
-          mkdir -p "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa" "${PRODUCTS_ROOT}/twenty-CRM"
+          mkdir -p "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa-dtc-starter" "${PRODUCTS_ROOT}/twenty-CRM"
 
       - uses: ./p1/.github/actions/setup-p1
         with:
@@ -631,7 +631,7 @@ jobs:
       - name: Stub harness product roots
         run: |
           set -euo pipefail
-          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/medusa" "${PRODUCTS_ROOT}/twenty-CRM"
+          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/medusa-dtc-starter" "${PRODUCTS_ROOT}/twenty-CRM"
 
       - name: Map Documenso public host to loopback
         run: |
@@ -1035,7 +1035,7 @@ jobs:
       - name: Stub harness product roots
         run: |
           set -euo pipefail
-          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa"
+          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/medusa-dtc-starter"
 
       - name: Restore Twenty docker image cache
         id: twenty_images
