@@ -438,7 +438,7 @@ test.describe("Twenty member timezone UI", { tag: ["@twenty", "@twenty-tz"] }, (
       const oppCsv = fs.readFileSync(oppCsvPath, "utf8");
       await test.info().attach("opportunity.csv", { body: oppCsv, contentType: "text/csv" });
       const csvClose = csvCellByName(oppCsv, opp.name, "Close date");
-      expect(new Date(csvClose).toISOString()).toBe(new Date(opp.closeDate).toISOString());
+      expect(csvClose).toBe(opp.closeDate);
       console.log(
         JSON.stringify({
           probe: "x04-csv-vs-ui",
