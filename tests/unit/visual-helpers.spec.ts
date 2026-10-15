@@ -19,6 +19,7 @@ import {
   CONTAINER_PRODUCTS_ROOT,
   dbPortFromUrl,
   playwrightImage,
+  redactDockerArgs,
   type DockerRunInput,
 } from "../../src/support/visual/docker.js";
 import { maskSpecs, type VisualProduct } from "../../src/support/visual/masks.js";
@@ -388,4 +389,28 @@ test.describe("axe allowlist partition", () => {
     expect(result.staleAllowlist).toEqual([entry]);
     expect(result.blocking).toEqual([]);
   });
+});
+
+test.describe("visual docker log redaction", () => {
+  test(
+    "redactDockerArgs masks DB passwords and leaves the real args untouched",
+    { tag: ["@unit"] },
+    () => {
+      const args = [
+        "run",
+        "-e",
+        "CAL_DB_URL=postgresql://u:s3cret@127.0.0.1:5450/calendso?x=1",
+        "-e",
+        "HOME=/tmp",
+        "-e",
+        "NO_PW_URL=postgresql://u@127.0.0.1:5450/db",
+      ];
+      const shown = redactDockerArgs(args);
+      expect(shown[2]).toBe("CAL_DB_URL=postgresql://u:***@127.0.0.1:5450/calendso?x=1");
+      expect(shown.join(" ")).not.toContain("s3cret");
+      expect(shown[4]).toBe("HOME=/tmp");
+      expect(shown[6]).toBe("NO_PW_URL=postgresql://u@127.0.0.1:5450/db");
+      expect(args[2]).toContain("s3cret");
+    },
+  );
 });

@@ -99,10 +99,12 @@ test.describe("Cal keyboard", () => {
       for (let i = 0; i < 40 && !(await isFocusedDay(page, "15")); i += 1) {
         await page.keyboard.press("Tab");
       }
+      expect(await isFocusedDay(page, "15"), "day 15 reached by keyboard").toBe(true);
       await page.keyboard.press("Enter");
       for (let i = 0; i < 30 && (await focusedTestId(page)) !== CAL_TEST_IDS.timeSlot; i += 1) {
         await page.keyboard.press("Tab");
       }
+      expect(await focusedTestId(page), "slot reached by keyboard").toBe(CAL_TEST_IDS.timeSlot);
       await page.keyboard.press("Space");
       await expect(page.getByTestId(CAL_TEST_IDS.confirmBook)).toBeVisible();
       // Recorded once the form is visible; asserted at the very end so the keyboard flow is still proven.

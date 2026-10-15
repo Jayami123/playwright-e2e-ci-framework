@@ -11,6 +11,7 @@ import {
   calPortFromBaseUrl,
   buildVisualDockerEnv,
   dbPortFromUrl,
+  redactDockerArgs,
   playwrightImage,
   type VisualMode,
 } from "../src/support/visual/docker.js";
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
     env: buildVisualDockerEnv(calPort, hostDbUrl, process.env.CAL_WEB_MODE ?? "prod"),
     extraArgs: process.argv.slice(3),
   });
-  console.log(`docker ${args.slice(0, -1).join(" ")} '<inner command>'`);
+  console.log(`docker ${redactDockerArgs(args).slice(0, -1).join(" ")} '<inner command>'`);
   const result = spawnSync("docker", args, { stdio: "inherit" });
   if (result.error !== undefined) {
     console.error(`docker failed to start (is Docker Desktop running?): ${result.error.message}`);

@@ -71,14 +71,17 @@ test.describe("Cal long name and title", () => {
       }
 
       // Wrap, not clip: scroll sizes fit (Step 0: clip text-overflow, normal white-space)
-      const scroll = await title.evaluate((el: ScrollEl) => ({
-        label: "title",
+      const sizes = (el: ScrollEl): { sw: number; cw: number; sh: number; ch: number } => ({
         sw: el.scrollWidth,
         cw: el.clientWidth,
         sh: el.scrollHeight,
         ch: el.clientHeight,
-      }));
-      expect(overflowingControls([scroll])).toEqual([]);
+      });
+      const scroll = [
+        { label: "title", ...(await title.evaluate(sizes)) },
+        { label: "name", ...(await name.evaluate(sizes)) },
+      ];
+      expect(overflowingControls(scroll)).toEqual([]);
       await stableScreenshot(page, "booker-long-name", { mask: maskLocators(page, "cal") });
 
       // Collision: same display-name prefix must not hijack /pro (clock stays frozen)

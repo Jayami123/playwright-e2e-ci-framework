@@ -118,3 +118,10 @@ export function buildDockerRunArgs(input: DockerRunInput): string[] {
   args.push(input.image, "bash", "-c", inner);
   return args;
 }
+
+/** Copy of docker argv that is safe to print: masks the password in any KEY=scheme://user:pass@host value. */
+export function redactDockerArgs(args: readonly string[]): string[] {
+  return args.map((arg) =>
+    arg.replace(/^([A-Za-z0-9_]+=[a-z][a-z0-9+.-]*:\/\/[^:/@\s]*:)\S*@/, "$1***@"),
+  );
+}
