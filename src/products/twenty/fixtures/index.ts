@@ -14,6 +14,7 @@ import {
   p1QaPetName,
   p1QaPrefix,
 } from "./names.js";
+import { destroyView } from "./views.js";
 import {
   createCompany,
   createOpportunity,
@@ -28,13 +29,14 @@ import {
   type TwentyPersonRecord,
   type TwentyPetRecord,
 } from "./records.js";
-import { readMemberTimeZone, setMemberTimeZone } from "./timezone.js";
+import { createTimeZoneRestoreGuard, readMemberTimeZone, setMemberTimeZone } from "./timezone.js";
 
 export interface TwentyQaCapturedIds {
   readonly companyIds: string[];
   readonly personIds: string[];
   readonly opportunityIds: string[];
   readonly petIds: string[];
+  readonly viewIds: string[];
 }
 
 export interface TwentyQaFixture {
@@ -54,6 +56,7 @@ export interface TwentyQaFixture {
   restoreTimeZoneIfNeeded: () => Promise<void>;
   /** Stops fixture teardown from destroying a company already removed in the test. */
   forgetCapturedCompany: (companyId: string) => void;
+  captureViewId: (viewId: string) => void;
 }
 
 interface TwentyQaFixtures {
@@ -103,6 +106,13 @@ export async function runTwentyQaFixtureCleanup(params: {
       failures.push(error);
     }
   }
+  for (const viewId of params.captured.viewIds) {
+    try {
+      await destroyView(params.api, viewId);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
 
   if (params.restoreTimeZone !== undefined) {
     try {
@@ -143,18 +153,14 @@ export const test = base.extend<TwentyQaFixtures, TwentyWorkerFixtures>({
       personIds: [],
       opportunityIds: [],
       petIds: [],
+      viewIds: [],
     };
 
-    let originalTimeZone: string | undefined;
-    let restoreTimeZone: (() => Promise<void>) | undefined;
     let testError: unknown;
-
-    const ensureTimeZoneBaseline = async (): Promise<string> => {
-      if (originalTimeZone === undefined) {
-        originalTimeZone = await readMemberTimeZone(api, api.memberId);
-      }
-      return originalTimeZone;
-    };
+    const tzGuard = createTimeZoneRestoreGuard({
+      read: () => readMemberTimeZone(api, api.memberId),
+      write: (timeZone) => setMemberTimeZone(api, api.memberId, timeZone),
+    });
 
     const fixture: TwentyQaFixture = {
       prefix,
@@ -188,38 +194,22 @@ export const test = base.extend<TwentyQaFixtures, TwentyWorkerFixtures>({
       },
       readTimeZone: async () => readMemberTimeZone(api, api.memberId),
       rememberTimeZone: async () => {
-        await ensureTimeZoneBaseline();
-        if (restoreTimeZone === undefined) {
-          const baseline = originalTimeZone;
-          restoreTimeZone = async () => {
-            if (baseline !== undefined) {
-              await setMemberTimeZone(api, api.memberId, baseline);
-            }
-          };
-        }
+        await tzGuard.remember();
       },
       restoreTimeZoneIfNeeded: async () => {
-        if (restoreTimeZone !== undefined) {
-          await restoreTimeZone();
-        }
+        await tzGuard.restoreIfNeeded();
       },
       setTimeZone: async (timeZone: string) => {
-        await ensureTimeZoneBaseline();
-        await setMemberTimeZone(api, api.memberId, timeZone);
-        if (restoreTimeZone === undefined) {
-          const baseline = originalTimeZone;
-          restoreTimeZone = async () => {
-            if (baseline !== undefined) {
-              await setMemberTimeZone(api, api.memberId, baseline);
-            }
-          };
-        }
+        await tzGuard.setTimeZone(timeZone);
       },
       forgetCapturedCompany: (companyId: string) => {
         const index = captured.companyIds.indexOf(companyId);
         if (index >= 0) {
           captured.companyIds.splice(index, 1);
         }
+      },
+      captureViewId: (viewId: string) => {
+        captured.viewIds.push(viewId);
       },
     };
 
@@ -228,6 +218,7 @@ export const test = base.extend<TwentyQaFixtures, TwentyWorkerFixtures>({
     } catch (error) {
       testError = error;
     } finally {
+      const restoreTimeZone = tzGuard.peekRestore();
       await runTwentyQaFixtureCleanup({
         api,
         captured,

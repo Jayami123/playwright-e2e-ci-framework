@@ -201,8 +201,12 @@ export default defineConfig({
       name: "twenty-setup",
       testDir: "./tests/setup",
       testMatch: /twenty\.setup\.ts/,
+      timeout: twentyTimeouts().test,
+      expect: { timeout: twentyTimeouts().expect },
       use: {
         ...devices["Desktop Chrome"],
+        actionTimeout: twentyTimeouts().action,
+        navigationTimeout: twentyTimeouts().navigation,
         ...(runsTwenty ? twentyChromeUse : {}),
         trace: "off",
       },
@@ -215,6 +219,8 @@ export default defineConfig({
       expect: { timeout: twentyTimeouts().expect },
       use: {
         ...devices["Desktop Chrome"],
+        actionTimeout: twentyTimeouts().action,
+        navigationTimeout: twentyTimeouts().navigation,
         ...(runsTwenty
           ? {
               ...twentyChromeUse,

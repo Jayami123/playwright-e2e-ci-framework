@@ -27,3 +27,8 @@ export function p1QaPetName(prefix: string, leaf?: string): string {
   const suffix = leaf ?? fakeOrg().name;
   return `${prefix}-${suffix}`;
 }
+
+export function p1QaViewName(prefix: string, leaf?: string): string {
+  const suffix = leaf ?? fakeOrg().name;
+  return `${prefix}-${suffix}`;
+}

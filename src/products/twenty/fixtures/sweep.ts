@@ -2,6 +2,7 @@ import { TWENTY_ROUTES } from "../env.js";
 import { createPinnedTwentyApiSession, loadUiWorkspaceIds } from "./auth.js";
 import { loadTwentyConfig } from "../env.js";
 import { destroyCompany, destroyOpportunity, destroyPerson, destroyPet } from "./records.js";
+import { destroyListedViews, listViewIdsByNamePrefix } from "./views.js";
 import type { TwentyPinnedApiSession } from "./auth.js";
 
 const PAGE_SIZE = 100;
@@ -275,16 +276,22 @@ export async function sweepTwentyQaRecords(prefix: string): Promise<{
   readonly before: number;
   readonly deleted: number;
   readonly after: number;
+  readonly viewsBefore: number;
+  readonly viewsDeleted: number;
+  readonly viewsAfter: number;
 }> {
   const { authStatePath } = loadTwentyConfig();
   const ui = loadUiWorkspaceIds(authStatePath);
   const api = await createPinnedTwentyApiSession(ui.workspaceId, ui.memberId);
   const before = await countQaRecords(api, prefix);
   const petsBefore = await countPetRecords(api, prefix);
+  const viewsBefore = (await listViewIdsByNamePrefix(api, prefix)).length;
   const deleted = await destroyListed(api, prefix);
+  const viewsDeleted = await destroyListedViews(api, prefix);
   const after = await countQaRecords(api, prefix);
+  const viewsAfter = (await listViewIdsByNamePrefix(api, prefix)).length;
   console.log(
-    `Local Twenty qa-record sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)}, pets=${String(petsBefore)})`,
+    `Local Twenty qa-record sweep (before=${String(before)}, deleted=${String(deleted)}, after=${String(after)}, pets=${String(petsBefore)}, viewsBefore=${String(viewsBefore)}, viewsDeleted=${String(viewsDeleted)}, viewsAfter=${String(viewsAfter)})`,
   );
-  return { before, deleted, after };
+  return { before, deleted, after, viewsBefore, viewsDeleted, viewsAfter };
 }

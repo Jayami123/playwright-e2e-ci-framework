@@ -34,4 +34,9 @@ export class TwentySettingsExperiencePage extends BasePage {
   async expectTimeZoneValueLabel(label: string | RegExp): Promise<void> {
     await expect(this.timeZoneValueButton).toHaveText(label);
   }
+
+  async readTimeZoneValueLabel(): Promise<string> {
+    const text = await this.timeZoneValueButton.innerText();
+    return text.trim();
+  }
 }
