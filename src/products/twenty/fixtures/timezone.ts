@@ -55,3 +55,51 @@ export async function setMemberTimeZone(
   }
   return written;
 }
+
+export interface TimeZoneRestoreGuard {
+  readonly setTimeZone: (timeZone: string) => Promise<void>;
+  readonly remember: () => Promise<void>;
+  readonly restoreIfNeeded: () => Promise<void>;
+  readonly peekRestore: () => (() => Promise<void>) | undefined;
+}
+
+/**
+ * Register the baseline restore callback before the first write so a thrown
+ * setMemberTimeZone (after persist) still restores in fixture finally.
+ */
+export function createTimeZoneRestoreGuard(deps: {
+  readonly read: () => Promise<string>;
+  readonly write: (timeZone: string) => Promise<string>;
+}): TimeZoneRestoreGuard {
+  let baseline: string | undefined;
+  let restore: (() => Promise<void>) | undefined;
+
+  const registerRestore = async (): Promise<void> => {
+    if (restore !== undefined) {
+      return;
+    }
+    if (baseline === undefined) {
+      baseline = await deps.read();
+    }
+    const captured = baseline;
+    restore = async () => {
+      await deps.write(captured);
+    };
+  };
+
+  return {
+    setTimeZone: async (timeZone: string) => {
+      await registerRestore();
+      await deps.write(timeZone);
+    },
+    remember: async () => {
+      await registerRestore();
+    },
+    restoreIfNeeded: async () => {
+      if (restore !== undefined) {
+        await restore();
+      }
+    },
+    peekRestore: () => restore,
+  };
+}

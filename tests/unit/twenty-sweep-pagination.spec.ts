@@ -6,6 +6,7 @@ import {
   destroyListedPets,
   listCompanyIds,
 } from "../../src/products/twenty/fixtures/sweep.js";
+import { destroyListedViews } from "../../src/products/twenty/fixtures/views.js";
 
 function mockApi(
   handlers: {
@@ -140,5 +141,43 @@ test.describe("Twenty sweep pagination", { tag: ["@unit", "@twenty-fixture"] }, 
     const deleted = await destroyListedPets(api, "P1-QA-");
     expect(deleted).toBe(2);
     expect(callLog).toEqual(["list:null", "list:cursor1", "destroy:p1", "destroy:p2"]);
+  });
+
+  test("destroys only views whose name starts with the QA prefix", async () => {
+    const callLog: string[] = [];
+    const api: TwentyPinnedApiSession = {
+      workspaceId: "ws",
+      memberId: "mem",
+      authorizationHeader: "Bearer test",
+      query: async <T>(
+        _path: TwentyGraphqlPath,
+        document: string,
+        variables?: Record<string, unknown>,
+      ): Promise<T> => {
+        await Promise.resolve();
+        if (document.includes("GetViews")) {
+          callLog.push("list");
+          return {
+            getViews: [
+              { id: "keep", name: "All Opportunities" },
+              { id: "qa-1", name: "P1-QA-1-0-cal" },
+            ],
+          } as T;
+        }
+        if (document.includes("DestroyView")) {
+          const id = variables?.id;
+          if (typeof id !== "string") {
+            throw new Error("DestroyView mock expected id string");
+          }
+          callLog.push(`destroy:${id}`);
+          return { destroyView: true } as T;
+        }
+        throw new Error(`Unexpected query: ${document.slice(0, 40)}`);
+      },
+    };
+
+    const deleted = await destroyListedViews(api, "P1-QA-");
+    expect(deleted).toBe(1);
+    expect(callLog).toEqual(["list", "destroy:qa-1"]);
   });
 });

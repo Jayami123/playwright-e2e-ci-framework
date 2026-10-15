@@ -16,7 +16,7 @@ Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 202
 
 Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
 
-**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases **P1-TW-TZ-001**, **P1-TW-TZ-002**, **P1-TW-TZ-X01**, **P1-TW-TZ-X02** (`@twenty-tz`, serial Jane TZ). OBS-001 (bare date on DATE_TIME) is recorded in [ADR 0014](docs/adr/0014-twenty-timezone-testing.md), not automated. TZ-003 deferred (task 5). Twenty is **not in CI yet**. Medusa Admin is not wired here yet.
+**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases **P1-TW-TZ-001**, **P1-TW-TZ-002**, **P1-TW-TZ-003**, **P1-TW-TZ-X01**, **P1-TW-TZ-X02**, **P1-TW-TZ-X03**, **P1-TW-TZ-X04** (CSV observation), **P1-TW-TZ-X05** (`@twenty-tz`, serial Jane TZ). OBS-001 (bare date on DATE_TIME) is recorded in [ADR 0014](docs/adr/0014-twenty-timezone-testing.md), not automated. DST/relative-date notes: [ADR 0015](docs/adr/0015-twenty-dst-relative-date.md). Twenty is **not in CI yet**. Medusa Admin is not wired here yet.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ src/products/twenty/          Twenty env, login/home pages
 tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/setup/twenty.setup.ts   UI login writes .auth/twenty-jane.json every run
 tests/twenty/smoke/           @twenty-smoke home spec
-tests/twenty/tz/              @twenty-tz P1-TW-TZ-001, 002, X01, X02
+tests/twenty/tz/              @twenty-tz P1-TW-TZ-001, 002, 003, X01, X02, X03, X04, X05
 tests/cal/journeys/           FW-001..004
 tests/cal/auth/               2FA-001..003
 tests/cal/tz-i18n/            TZ-001..004, DST-001..003
