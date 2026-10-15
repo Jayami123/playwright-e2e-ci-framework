@@ -102,9 +102,11 @@ jobs:
               if [[ "$file" =~ $tw_re ]]; then twenty=true; fi
             done
           fi
-          echo "cal=$cal" >> "$GITHUB_OUTPUT"
-          echo "documenso=$documenso" >> "$GITHUB_OUTPUT"
-          echo "twenty=$twenty" >> "$GITHUB_OUTPUT"
+          {
+            echo "cal=$cal"
+            echo "documenso=$documenso"
+            echo "twenty=$twenty"
+          } >> "$GITHUB_OUTPUT"
 
   lint:
     name: lint
@@ -1089,9 +1091,11 @@ jobs:
             echo "- seconds: ${UP_SECONDS}"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "TWENTY_UP_START=${UP_START}" >> "$GITHUB_ENV"
-          echo "TWENTY_UP_END=${UP_END}" >> "$GITHUB_ENV"
-          echo "TWENTY_UP_SECONDS=${UP_SECONDS}" >> "$GITHUB_ENV"
+          {
+            echo "TWENTY_UP_START=${UP_START}"
+            echo "TWENTY_UP_END=${UP_END}"
+            echo "TWENTY_UP_SECONDS=${UP_SECONDS}"
+          } >> "$GITHUB_ENV"
 
       - name: Record Twenty Redis image digest
         if: steps.twenty_up.outcome == 'success'
