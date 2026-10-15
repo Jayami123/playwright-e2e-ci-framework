@@ -1097,7 +1097,11 @@ jobs:
         if: steps.twenty_up.outcome == 'success'
         run: |
           set -euo pipefail
-          digest="$(docker inspect qa-harness-twenty-redis-1 --format '{{index .RepoDigests 0}}' 2>/dev/null || true)"
+          image_id="$(docker inspect qa-harness-twenty-redis-1 --format '{{.Image}}' 2>/dev/null || true)"
+          digest=""
+          if [ -n "$image_id" ]; then
+            digest="$(docker image inspect "$image_id" --format '{{index .RepoDigests 0}}' 2>/dev/null || true)"
+          fi
           if [ -z "$digest" ]; then
             digest="redis digest: unavailable"
           fi
