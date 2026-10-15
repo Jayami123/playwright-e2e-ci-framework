@@ -121,6 +121,8 @@ async function deleteCalQaUserInTransaction(client: PoolClient, userId: number):
   );
   const schedules = await client.query(`DELETE FROM "Schedule" WHERE "userId" = $1`, [userId]);
   await client.query(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
+  // userId is the event HOST in SelectedSlots (reserveSlot upserts one row per eventType.users entry); no FK to users.
+  await client.query(`DELETE FROM "SelectedSlots" WHERE "userId" = $1`, [userId]);
   const deleted = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [userId]);
   if ((deleted.rowCount ?? 0) !== 1) {
     throw new Error(
@@ -154,6 +156,20 @@ export async function teardownCalQaUserById(userId: number): Promise<void> {
     } finally {
       client.release();
     }
+  });
+}
+
+export async function readUserTheme(userId: number): Promise<string | null> {
+  return withCalPool(async (pool) => {
+    const result = await pool.query<{ theme: string | null }>(
+      `SELECT theme FROM users WHERE id = $1`,
+      [userId],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error(`readUserTheme: no user id=${String(userId)}`);
+    }
+    return row.theme;
   });
 }
 

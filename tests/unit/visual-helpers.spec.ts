@@ -15,6 +15,9 @@ import { parseFrozenInstant, VISUAL_FROZEN_INSTANT } from "../../src/support/vis
 import {
   buildDockerRunArgs,
   calPortFromBaseUrl,
+  buildVisualDockerEnv,
+  CONTAINER_PRODUCTS_ROOT,
+  dbPortFromUrl,
   playwrightImage,
   type DockerRunInput,
 } from "../../src/support/visual/docker.js";
@@ -44,6 +47,7 @@ function dockerInput(overrides: Partial<DockerRunInput> = {}): DockerRunInput {
     hostRoot: "/host/root",
     hostPlatform: "win32",
     calPort: 3000,
+    dbPort: 5450,
     env: { P1_PLAYWRIGHT_HARNESS: "0" },
     extraArgs: [],
     ...overrides,
@@ -201,7 +205,32 @@ test.describe("visual docker argv", () => {
     const args = buildDockerRunArgs(dockerInput());
     expect(args).toContain("host.docker.internal:host-gateway");
     expect(args.at(-1)).toContain("visual-docker-proxy.mjs 3000 host.docker.internal 3000");
+    expect(args.at(-1)).toContain("visual-docker-proxy.mjs 5450 host.docker.internal 5450");
     expect(args).not.toContain("--network");
+  });
+
+  test("dbPortFromUrl reads the explicit port", { tag: ["@unit"] }, () => {
+    expect(dbPortFromUrl("postgresql://postgres:@localhost:5450/calendso")).toBe(5450);
+    expect(() => dbPortFromUrl("postgresql://postgres:@localhost/calendso")).toThrow(
+      /explicit port/,
+    );
+  });
+
+  test("buildVisualDockerEnv points the container at IPv4 Cal and DB", { tag: ["@unit"] }, () => {
+    const env = buildVisualDockerEnv(3000, 5450, "prod");
+    expect(env.PRODUCTS_ROOT).toBe("/tmp/p1-products");
+    expect(env.CAL_DB_URL).toBe("postgresql://postgres:@127.0.0.1:5450/calendso");
+    expect(env.CAL_E2E_BASE_URL).toBe("http://127.0.0.1:3000");
+    expect(env.P1_PLAYWRIGHT_HARNESS).toBe("0");
+    expect(env.CAL_WEB_MODE).toBe("prod");
+  });
+
+  test("both platforms stub the product roots before running", { tag: ["@unit"] }, () => {
+    expect(CONTAINER_PRODUCTS_ROOT).toBe("/tmp/p1-products");
+    for (const hostPlatform of ["win32", "linux"] as const) {
+      const inner = buildDockerRunArgs(dockerInput({ hostPlatform })).at(-1) ?? "";
+      expect(inner.startsWith("mkdir -p /tmp/p1-products/cal"), hostPlatform).toBe(true);
+    }
   });
 
   test(

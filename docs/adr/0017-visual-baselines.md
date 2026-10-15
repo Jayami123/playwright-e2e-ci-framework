@@ -23,6 +23,8 @@ The Step 0 probe on 2026-10-15 (Chromium 1.63.0, each viewport loaded twice per 
 - Clock: `freezeClock` before the first `goto` with a future UTC instant (default `2030-01-14T10:00:00Z`); the server hides past slots using real time.
 - Masking policy: mask only content outside test control (user images, third-party embeds, real-time stamps the clock cannot freeze). Never mask the thing under test. Each mask has a reason in `src/support/visual/masks.ts`.
 - Who updates baselines: a manual `workflow_dispatch` job (task 6) runs `visual:update` on Linux and opens a PR with the PNG diff; locally only via `npm run visual:update` (Docker). Never commit PNGs made outside the pinned image.
+- Visual, a11y **and i18n** specs run only in `visual-*` projects (`**/i18n/**` joins the match and ignore globs).
+- The Docker wrapper forwards the Cal DB port as well as the web port, sets `CAL_DB_URL` to `127.0.0.1` and stubs `PRODUCTS_ROOT` (`buildVisualDockerEnv`), because fixtures write QA users from inside the container.
 - Docker on Windows: an in-container TCP proxy `127.0.0.1:<port>` to `host.docker.internal` keeps the baseURL origin. Linux hosts use `--network host` plus `--user uid:gid`; CI (task 6) runs on a GitHub-hosted `ubuntu-latest` runner with `--network host`.
 - Reproducibility: regenerating baselines in the pinned image is stable at the pixel level, not the byte level. Two regenerations count as stable when at most 0.01% of pixels differ and no colour channel differs by more than 2. Measured on 2026-10-15: desktop differed by 0–40 px (max delta 1/255), all on the anti-aliased rounded corners of the booker card; mobile and tablet matched.
 - a11y: `@axe-core/playwright` exact pin, WCAG 2.0/2.1 A+AA tags, serious and critical reported as a JSON attachment. The a11y specs fail on serious and critical violations; known product bugs go on the allowlist in `src/support/visual/axe.ts` with a finding, and an allowlist entry that matches nothing fails as stale.
@@ -31,7 +33,9 @@ The Step 0 probe on 2026-10-15 (Chromium 1.63.0, each viewport loaded twice per 
 
 - Baseline churn when Playwright is bumped: the image tag moves with it, so regenerate all PNGs in one PR.
 - Cal theme is user-driven, so dark baselines use a dedicated QA user from `qa-user.ts` with the theme set through the API. Never use `pro`, which parallel Cal specs share.
-- Visual and a11y specs run only in `visual-*` projects; the existing product projects ignore `**/visual/**` and `**/a11y/**`.
+- Visual, a11y and i18n specs run only in `visual-*` projects; the existing product projects ignore `**/visual/**`, `**/a11y/**` and `**/i18n/**`.
+- A slot click reserves that slot for every visitor for `MINUTES_TO_BOOK` (5). Specs never select `pro` slots; selection happens only on per-test QA users, whose teardown deletes their `SelectedSlots` (keyed by the event host `userId`).
+- Dark baselines use the `darkThemeQaUser` fixture (tRPC `me/updateProfile`).
 
 ## Alternatives rejected
 

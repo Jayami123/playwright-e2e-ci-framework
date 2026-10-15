@@ -1,4 +1,10 @@
-import { test as base, type BrowserContext, type Page } from "@playwright/test";
+import {
+  test as base,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { setFactorySeed } from "qa-portfolio-harness";
 import { attachConsoleGuard, type ConsoleGuard } from "../../core/fixtures.js";
 import { parsePositiveInt } from "../../core/config.js";
@@ -20,6 +26,16 @@ import { TwoFactorSettingsPage } from "./pages/two-factor-settings.page.js";
 import { BookingsPage } from "./pages/bookings.page.js";
 import { BookerPage } from "./pages/booker.page.js";
 import { AvailabilityPage } from "./pages/availability.page.js";
+import {
+  BOOKING_NAME,
+  DARK_NAME,
+  LONG_NAME,
+  LONG_TITLE,
+  provisionBookerQaUser,
+  QA_BOOKER_EVENT,
+  type BookerQaOptions,
+  type BookerQaUser,
+} from "./booker-qa.js";
 import { cancelBookingByUid } from "./oracle.js";
 import { DST_ORGANISER } from "./routes.js";
 
@@ -77,6 +93,9 @@ interface CalFixtures {
   dstOrganiser: DstOrganiser;
   guestBooker: (timezoneId: string) => Promise<GuestBookerHandle>;
   isolatedSundayEvent: IsolatedSundayEventFixture;
+  darkThemeQaUser: BookerQaUser;
+  longNameQaUser: BookerQaUser;
+  bookingQaUser: BookerQaUser;
 }
 
 interface CalWorkerFixtures {
@@ -87,7 +106,40 @@ function formatBackupCode(raw: string): string {
   return `${raw.slice(0, 5)}-${raw.slice(5, 10)}`;
 }
 
+function bookerQaFixture(opts: BookerQaOptions) {
+  return async (
+    { browser }: { browser: Browser },
+    use: (user: BookerQaUser) => Promise<void>,
+    testInfo: TestInfo,
+  ): Promise<void> => {
+    const user = await provisionBookerQaUser(browser, testInfo.parallelIndex, opts);
+    let testError: unknown;
+    try {
+      await use(user);
+    } catch (error) {
+      testError = error;
+    }
+    const errors: unknown[] = testError === undefined ? [] : [testError];
+    try {
+      await teardownCalQaUserById(user.id); // cascades EventType, Booking, Attendee; deletes SelectedSlots
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, `booker QA user fixture failed (${opts.name})`);
+    }
+  };
+}
+
 export const test = base.extend<CalFixtures, CalWorkerFixtures>({
+  darkThemeQaUser: bookerQaFixture({
+    name: DARK_NAME,
+    title: QA_BOOKER_EVENT.title,
+    theme: "dark",
+  }),
+  longNameQaUser: bookerQaFixture({ name: LONG_NAME, title: LONG_TITLE }),
+  bookingQaUser: bookerQaFixture({ name: BOOKING_NAME, title: QA_BOOKER_EVENT.title }),
+
   twoFactorEnrol: ["api", { option: true }],
 
   twoFactorUser: async ({ page, twoFactorEnrol }, use, testInfo) => {

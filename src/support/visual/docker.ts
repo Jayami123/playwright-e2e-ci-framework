@@ -27,12 +27,41 @@ export function calPortFromBaseUrl(baseUrl: string): number {
   return Number(url.port);
 }
 
+export function dbPortFromUrl(dbUrl: string): number {
+  const port = new URL(dbUrl).port;
+  if (port === "") {
+    throw new Error(`Cal DB URL needs an explicit port, got ${dbUrl}`);
+  }
+  return Number(port);
+}
+
+/** Harness loadConfig() requires every product dir under PRODUCTS_ROOT (seen in Step 0). */
+export const CONTAINER_PRODUCTS_ROOT = "/tmp/p1-products";
+const STUB_PRODUCTS = ["cal", "documenso", "medusa-dtc-starter", "twenty-CRM"] as const;
+
+/** Container env for a visual run: IPv4 URLs only (localhost can be ::1; the proxies bind 127.0.0.1). */
+export function buildVisualDockerEnv(
+  calPort: number,
+  dbPort: number,
+  webMode: string,
+): Record<string, string> {
+  return {
+    P1_PLAYWRIGHT_HARNESS: "0",
+    CAL_E2E_BASE_URL: `http://127.0.0.1:${String(calPort)}`,
+    CAL_WEB_MODE: webMode,
+    HOME: "/tmp",
+    PRODUCTS_ROOT: CONTAINER_PRODUCTS_ROOT,
+    CAL_DB_URL: `postgresql://postgres:@127.0.0.1:${String(dbPort)}/calendso`,
+  };
+}
+
 export interface DockerRunInput {
   readonly mode: VisualMode;
   readonly image: string;
   readonly hostRoot: string;
   readonly hostPlatform: NodeJS.Platform;
   readonly calPort: number;
+  readonly dbPort: number;
   readonly uidGid?: string; // "1001:1001" on Linux; omitted elsewhere
   readonly env: Readonly<Record<string, string>>;
   readonly extraArgs: readonly string[];
@@ -52,10 +81,15 @@ export function buildDockerRunArgs(input: DockerRunInput): string[] {
     ...update,
     ...input.extraArgs.map(shQuote),
   ].join(" ");
-  const proxy =
-    `node scripts/visual-docker-proxy.mjs ${String(input.calPort)} host.docker.internal ${String(input.calPort)} & ` +
-    `until (exec 3<>/dev/tcp/127.0.0.1/${String(input.calPort)}) 2>/dev/null; do sleep 0.2; done; `;
-  const inner = linuxHost ? playwright : `${proxy}${playwright}`;
+  const stubs = `mkdir -p ${STUB_PRODUCTS.map((p) => `${CONTAINER_PRODUCTS_ROOT}/${p}`).join(" ")} && `;
+  const proxies = [input.calPort, input.dbPort]
+    .map(
+      (port) =>
+        `node scripts/visual-docker-proxy.mjs ${String(port)} host.docker.internal ${String(port)} & ` +
+        `until (exec 3<>/dev/tcp/127.0.0.1/${String(port)}) 2>/dev/null; do sleep 0.2; done; `,
+    )
+    .join("");
+  const inner = linuxHost ? `${stubs}${playwright}` : `${stubs}${proxies}${playwright}`;
 
   const args = ["run", "--rm", "--init", "--ipc=host"];
   args.push("--mount", `type=bind,source=${input.hostRoot},target=${CONTAINER_WORKDIR}`);
