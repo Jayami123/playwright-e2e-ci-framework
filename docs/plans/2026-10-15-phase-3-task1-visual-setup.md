@@ -865,7 +865,7 @@ Then compare each of the three pairs (`/tmp/p1-vis-1/<v>.png` against `/tmp/p1-v
 a11y attachment:
 
 ```bash
-grep -rl '"blocking"' playwright-report/data | wc -l       # 3 (one JSON per viewport)
+npx playwright test --project=visual-desktop tests/cal/visual --reporter=json > /tmp/vis.json && grep -c "axe" /tmp/vis.json
 ```
 
 Also open `npx playwright show-report` → any `visual-*` a11y test → Attachments → `axe-booker-pro-30min.json`. Record the `counts` object from the desktop report in the final report.
