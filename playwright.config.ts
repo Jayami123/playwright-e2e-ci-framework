@@ -1,4 +1,4 @@
-import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
+import { defineConfig, devices, type Project, type ReporterDescription } from "@playwright/test";
 import { normalizeBaseUrl, parsePositiveInt } from "./src/core/config.js";
 import { argvForProjectSelection, selectedProjects } from "./src/core/projects.js";
 import {
@@ -26,6 +26,16 @@ const DOCUMENSO_PROJECT_NAMES = [
   "documenso-firefox",
 ] as const;
 const TWENTY_PROJECT_NAMES = ["twenty-setup", "twenty-chromium"] as const;
+const VISUAL_PROJECT_NAMES = ["visual-mobile", "visual-tablet", "visual-desktop"] as const;
+type VisualProjectName = (typeof VISUAL_PROJECT_NAMES)[number];
+const VISUAL_VIEWPORTS: Readonly<Record<VisualProjectName, { width: number; height: number }>> = {
+  "visual-mobile": { width: 393, height: 852 },
+  "visual-tablet": { width: 820, height: 1180 },
+  "visual-desktop": { width: 1440, height: 900 },
+};
+/** ADR 0017: visual and a11y specs run only in visual-* projects. */
+const VISUAL_A11Y_MATCH = ["**/visual/**/*.spec.ts", "**/a11y/**/*.spec.ts"];
+const VISUAL_A11Y_IGNORE = ["**/visual/**", "**/a11y/**"];
 
 const documensoChromeUse = {
   baseURL: documensoPublicUrlFromEnv(),
@@ -63,9 +73,14 @@ function runsTwentyProject(): boolean {
   return selectedProjects(projectSelectionArgv, TWENTY_PROJECT_NAMES);
 }
 
+function runsVisualProject(): boolean {
+  return selectedProjects(projectSelectionArgv, VISUAL_PROJECT_NAMES);
+}
+
 const runsCal = runsCalProject();
 const runsDocumenso = runsDocumensoProject();
 const runsTwenty = runsTwentyProject();
+const runsVisual = runsVisualProject();
 
 /** Set by `npm run test:unit` so globalSetup does not start product harnesses. */
 function shouldStartHarness(): boolean {
@@ -89,7 +104,7 @@ const baseURL = live
 
 const harnessSetups: string[] = [];
 if (shouldStartHarness()) {
-  if (runsCal) {
+  if (runsCal || runsVisual) {
     harnessSetups.push("./global-setup/index.ts");
   }
   if (runsDocumenso) {
@@ -107,6 +122,31 @@ const twentyChromeUse = {
 const jsonReportFile = resolvePlaywrightJsonReportFile();
 const junitReportFile = resolvePlaywrightJUnitReportFile();
 const blobReportDir = resolvePlaywrightBlobReportDir();
+
+function visualProject(name: VisualProjectName): Project {
+  return {
+    name,
+    testDir: "./tests",
+    testMatch: VISUAL_A11Y_MATCH,
+    retries: 0,
+    snapshotPathTemplate: "{testDir}/{testFileDir}/__screenshots__/{projectName}/{arg}{ext}",
+    // Project expect replaces top-level expect, so repeat the timeout.
+    expect: {
+      timeout: TIMEOUTS[webMode].expect,
+      toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled", caret: "hide" },
+    },
+    use: {
+      ...devices["Desktop Chrome"],
+      viewport: VISUAL_VIEWPORTS[name],
+      deviceScaleFactor: 1,
+      isMobile: false,
+      hasTouch: false,
+      locale: "en-US",
+      timezoneId: "Europe/London",
+      colorScheme: "light",
+    },
+  };
+}
 
 export default defineConfig({
   testDir: "./tests",
@@ -153,6 +193,7 @@ export default defineConfig({
       name: "cal-chromium",
       dependencies: ["cal-setup"],
       testDir: "./tests/cal",
+      testIgnore: VISUAL_A11Y_IGNORE,
       use: {
         ...devices["Desktop Chrome"],
         ...(live ? { storageState: loadConfig().proAuthStatePath } : {}),
@@ -162,6 +203,7 @@ export default defineConfig({
       name: "cal-firefox",
       dependencies: ["cal-setup"],
       testDir: "./tests/cal",
+      testIgnore: VISUAL_A11Y_IGNORE,
       grep: /@tz|@2fa/,
       use: {
         ...devices["Desktop Firefox"],
@@ -180,7 +222,7 @@ export default defineConfig({
     {
       name: "documenso-chromium",
       testDir: "./tests/documenso",
-      testIgnore: /rate-limit\//,
+      testIgnore: [/rate-limit\//, ...VISUAL_A11Y_IGNORE],
       retries: documensoRetries,
       use: {
         ...devices["Desktop Chrome"],
@@ -190,6 +232,7 @@ export default defineConfig({
     {
       name: "documenso-firefox",
       testDir: "./tests/documenso",
+      testIgnore: VISUAL_A11Y_IGNORE,
       grep: /P1-DOC-FW-001|P1-DOC-FW-002|P1-DOC-FW-003/,
       retries: documensoRetries,
       use: {
@@ -216,6 +259,7 @@ export default defineConfig({
       name: "twenty-chromium",
       dependencies: ["twenty-setup"],
       testDir: "./tests/twenty",
+      testIgnore: VISUAL_A11Y_IGNORE,
       retries: 0,
       timeout: twentyTimeouts().test,
       expect: { timeout: twentyTimeouts().expect },
@@ -231,5 +275,6 @@ export default defineConfig({
           : {}),
       },
     },
+    ...VISUAL_PROJECT_NAMES.map(visualProject),
   ],
 });

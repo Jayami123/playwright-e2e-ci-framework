@@ -41,6 +41,13 @@ export default tseslint.config(
     },
   },
   {
+    files: ["scripts/**/*.mjs"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: { console: "readonly", process: "readonly" } },
+    // Plain JS cannot carry TS return-type annotations.
+    rules: { "@typescript-eslint/explicit-function-return-type": "off" },
+  },
+  {
     files: ["eslint.config.js"],
     extends: [tseslint.configs.disableTypeChecked],
   },
