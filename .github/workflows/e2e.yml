@@ -1654,6 +1654,9 @@ jobs:
       MEDUSA_DB_URL: postgres://medusa:medusa@127.0.0.1:5433/medusa
       MEDUSA_ADMIN_EMAIL: admin@qa.local
       MEDUSA_SKIP_STOREFRONT: "1"
+      # The harness runs pnpm from p1/, whose packageManager is npm; strict corepack refuses pnpm there
+      # (PR #37 run 38931396826). Off for this job only; the fork install still pins pnpm 10.11.1.
+      COREPACK_ENABLE_STRICT: "0"
     steps:
       - name: Decide whether visual is requested
         id: visual_requested
