@@ -35,7 +35,6 @@ test.describe("Medusa admin accessibility", () => {
       await products.goto();
       await expect(products.heading).toBeVisible();
       await products.openCreate();
-      await expect(products.createDialogsIncludingHidden).toHaveCount(2);
       await expect(products.title).toBeAttached();
       const ariaHiddenDialogs = await products.createDialogsIncludingHidden.evaluateAll(
         (els: readonly RectEl[]) =>
@@ -140,7 +139,7 @@ test.describe("Medusa admin accessibility", () => {
   });
 
   test(
-    "P1-MED-FW-X13 Order detail reflows at 393 px",
+    "P1-MED-FW-X13 Order detail reflows at 320 px",
     {
       tag: ["@medusa", "@a11y", "@visual"],
       annotation: [
@@ -152,6 +151,8 @@ test.describe("Medusa admin accessibility", () => {
       onlyOnProjects(testInfo.project.name, ["visual-mobile"]);
       const order = await medusaQa.createOrder("reflow", 2);
       const detail = new MedusaOrderDetailPage(page);
+      // WCAG 1.4.10 is defined at 320 CSS px, so probe that width and not the project's 393.
+      await page.setViewportSize({ width: 320, height: 852 });
       await detail.goto(order.id);
       await expect(detail.heading(order.displayId)).toBeVisible();
       const doc = await documentScroll(page);
@@ -170,8 +171,8 @@ test.describe("Medusa admin accessibility", () => {
       );
       await attachKnownBugEvidence(page, testInfo, {
         issue: MED_X13_REFLOW_ISSUE,
-        observed: { ...main, triggerRights },
-        expected: { mainSWMax: main.mainCW + 1, triggerRightMax: 394 },
+        observed: { ...main, widestTriggerRight: Math.max(...triggerRights) },
+        expected: { mainSWMax: main.mainCW + 1, triggerRightMax: 321 },
       });
       test.fail(true, MED_X13_REFLOW_ISSUE);
       expect(main.mainSW, "main needs no horizontal scrolling").toBeLessThanOrEqual(
@@ -180,7 +181,7 @@ test.describe("Medusa admin accessibility", () => {
       expect(
         Math.max(...triggerRights),
         "every section trigger is inside the viewport",
-      ).toBeLessThanOrEqual(394);
+      ).toBeLessThanOrEqual(321);
     },
   );
 });

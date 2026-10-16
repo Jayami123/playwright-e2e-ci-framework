@@ -6,7 +6,7 @@
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
-Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.10`.
+Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harness) `#v0.2.11`.
 
 ## Scope
 
@@ -245,7 +245,7 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 | P1-MED-FW-X06 Create Product dialog exposed to AT (MED-F-03)  | desktop                 | expected fail |
 | P1-MED-FW-X07 Order header menu name (MED-F-05)               | desktop                 | expected fail |
 | P1-MED-FW-X08 Login error announced (MED-F-06)                | desktop                 | expected fail |
-| P1-MED-FW-X13 Order detail reflows at 393 px (MED-F-07)       | mobile                  | expected fail |
+| P1-MED-FW-X13 Order detail reflows at 320 px (MED-F-07)       | mobile                  | expected fail |
 
 `npm run visual:test -- --product=medusa` runs 19 tests and skips 23 (viewport rules): 15 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
 

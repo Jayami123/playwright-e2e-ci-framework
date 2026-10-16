@@ -48,11 +48,11 @@ Recorded for `P1-MED-FW-X06`, `X07`, `X08` and `X13` in `tests/medusa/a11y/admin
 
 **Expected:** an element with `role="alert"` (or a live region) carrying the message (WCAG 4.1.3).
 
-## MED-F-07 (`P1-MED-FW-X13`): order detail needs sideways scrolling at 393 px
+## MED-F-07 (`P1-MED-FW-X13`): order detail needs sideways scrolling at 320 px
 
-**Observed:** at 393 px the document does not scroll sideways, but `main` (`overflow-x: auto`) has `scrollWidth` 434 against `clientWidth` 393, and one section menu trigger ends at x 434 (rights `[357, 357, 365, 434, 357]`). English and German measure alike (438 and 444 in the first probe), so it is not a German problem.
+**Observed:** at 320 CSS px the document does not scroll sideways, but `main` (`overflow-x: auto`) has `scrollWidth` 434 against `clientWidth` 320, and the widest section menu trigger ends at x 434 (the same 434 as at 393 px, where `clientWidth` is 393). The first probe measured 438 (English) and 444 (German) at 393 px, so it is not a German problem. The test sets a 320 px viewport itself because the `visual-mobile` project is 393 px wide.
 
-**Expected:** no horizontal scrolling at 320 CSS px (WCAG 1.4.10); 393 px is wider than that, so overflow at 393 also fails at 320. The "Unfulfilled Items" block is an item list, not a data table, so the two-dimensional layout exemption does not apply. If that judgement is wrong, drop X13.
+**Expected:** no horizontal scrolling at 320 CSS px (WCAG 1.4.10). The "Unfulfilled Items" block is an item list, not a data table, so the two-dimensional layout exemption does not apply. If that judgement is wrong, drop X13.
 
 ## Tests
 

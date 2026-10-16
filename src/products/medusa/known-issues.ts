@@ -7,6 +7,6 @@ export const MED_X07_MENU_TRIGGER_NAME_ISSUE =
 export const MED_X08_LOGIN_ERROR_ISSUE =
   "PRODUCT BUG MED-F-06: the invalid-credentials error on the login page is a plain span with no role, live region or id, so it is not announced (WCAG 4.1.3; Phase 4 batch 2 probe 2026-10-17, 2 of 2 runs)";
 export const MED_X13_REFLOW_ISSUE =
-  "PRODUCT BUG MED-F-07: the order detail page needs horizontal scrolling of the main region at 393 px, wider than the 320 px that WCAG 1.4.10 requires (Phase 4 batch 2 probe 2026-10-17, 2 of 2 runs)";
+  "PRODUCT BUG MED-F-07: the order detail page needs horizontal scrolling of the main region at 320 CSS px, the width WCAG 1.4.10 requires to reflow (also measured at 393 px) (Phase 4 batch 2 probe 2026-10-17, 2 of 2 runs)";
 export const MED_FW_X05_CANCEL_FULFIL_ISSUE =
   "PRODUCT BUG MED-F-01: a concurrent cancel and fulfil both return 200 and leave an order that is canceled and fulfilled with an uncanceled fulfillment; sequentially each is rejected (Phase 4 probe 2026-10-16, 3 of 3 runs)";
