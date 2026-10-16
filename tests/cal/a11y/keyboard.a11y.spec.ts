@@ -10,6 +10,7 @@ import {
   CAL_FROZEN_SLOT_COUNT,
 } from "../../../src/products/cal/visual.js";
 import { freezeClock, VISUAL_FROZEN_INSTANT } from "../../../src/support/visual/clock.js";
+import { frameBands } from "../../../src/support/visual/layout.js";
 import { onlyOnProjects } from "../../../src/support/visual/projects.js";
 
 const MAX_TABS = 60;
@@ -65,7 +66,7 @@ async function focusedAndIdle(
   focus: Locator,
   clipTarget: Locator,
   label: string,
-): Promise<{ focused: Buffer; idle: Buffer }> {
+): Promise<{ focused: Buffer; idle: Buffer; focusedFrame: Buffer; idleFrame: Buffer }> {
   const box = await clipTarget.boundingBox();
   if (box === null) {
     throw new Error(`${label} has no bounding box`);
@@ -77,10 +78,19 @@ async function focusedAndIdle(
     height: box.height + 16,
   };
   await expect(focus, `${label} holds focus`).toBeFocused();
+  const shootFrame = async (): Promise<Buffer> => {
+    const parts: Buffer[] = [];
+    for (const band of frameBands(clip, 10)) {
+      parts.push(await page.screenshot({ clip: band, animations: "disabled" }));
+    }
+    return Buffer.concat(parts);
+  };
   const focused = await page.screenshot({ clip, animations: "disabled" });
+  const focusedFrame = await shootFrame();
   await page.evaluate("document.activeElement.blur()");
   const idle = await page.screenshot({ clip, animations: "disabled" });
-  return { focused, idle };
+  const idleFrame = await shootFrame();
+  return { focused, idle, focusedFrame, idleFrame };
 }
 
 test.describe("Cal keyboard", () => {
@@ -244,13 +254,19 @@ test.describe("Cal keyboard", () => {
       await testInfo.attach("timezone-idle", { body: tz.idle, contentType: "image/png" });
       await attachKnownBugEvidence(page, testInfo, {
         issue: A11Y002_TIMEZONE_FOCUS_ISSUE,
-        observed: { focusTarget, boxShadows, focusedEqualsIdle: tz.focused.equals(tz.idle) },
-        expected: { focusedEqualsIdle: false },
+        observed: {
+          focusTarget,
+          boxShadows,
+          focusedEqualsIdle: tz.focused.equals(tz.idle),
+          frameEqual: tz.focusedFrame.equals(tz.idleFrame),
+        },
+        expected: { frameEqual: false },
       });
       test.fail(true, A11Y002_TIMEZONE_FOCUS_ISSUE);
+      // Frame only: CI text anti-aliasing differs between the two shots (run 38879200538) without any ring.
       expect(
-        tz.focused.equals(tz.idle),
-        "timezone select must show a visible focus indicator",
+        tz.focusedFrame.equals(tz.idleFrame),
+        "timezone select must show a visible focus indicator around the control",
       ).toBe(false);
     },
   );

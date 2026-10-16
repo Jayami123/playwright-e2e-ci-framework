@@ -4,6 +4,19 @@ export interface Rect {
   readonly width: number;
   readonly height: number;
 }
+/**
+ * Pure. Top and bottom bands of a focus clip (control plus margin). A ring, outline, border or
+ * background change shows here; the control's text does not, so text anti-aliasing noise between a
+ * focused and a blurred shot (CI run 38879200538, rows 11-28 of a 52 px clip) cannot fake a ring.
+ */
+export function frameBands(clip: Rect, band: number): Rect[] {
+  const h = Math.max(1, Math.min(band, Math.floor(clip.height / 2)));
+  return [
+    { x: clip.x, y: clip.y, width: clip.width, height: h },
+    { x: clip.x, y: clip.y + clip.height - h, width: clip.width, height: h },
+  ];
+}
+
 export interface ScrollBox {
   readonly label: string;
   readonly sw: number;

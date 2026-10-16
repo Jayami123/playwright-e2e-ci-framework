@@ -4,6 +4,18 @@ export interface StableScreenshotOptions {
   readonly mask?: readonly Locator[];
   readonly fullPage?: boolean;
   readonly settleTimeoutMs?: number;
+  /**
+   * Wait for "networkidle" before the shot (default true). Twenty never goes idle (background
+   * polling, Step 0 2026-10-16), so its specs pass false and assert the loaded content first.
+   */
+  readonly networkIdle?: boolean;
+  /** Capture only this region (px from the top-left of the viewport). */
+  readonly clip?: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
 }
 
 const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -25,8 +37,12 @@ export function visualSkipReason(
   return `toHaveScreenshot skipped on ${platform}: baselines are Linux-only (ADR 0017). Run npm run visual:test (Docker) or set VISUAL_LOCAL=1 to compare anyway.`;
 }
 
-export async function waitForVisualStability(page: Page, timeoutMs: number): Promise<void> {
-  await page.waitForLoadState("networkidle", { timeout: timeoutMs });
+export async function waitForVisualStability(
+  page: Page,
+  timeoutMs: number,
+  networkIdle = true,
+): Promise<void> {
+  await page.waitForLoadState(networkIdle ? "networkidle" : "load", { timeout: timeoutMs });
   // String expressions: tsconfig has no DOM lib (repo precedent: passkey-register.spec.ts).
   await page.evaluate("document.fonts.ready.then(() => undefined)");
   await page.waitForFunction(
@@ -44,7 +60,7 @@ export async function stableScreenshot(
   opts: StableScreenshotOptions = {},
 ): Promise<void> {
   assertScreenshotName(name);
-  await waitForVisualStability(page, opts.settleTimeoutMs ?? 15_000);
+  await waitForVisualStability(page, opts.settleTimeoutMs ?? 15_000, opts.networkIdle ?? true);
   const reason = visualSkipReason(process.platform, process.env);
   if (reason !== undefined) {
     test.skip(true, reason);
@@ -53,5 +69,6 @@ export async function stableScreenshot(
   await expect(page).toHaveScreenshot(`${name}.png`, {
     mask: [...(opts.mask ?? [])],
     fullPage: opts.fullPage ?? false,
+    ...(opts.clip === undefined ? {} : { clip: { ...opts.clip } }),
   });
 }

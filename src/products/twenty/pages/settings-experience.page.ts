@@ -19,6 +19,19 @@ export class TwentySettingsExperiencePage extends BasePage {
     await this.gotoPath(TWENTY_ROUTES.settingsExperience);
   }
 
+  /** Settings -> Experience -> Language value button (shows the current language name). */
+  languagePicker(name = "English"): Locator {
+    return this.page.getByText(name, { exact: true });
+  }
+
+  languageSearch(): Locator {
+    return this.page.getByPlaceholder("Search");
+  }
+
+  languageOption(name: string): Locator {
+    return this.page.getByText(name, { exact: true });
+  }
+
   async openTimeZonePicker(): Promise<void> {
     await this.timeZoneValueButton.click();
     await this.timeZoneDialog.waitFor({ state: "visible" });

@@ -30,6 +30,8 @@ Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2F
 | P1-TW-TZ-X04 CSV vs fixture UTC                  | Observation (assert CSV = stored ISO, no `test.fail`) | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
 | OBS-001 bare date on DATE_TIME                   | Observation (not automated)                           | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
 
+**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German layout and light and dark axe scans for Cal, Documenso and Twenty, and Arabic RTL layout for Cal only (Twenty RTL is carried). Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](docs/adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
+
 ## Prerequisites
 
 - Node.js 22 (`nvm use` reads `.nvmrc`)
@@ -160,6 +162,52 @@ CI `npm ci` still runs `prepare`.
 | P1-CAL-2FA-002 | Same TOTP code replayed in a second context (`test.fail`)    |
 | P1-CAL-2FA-003 | Backup code works once                                       |
 
+### Phase 3 visual, i18n and a11y cases
+
+Status: **pass** = passes; **expected fail** = `test.fail` for a known product bug (see the bug table).
+
+| ID                                                | Title                                                           | Status        |
+| ------------------------------------------------- | --------------------------------------------------------------- | ------------- |
+| P1-CAL-VIS-001, 002, 003                          | Booker baseline, long name and title, dark theme and axe        | pass          |
+| P1-CAL-VIS-004                                    | Slots HTTP 500 shows a user-facing error                        | expected fail |
+| P1-CAL-I18N-001, 002, 003                         | German and Arabic booker, German labels do not clip             | pass          |
+| P1-CAL-A11Y-004, 005                              | Forced colors, reduced motion                                   | pass          |
+| P1-CAL-A11Y-001, 002, 003, 006                    | Keyboard booking, focus, 200% zoom, accessible names            | expected fail |
+| P1-DOC-VIS-001, 002, 003, 005                     | Signing baseline, German, long text, PDF 500                    | pass          |
+| P1-DOC-VIS-004                                    | `/documents` colour contrast, light and dark                    | pass          |
+| P1-DOC-VIS-X02, X05, X06, X07                     | PDF abort, keyboard, forced colors, full WCAG                   | pass          |
+| P1-DOC-VIS-X01, X03, X04                          | Long-title overflow, PDF stall, 200% zoom                       | expected fail |
+| P1-TW-VIS-001, 003, X03, X04, X06                 | Contrast, record baseline, error focus, German settings, WCAG   | pass          |
+| P1-TW-I18N-002                                    | pseudo-en is not in the picker; no plain-English UI strings     | pass          |
+| P1-TW-VIS-002, 004, X01, X02, X05, P1-TW-I18N-001 | Company chip, error empty state, table semantics, German header | expected fail |
+
+### Phase 3 known product bugs
+
+Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md), [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md) and [cal-visual-a11y.md](docs/observations/cal-visual-a11y.md).
+
+| ID                                          | Product   | Finding                                                                                                                     | Test                                             |
+| ------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| CAL-VIS-004                                 | Cal       | Slots 500 shows no error                                                                                                    | `slots-error.visual.spec.ts`                     |
+| CAL-A11Y-001, 002, 003, 006                 | Cal       | Focus loss, timezone focus, weekday overlap at 200%, `$` names                                                              | `tests/cal/a11y/*`                               |
+| CAL-A11Y-SMOKE-overlay-switch               | Cal       | Overlay switch has no accessible name                                                                                       | `smoke.a11y.spec.ts`                             |
+| DOC-VIS-004-F1..F3                          | Documenso | `/documents` contrast (WCAG 1.4.3)                                                                                          | `contrast.a11y.spec.ts`                          |
+| DOC-VIS-X07-F4..F10                         | Documenso | Unnamed buttons, link and inputs; nested interactive                                                                        | `contrast.a11y.spec.ts`                          |
+| DOC-VIS-X01, X03, X04                       | Documenso | Title overflow at md+, endless PDF spinner, Complete clipped at 200%                                                        | `long-text`, `pdf-failure`, `signing.a11y` specs |
+| TW-VIS-001-F1..F6                           | Twenty    | People and person contrast (WCAG 1.4.3)                                                                                     | `contrast.a11y.spec.ts`                          |
+| TW-VIS-X06-F7..F14                          | Twenty    | Unnamed commands and checkboxes, nested controls, ARIA on role=none                                                         | `contrast.a11y.spec.ts`                          |
+| TW-VIS-002, 004, X01, X02, X05, TW-I18N-001 | Twenty    | Chip without ellipsis, misleading empty state, discarded data, duplicate toasts, no column headers, truncated German header | `visual`, `a11y`, `i18n` specs                   |
+
+### Phase 3 done and carried to Phase 4
+
+| Item                                                                                 | Status                                          |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Cal VIS, I18N, A11Y (PR #34)                                                         | Done                                            |
+| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06 | Done                                            |
+| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                            |
+| Medusa visual and i18n                                                               | Carried (blocked on the Medusa suite)           |
+| TW-VIS-X07 Arabic RTL People layout                                                  | Carried (dropped 2026-10-16: not probed)        |
+| `e2e / visual` as a required check                                                   | Carried (set it after two green runs on `main`) |
+
 ## CI
 
 [`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, daily schedule `0 18 * * *` (18:00 UTC), and `workflow_dispatch` (optional inputs `browser_matrix`, `documenso_probe_only`). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml), which checks out [Jayami123/cal](https://github.com/Jayami123/cal) at `CAL_REF` and [Jayami123/documenso](https://github.com/Jayami123/documenso) at `DOCUMENSO_REF` (pinned commit SHA in workflow env, not `main`). Product build caches are saved only on pushes to `main`. PR path filters skip `cal-self-hosted` or `documenso-self-hosted` when unrelated paths change. Concurrency group includes `event_name` so scheduled runs do not cancel PRs; PRs still cancel in-progress. Permissions: `contents: read`. Matrix policy: [ADR 0008](docs/adr/0008-cal-browser-matrix.md). Documenso self-hosted policy: [ADR 0011](docs/adr/0011-documenso-ci.md). On schedule or `browser_matrix` dispatch only, job `nightly-alert` opens or comments on a `nightly-failure` issue when the matrix fails and closes it after the next green run ([ADR 0009](docs/adr/0009-nightly-failure-alerting-via-github-issues.md)).
@@ -174,6 +222,14 @@ CI `npm ci` still runs `prepare`.
 | Unset                     | `cal-self-hosted`: checkout this repo to `p1/` and [Jayami123/cal](https://github.com/Jayami123/cal) to `products/cal`, harness `up()` via `npm run test:cal` against `http://127.0.0.1:3000` (seed passwords only on the E2E step). Schedule and `workflow_dispatch` with `browser_matrix: true` also run `test:cal:firefox` sequentially with per-browser artifacts. |
 
 **Documenso (always self-hosted, not gated on `CAL_E2E_BASE_URL`):** job `documenso-self-hosted` checks out [Jayami123/documenso](https://github.com/Jayami123/documenso) to `products/documenso`, maps `127.0.0.1 p1.lvh.me`, runs harness `up()` under Node 24, then `npm run test:documenso` on Node 22 (`documenso-chromium`, Chrome channel). `workflow_dispatch` with `documenso_probe_only: true` runs harness `up()`, secure-context preflight, and `playwright --list` only. Nightly / `browser_matrix` also runs `test:documenso:firefox` (`P1-DOC-FW-001..003` only). After the first green PR run, add required check `e2e / documenso-self-hosted` on `main`.
+
+**Visual job (Phase 3):** each product job runs `npm run visual:test -- --product=<p>` in the pinned Playwright Docker image with `continue-on-error`, then exports `visual` and `visual_requested`. The `visual` aggregator job (check `e2e / visual`) fails when a product job ran and its requested visual step failed, was skipped, or never started, so a failed Documenso bypass start cannot turn it green. A product job that was skipped as a whole (path filter, live-URL path, `visual_product` filter) is not gated. Failures upload `visual-failure-<product>` (report plus diff, actual and expected PNGs, 14 days).
+
+**Update baselines:** Actions → **Update visual baselines** → _Use workflow from_ your feature branch → product. It never runs on `main` and never commits. Download `visual-baselines-<product>`, unzip at the repo root, read `CHANGED.txt`, compare every changed PNG with `git show HEAD:<path>`, accept only changes the PR explains, run `npm run visual:test -- --product=<p>` twice, then commit only the reviewed PNGs (`test(visual): update <product> baselines for <reason>`).
+
+**GitHub Pages:** pushes to `main` merge the blob reports, strip traces and videos, fail on any secret-pattern hit, and deploy to <https://jayami123.github.io/playwright-e2e-ci-framework/>. A repo admin must set Settings → Pages → Source **GitHub Actions** once, before the first merge; otherwise `pages-deploy` fails on every push. Traces stay in private Actions artifacts.
+
+**Browser installs** retry three times (and apt downloads five times) because the Chrome `.deb` comes from `dl.google.com` and is not covered by the browser cache.
 
 **Browser coverage (`@tz` / `@2fa` matrix cases only)**
 

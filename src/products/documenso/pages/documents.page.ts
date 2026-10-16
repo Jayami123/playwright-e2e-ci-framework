@@ -102,6 +102,14 @@ export class DocumentsPage extends BasePage {
     });
   }
 
+  titleLink(title: string): Locator {
+    return this.page.getByRole("link", { name: title });
+  }
+
+  rowActionButton(): Locator {
+    return this.page.getByTestId("document-table-action-btn");
+  }
+
   statusBadge(status: "Pending" | "Completed"): Locator {
     return this.page.getByText(status, { exact: true });
   }

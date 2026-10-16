@@ -14,9 +14,37 @@ export class SigningPage extends BasePage {
   }
 
   private fieldCanvas(): Locator {
+    return this.pdfCanvas();
+  }
+
+  pdfCanvas(): Locator {
     // Konva draws the PDF page on a canvas with no ARIA role.
     // eslint-disable-next-line playwright/no-raw-locators -- canvas has no role
     return this.page.locator(".konva-container canvas");
+  }
+
+  /** Step 0: two Complete/Abschließen buttons exist; one is hidden (0x0). */
+  visibleCompleteButton(name: string = "Complete"): Locator {
+    return this.page.getByRole("button", { name, exact: true }).filter({ visible: true });
+  }
+
+  headerTitle(): Locator {
+    return this.page.getByRole("heading", { level: 1 }).filter({ visible: true });
+  }
+
+  fullNameInput(): Locator {
+    // The desktop sidebar and the mobile widget both render the field; only one is visible.
+    // The "Full Name" label is a plain text node, not associated with the input, so the textbox has no name.
+    return this.page.getByRole("textbox").filter({ visible: true });
+  }
+
+  async expandMobileWidget(): Promise<void> {
+    await this.page.getByRole("button", { name: "Expand" }).click();
+  }
+
+  async gotoAndWaitForPdf(signPath: string): Promise<void> {
+    await this.page.goto(signPath, { waitUntil: "domcontentloaded" });
+    await expect(this.pdfCanvas()).toHaveCount(1, { timeout: documensoTimeouts().journey });
   }
 
   private fieldClickPosition(

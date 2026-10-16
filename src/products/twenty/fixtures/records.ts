@@ -80,11 +80,15 @@ export async function createPerson(
   api: TwentyPinnedApiSession,
   firstName: string,
   lastName: string,
+  companyId?: string,
 ): Promise<TwentyPersonRecord> {
   const data = await api.query<{
     createPerson?: { id: string; name: { firstName: string; lastName: string } } | null;
   }>(TWENTY_ROUTES.graphql, CREATE_PERSON, {
-    input: { name: { firstName, lastName } },
+    input: {
+      name: { firstName, lastName },
+      ...(companyId === undefined ? {} : { companyId }),
+    },
   });
   const row = data.createPerson;
   if (row === null || row === undefined) {

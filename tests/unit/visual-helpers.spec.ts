@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   AXE_ALLOWLIST,
+  allowlistFor,
   allowlistForProject,
   partitionViolations,
 } from "../../src/support/visual/axe.js";
@@ -16,9 +17,13 @@ import {
   buildDockerRunArgs,
   calPortFromBaseUrl,
   buildVisualDockerEnv,
+  calCredentialsFromEnv,
   CONTAINER_PRODUCTS_ROOT,
   dbPortFromUrl,
+  documensoPortFromUrls,
+  parseVisualArgs,
   playwrightImage,
+  portFromLoopbackUrl,
   redactDockerArgs,
   type DockerRunInput,
 } from "../../src/support/visual/docker.js";
@@ -47,8 +52,9 @@ function dockerInput(overrides: Partial<DockerRunInput> = {}): DockerRunInput {
     image: "mcr.microsoft.com/playwright:v1.63.0-jammy",
     hostRoot: "/host/root",
     hostPlatform: "win32",
-    calPort: 3000,
-    dbPort: 5450,
+    forwardPorts: [3000, 5450],
+    extraHosts: [],
+    testPaths: [],
     env: { P1_PLAYWRIGHT_HARNESS: "0" },
     extraArgs: [],
     ...overrides,
@@ -78,25 +84,38 @@ test.describe("visual clock", () => {
 
 test.describe("visual masks", () => {
   test("cal masks only the avatar", { tag: ["@unit"] }, () => {
-    expect(maskSpecs("cal").map((s) => s.testId)).toEqual(["avatar"]);
-  });
-
-  test("documenso and twenty are empty until their probes", { tag: ["@unit"] }, () => {
-    expect(maskSpecs("documenso")).toEqual([]);
-    expect(maskSpecs("twenty")).toEqual([]);
+    expect(maskSpecs("cal").map((s) => ("testId" in s ? s.testId : ""))).toEqual(["avatar"]);
   });
 
   test(
-    "every spec has a non-empty testId and reason, unique per product",
+    "documenso masks the PDF canvas and twenty masks three text patterns",
+    { tag: ["@unit"] },
+    () => {
+      const doc = maskSpecs("documenso");
+      expect(doc).toHaveLength(1);
+      expect(doc.every((spec) => "selector" in spec)).toBe(true);
+      const tw = maskSpecs("twenty");
+      expect(tw).toHaveLength(3);
+      expect(tw.every((spec) => "text" in spec)).toBe(true);
+    },
+  );
+
+  test(
+    "every spec has a non-empty target and reason, unique per product",
     { tag: ["@unit"] },
     () => {
       for (const product of ["cal", "documenso", "twenty"] as const satisfies VisualProduct[]) {
         const specs = maskSpecs(product);
+        const keys = specs.map((spec) =>
+          "testId" in spec ? spec.testId : "selector" in spec ? spec.selector : spec.text.source,
+        );
         for (const spec of specs) {
-          expect(spec.testId).not.toBe("");
           expect(spec.reason).not.toBe("");
         }
-        expect(new Set(specs.map((s) => s.testId)).size).toBe(specs.length);
+        for (const key of keys) {
+          expect(key).not.toBe("");
+        }
+        expect(new Set(keys).size).toBe(specs.length);
       }
     },
   );
@@ -217,12 +236,40 @@ test.describe("visual docker argv", () => {
     );
   });
 
+  test(
+    "buildVisualDockerEnv passes the Cal seed credentials into the container",
+    { tag: ["@unit"] },
+    () => {
+      const credentials = calCredentialsFromEnv({
+        CAL_E2E_EMAIL: "pro@example.com",
+        CAL_E2E_PASSWORD: "pro",
+        CAL_DST_EMAIL: "trial@example.com",
+        CAL_DST_PASSWORD: "",
+        UNRELATED: "x",
+      });
+      expect(credentials).toEqual({
+        CAL_E2E_EMAIL: "pro@example.com",
+        CAL_E2E_PASSWORD: "pro",
+        CAL_DST_EMAIL: "trial@example.com",
+      });
+      const env = buildVisualDockerEnv({
+        cal: {
+          port: 3000,
+          dbUrl: "postgresql://postgres:@localhost:5450/calendso",
+          webMode: "prod",
+          credentials,
+        },
+      });
+      expect(env.CAL_E2E_EMAIL).toBe("pro@example.com");
+      expect(env.CAL_E2E_PASSWORD).toBe("pro");
+      expect(env.CAL_DST_PASSWORD).toBeUndefined();
+    },
+  );
+
   test("buildVisualDockerEnv points the container at IPv4 Cal and DB", { tag: ["@unit"] }, () => {
-    const env = buildVisualDockerEnv(
-      3000,
-      "postgresql://postgres:@localhost:5450/calendso",
-      "prod",
-    );
+    const env = buildVisualDockerEnv({
+      cal: { port: 3000, dbUrl: "postgresql://postgres:@localhost:5450/calendso", webMode: "prod" },
+    });
     expect(env.PRODUCTS_ROOT).toBe("/tmp/p1-products");
     expect(env.CAL_DB_URL).toBe("postgresql://postgres@127.0.0.1:5450/calendso");
     expect(env.CAL_E2E_BASE_URL).toBe("http://127.0.0.1:3000");
@@ -234,12 +281,100 @@ test.describe("visual docker argv", () => {
     "buildVisualDockerEnv keeps custom DB credentials, database and query",
     { tag: ["@unit"] },
     () => {
-      const env = buildVisualDockerEnv(
-        3000,
-        "postgresql://qa:p%40ss@localhost:6543/caldb?sslmode=disable",
-        "prod",
-      );
+      const env = buildVisualDockerEnv({
+        cal: {
+          port: 3000,
+          dbUrl: "postgresql://qa:p%40ss@localhost:6543/caldb?sslmode=disable",
+          webMode: "prod",
+        },
+      });
       expect(env.CAL_DB_URL).toBe("postgresql://qa:p%40ss@127.0.0.1:6543/caldb?sslmode=disable");
+    },
+  );
+
+  test("parseVisualArgs reads mode, product and passthrough args", { tag: ["@unit"] }, () => {
+    expect(parseVisualArgs(["test"])).toEqual({ mode: "test", target: "all", extraArgs: [] });
+    expect(parseVisualArgs(["update", "--product=twenty", "--grep", "X"])).toEqual({
+      mode: "update",
+      target: "twenty",
+      extraArgs: ["--grep", "X"],
+    });
+    expect(() => parseVisualArgs(["test", "--product=medusa"])).toThrow(/unknown --product/);
+    expect(() => parseVisualArgs(["bogus"])).toThrow(/usage/);
+  });
+
+  test("portFromLoopbackUrl accepts only http 127.0.0.1 with a port", { tag: ["@unit"] }, () => {
+    expect(portFromLoopbackUrl("X", "http://127.0.0.1:3002")).toBe(3002);
+    expect(() => portFromLoopbackUrl("X", "http://localhost:3002")).toThrow();
+    expect(() => portFromLoopbackUrl("X", "https://127.0.0.1:3002")).toThrow();
+    expect(() => portFromLoopbackUrl("X", "http://127.0.0.1")).toThrow();
+  });
+
+  test(
+    "documensoPortFromUrls needs the p1.lvh.me host on the same port",
+    { tag: ["@unit"] },
+    () => {
+      expect(documensoPortFromUrls("http://127.0.0.1:3001", "http://p1.lvh.me:3001")).toBe(3001);
+      expect(() =>
+        documensoPortFromUrls("http://127.0.0.1:3001", "http://p1.lvh.me:3002"),
+      ).toThrow();
+      expect(() =>
+        documensoPortFromUrls("http://127.0.0.1:3001", "http://other.test:3001"),
+      ).toThrow();
+    },
+  );
+
+  test(
+    "buildVisualDockerEnv covers documenso and twenty and passes CI through",
+    { tag: ["@unit"] },
+    () => {
+      const env = buildVisualDockerEnv({
+        documenso: {
+          listenUrl: "http://127.0.0.1:3001",
+          publicUrl: "http://p1.lvh.me:3001",
+          dbUrl: "postgres://documenso:password@localhost:5451/documenso",
+          inbucketOrigin: "http://127.0.0.1:9003",
+        },
+        twenty: { baseUrl: "http://127.0.0.1:3002", password: "tim@apple.dev", email: "" },
+        ci: "true",
+        reportId: "visual-twenty",
+      });
+      expect(env.DOCUMENSO_BASE_URL).toBe("http://127.0.0.1:3001");
+      expect(env.DOCUMENSO_PUBLIC_URL).toBe("http://p1.lvh.me:3001");
+      expect(env.DOCUMENSO_DB_URL).toBe("postgres://documenso:password@127.0.0.1:5451/documenso");
+      expect(env.DOCUMENSO_INBUCKET_ORIGIN).toBe("http://127.0.0.1:9003");
+      expect(env.TWENTY_PASSWORD).toBe("tim@apple.dev");
+      expect(env.TWENTY_EMAIL).toBeUndefined();
+      expect(env.CI).toBe("true");
+      expect(env.P1_PW_REPORT_ID).toBe("visual-twenty");
+      expect(buildVisualDockerEnv({ ci: "", reportId: "" }).CI).toBeUndefined();
+    },
+  );
+
+  test(
+    "forwardPorts are deduped; extraHosts and testPaths reach the command",
+    { tag: ["@unit"] },
+    () => {
+      const win = buildDockerRunArgs(
+        dockerInput({
+          forwardPorts: [3001, 5451, 9003, 3001],
+          extraHosts: ["p1.lvh.me:127.0.0.1"],
+          testPaths: ["tests/documenso"],
+        }),
+      );
+      const inner = win.at(-1) ?? "";
+      expect(inner.match(/visual-docker-proxy\.mjs/g)).toHaveLength(3);
+      expect(win).toContain("p1.lvh.me:127.0.0.1");
+      expect(inner).toContain("--project=visual-desktop 'tests/documenso'");
+      const linux = buildDockerRunArgs(
+        dockerInput({
+          hostPlatform: "linux",
+          forwardPorts: [3001, 5451],
+          extraHosts: ["p1.lvh.me:127.0.0.1"],
+        }),
+      );
+      expect(linux.at(-1)).not.toContain("visual-docker-proxy");
+      expect(linux).toContain("p1.lvh.me:127.0.0.1");
     },
   );
 
@@ -413,4 +548,65 @@ test.describe("visual docker log redaction", () => {
       expect(args[2]).toContain("s3cret");
     },
   );
+
+  test("redactDockerArgs masks PASSWORD, SECRET and TOKEN env values", { tag: ["@unit"] }, () => {
+    const shown = redactDockerArgs([
+      "TWENTY_PASSWORD=tim@apple.dev",
+      "TWENTY_BASE_URL=http://127.0.0.1:3002",
+      "API_TOKEN=abc",
+      "CLIENT_SECRET=xyz",
+    ]);
+    expect(shown).toEqual([
+      "TWENTY_PASSWORD=***",
+      "TWENTY_BASE_URL=http://127.0.0.1:3002",
+      "API_TOKEN=***",
+      "CLIENT_SECRET=***",
+    ]);
+  });
+});
+
+test.describe("axe allowlist contexts and findings", () => {
+  const light = {
+    rule: "color-contrast",
+    target: ".a",
+    finding: "PRODUCT BUG X-F1: a",
+    contexts: ["light"],
+  };
+  const any = { rule: "color-contrast", target: ".b", finding: "PRODUCT BUG X-F2: b" };
+
+  test("allowlistFor filters by context", { tag: ["@unit"] }, () => {
+    expect(allowlistFor([light, any], "visual-desktop", "dark")).toEqual([any]);
+    expect(allowlistFor([light, any], "visual-desktop", "light")).toEqual([light, any]);
+    expect(allowlistFor([light, any], "visual-desktop")).toEqual([any]);
+  });
+
+  test(
+    "a resolved extra node target allows the node, an unresolved one blocks",
+    { tag: ["@unit"] },
+    () => {
+      const entry = { rule: "color-contrast", target: ".a", finding: "PRODUCT BUG X-F1: a" };
+      const positional = violation("color-contrast", "serious", ["div:nth-child(3) > span"]);
+      const resolved = new Map([[entry.target, ["div:nth-child(3) > span"]]]);
+      expect(partitionViolations([positional], [entry], resolved).blocking).toEqual([]);
+      expect(partitionViolations([positional], [entry]).blocking).toHaveLength(1);
+    },
+  );
+
+  test("allowedByFinding maps finding ids to covered targets", { tag: ["@unit"] }, () => {
+    const entry = {
+      rule: "color-contrast",
+      target: ".a",
+      finding: "PRODUCT BUG DOC-VIS-004-F1: initials",
+    };
+    const unused = {
+      rule: "color-contrast",
+      target: ".z",
+      finding: "PRODUCT BUG DOC-VIS-004-F2: x",
+    };
+    const result = partitionViolations(
+      [violation("color-contrast", "serious", [".a"])],
+      [entry, unused],
+    );
+    expect(result.allowedByFinding).toEqual({ "PRODUCT BUG DOC-VIS-004-F1": [".a"] });
+  });
 });

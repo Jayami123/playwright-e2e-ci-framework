@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  frameBands,
   overflowingControls,
   overlappingNeighbours,
   rectInsideWidth,
@@ -7,6 +8,21 @@ import {
   type TextSpan,
 } from "../../src/support/visual/layout.js";
 import { projectSkipReason } from "../../src/support/visual/projects.js";
+
+test.describe("focus frame bands", () => {
+  test("frameBands returns the top and bottom bands of the clip", { tag: ["@unit"] }, () => {
+    expect(frameBands({ x: 10, y: 20, width: 140, height: 52 }, 10)).toEqual([
+      { x: 10, y: 20, width: 140, height: 10 },
+      { x: 10, y: 62, width: 140, height: 10 },
+    ]);
+  });
+  test("frameBands never overlaps on a short clip", { tag: ["@unit"] }, () => {
+    expect(frameBands({ x: 0, y: 0, width: 50, height: 12 }, 10)).toEqual([
+      { x: 0, y: 0, width: 50, height: 6 },
+      { x: 0, y: 6, width: 50, height: 6 },
+    ]);
+  });
+});
 
 function span(
   label: string,

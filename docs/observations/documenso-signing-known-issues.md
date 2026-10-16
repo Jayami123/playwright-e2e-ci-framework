@@ -16,6 +16,8 @@
 
 **Harness:** The leak script still fails on QA users, org orphans, passkeys, `qaEnvelopes`, and `qaRecipients`. Orphan document storage is printed and appended to the GitHub job summary under this finding; the job fails only if either count exceeds the script ceiling (100).
 
+**Local dev DB, 2026-10-16:** the script exited 1 with **orphanDocumentMeta=318** and **orphanDocumentData=318** (users, `qaEnvelopes` and `qaRecipients` all 0). That count is the sum of about 60 verification envelopes created by repeated Phase 3 visual runs against one long-lived local database, not a harness regression. The ceiling stays at 100: CI starts from a fresh database, so a CI run is measured from zero.
+
 ## P7-OBS-DOC-FW-009 (TEST BUG, fixed 2026-10-13)
 
 **Evidence:** FW-009 failed in full `@fw` after tests 001–007. Trace `test.trace` (monotonic ms): navigate `/t/personal_15e2e48730a33702/documents` at **75687**; `waitForURL` done **76561**; `GET /api/limits` waiter done **76879**; **Documents** heading + upload `aria-disabled` checks passed at **76880–77052**; upload click at **77077** — button **detached from DOM** during retry; failure screenshot **404 Team not found**.
@@ -57,3 +59,24 @@ Setup for 004–011 is **API/tRPC** (not the documents UI). User-facing oracles 
 | **P1-DOC-FW-009** | Yes — `goto` signing URL after owner delete, expect **404**; delete is API.                                                                         |
 | **P1-DOC-FW-010** | No — cancel/complete/status via API + DB + attachments.                                                                                             |
 | **P1-DOC-FW-011** | No — unauthenticated `envelope.get` via isolated API context.                                                                                       |
+
+## Phase 3 visual and a11y (probe 2026-10-16)
+
+Probe data below was measured live on the Documenso fork `f4105e47` with real and frozen clocks; the specs re-capture it as evidence on every run. Each run attaches one screenshot and one JSON per finding to the Playwright report. The axe findings are allowlisted in `DOCUMENSO_AXE_ALLOWLIST` (`src/products/documenso/visual.ts`); an entry that stops matching fails the scan as stale.
+
+| ID                  | Finding                                                                                                                                                                                                                                     | Label                                  | Test                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------- |
+| DOC-VIS-004-F1      | `/documents` pending-recipient initials `#4764ae` on `#d7e4f3` = 4.39:1 (both themes, all viewports; Step 0 had recorded yellow initials at 4.23:1, the build run shows blue `bg-water` ones, re-measured 2026-10-16)                       | PRODUCT BUG (WCAG 1.4.3)               | `contrast.a11y.spec.ts` P1-DOC-VIS-004      |
+| DOC-VIS-004-F2      | "Organize your documents" `#a2acb9` on `#fff` = 2.29:1 (light only, all viewports)                                                                                                                                                          | PRODUCT BUG (WCAG 1.4.3)               | same                                        |
+| DOC-VIS-004-F3      | "Ctrl+K" hint `#64748b` on `#f1f5f9` = 4.34:1 (light only, tablet and desktop)                                                                                                                                                              | PRODUCT BUG (WCAG 1.4.3)               | same                                        |
+| DOC-VIS-X07-F4..F10 | `/documents` full WCAG: critical `button-name` (row action button, two mobile header icon buttons, period combobox), critical `label` (hidden file inputs), serious `link-name` (header link), serious `nested-interactive` (upload button) | PRODUCT BUG                            | `contrast.a11y.spec.ts` P1-DOC-VIS-X07      |
+| DOC-VIS-X07-F10     | Header `/inbox` icon link has no accessible name (`link-name`, serious; tablet and desktop, hidden at mobile width). Not in the Step 0 table: found by the build's verification runs, separate from the F8 team link                        | PRODUCT BUG                            | `contrast.a11y.spec.ts` P1-DOC-VIS-X07      |
+| DOC-VIS-X01         | A 200-char title on the signing page at >= 768 px is `whitespace-nowrap`, 1433 px wide: document `scrollWidth` 1781 (820 wide) and 1891 (1440 wide), and the primary action is pushed to x 1704 / 1834                                      | PRODUCT BUG (re-reproduced, see below) | `long-text.visual.spec.ts` P1-DOC-VIS-X01   |
+| DOC-VIS-X03         | A PDF request that never answers leaves the spinner on for at least 60 s: no error, no toast, no console error (the fetch has no timeout)                                                                                                   | PRODUCT BUG (re-reproduced, see below) | `pdf-failure.visual.spec.ts` P1-DOC-VIS-X03 |
+| DOC-VIS-X04         | At 200% zoom (197 CSS px at DPR 2) "Complete" is 88 px wide at x 176, so its right edge (264) is past the viewport and only a sliver shows (WCAG 1.4.10)                                                                                    | PRODUCT BUG (re-reproduced, see below) | `signing.a11y.spec.ts` P1-DOC-VIS-X04       |
+
+Correct behaviour, asserted as passing: a PDF HTTP 500 or a network abort shows "Something went wrong while loading the document." plus the toast "An error occurred while loading the document." (VIS-005, X02); the German signing page (`de-DE`) fits 393 px (VIS-002); the mobile 200-char title ellipsizes with the full title in `title` (VIS-003); "Complete" is reachable by keyboard within five Tabs (X05) and keeps a solid border in forced-colors mode (X06).
+
+Observation, not asserted: "Next Field" stays enabled while no PDF has loaded.
+
+Candidate re-reproduction: DOC-VIS-X01, X03 and X04 were run twice as separate invocations before their `test.fail` was kept; both runs failed the same way (see the build report).

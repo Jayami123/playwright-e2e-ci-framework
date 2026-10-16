@@ -5,7 +5,10 @@ import { CAL_FROZEN_SLOT_COUNT } from "../../../src/products/cal/visual.js";
 import { freezeClock, VISUAL_FROZEN_INSTANT } from "../../../src/support/visual/clock.js";
 import { overflowingControls, type ScrollBox } from "../../../src/support/visual/layout.js";
 import { maskLocators } from "../../../src/support/visual/masks.js";
-import { stableScreenshot } from "../../../src/support/visual/screenshot.js";
+import {
+  stableScreenshot,
+  waitForVisualStability,
+} from "../../../src/support/visual/screenshot.js";
 
 interface ButtonEl {
   getAttribute(name: string): string | null;
@@ -43,9 +46,14 @@ test.describe("Cal German locale", () => {
       await expect(page.getByTestId(CAL_TEST_IDS.selectedMonthLabel)).toHaveText("Januar 2030");
       await expect(page.getByRole("button", { name: "Vormonat anzeigen" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Nächsten Monat anzeigen" })).toBeVisible();
-      expect(
-        await page.evaluate<number>("document.documentElement.scrollWidth"),
-      ).toBeLessThanOrEqual(await page.evaluate<number>("document.documentElement.clientWidth"));
+      // CI tablet (run 38879200538) measured mid entry animation: slot column faded and offset, 838 > 820.
+      await waitForVisualStability(page, 15_000);
+      const clientWidth = await page.evaluate<number>("document.documentElement.clientWidth");
+      await expect
+        .poll(() => page.evaluate<number>("document.documentElement.scrollWidth"), {
+          timeout: 5_000,
+        })
+        .toBeLessThanOrEqual(clientWidth);
       await stableScreenshot(page, "booker-de", { mask: maskLocators(page, "cal") });
     },
   );
@@ -59,7 +67,10 @@ test.describe("Cal German locale", () => {
       await booker.expectLoaded();
       await expect(booker.slotButtons()).toHaveCount(CAL_FROZEN_SLOT_COUNT);
       const bookerButtons = page.getByTestId(CAL_TEST_IDS.bookerContainer).getByRole("button");
-      expect(overflowingControls(await measure(bookerButtons))).toEqual([]);
+      await waitForVisualStability(page, 15_000);
+      await expect
+        .poll(async () => overflowingControls(await measure(bookerButtons)), { timeout: 5_000 })
+        .toEqual([]);
 
       // Form: a QA user's own event, never pro (a slot click reserves it for 5 minutes).
       await page.goto(bookingQaUser.bookerPath, { waitUntil: "domcontentloaded" });
@@ -69,7 +80,9 @@ test.describe("Cal German locale", () => {
       await expect(page.getByTestId(CAL_TEST_IDS.confirmBook)).toHaveText("Bestätigen");
       await expect(page.getByTestId(CAL_TEST_IDS.bookerBack)).toHaveText("Zurück");
       const formButtons = page.getByTestId(CAL_TEST_IDS.bookerContainer).getByRole("button");
-      expect(overflowingControls(await measure(formButtons))).toEqual([]);
+      await expect
+        .poll(async () => overflowingControls(await measure(formButtons)), { timeout: 5_000 })
+        .toEqual([]);
     },
   );
 });

@@ -32,6 +32,18 @@ on:
         description: Timeout for the twenty-chromium job
         type: number
         default: 60
+      visual_mode:
+        description: test (compare) or update (regenerate baselines, upload PNGs)
+        type: string
+        default: test
+      visual_only:
+        description: Skip functional suites; run only harness up + visual
+        type: boolean
+        default: false
+      visual_product:
+        description: Limit to one product (cal, documenso, twenty); empty = all
+        type: string
+        default: ""
     secrets:
       CAL_E2E_BASE_URL:
         required: false
@@ -93,9 +105,9 @@ jobs:
             twenty=true
           else
             mapfile -t changed < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
-            cal_re='^(tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
-            doc_re='^(tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
-            tw_re='^(tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            cal_re='^(src/support/|scripts/visual-docker|tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            doc_re='^(src/support/|scripts/visual-docker|tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            tw_re='^(src/support/|scripts/visual-docker|tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             for file in "${changed[@]}"; do
               if [[ "$file" =~ $cal_re ]]; then cal=true; fi
               if [[ "$file" =~ $doc_re ]]; then documenso=true; fi
@@ -248,11 +260,25 @@ jobs:
     if: >-
       needs.structural.outputs.has_live_url != 'true'
       && needs.changes.outputs.cal == 'true'
+      && (inputs.visual_product == '' || inputs.visual_product == 'cal')
+    outputs:
+      visual: ${{ steps.visual.outcome }}
+      visual_requested: ${{ steps.visual_requested.outputs.requested }}
     env:
       P1_WORKING_DIRECTORY: p1
       CAL_CHECKOUT_PATH: products/cal
       PRODUCTS_ROOT: ${{ github.workspace }}/products
     steps:
+      - name: Decide whether visual is requested
+        id: visual_requested
+        env:
+          PROBE_ONLY: "false"
+          MATRIX: ${{ inputs.run_browser_matrix }}
+        run: |
+          set -euo pipefail
+          # true on every normal run (PR, push, visual_only dispatch); false only for probe-only or matrix runs
+          if [ "$PROBE_ONLY" = "true" ] || [ "$MATRIX" = "true" ]; then requested=false; else requested=true; fi
+          echo "requested=${requested}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -366,7 +392,7 @@ jobs:
           install_firefox_webkit: ${{ inputs.run_browser_matrix }}
 
       - name: Run Cal E2E suite
-        if: ${{ !inputs.run_browser_matrix }}
+        if: ${{ !inputs.run_browser_matrix && !inputs.visual_only }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
           CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
@@ -496,7 +522,7 @@ jobs:
           retention-days: 14
 
       - name: Write Playwright job summary
-        if: ${{ !inputs.run_browser_matrix && !cancelled() }}
+        if: ${{ !inputs.run_browser_matrix && !inputs.visual_only && !cancelled() }}
         timeout-minutes: 2
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
@@ -513,6 +539,113 @@ jobs:
           else
             echo "No blob report to merge (tests may have failed before reporters ran)."
           fi
+
+      - name: Ensure Cal is up for visual
+        id: visual_cal_up
+        if: ${{ !inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
+          CAL_E2E_PASSWORD: pro
+          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
+          CAL_DST_PASSWORD: trial
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          curl -fsS -o /dev/null "${CAL_E2E_BASE_URL}/api/auth/csrf" \
+            || node node_modules/qa-portfolio-harness/scripts/up.mjs cal
+      - name: Pull Playwright image (visual cal)
+        id: visual_pull_cal
+        if: ${{ !inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          image="mcr.microsoft.com/playwright:v$(node -p "require('./package.json').devDependencies['@playwright/test']")-jammy"
+          for attempt in 1 2 3; do
+            if docker pull "$image"; then exit 0; fi
+            sleep $((attempt * 20))
+          done
+          exit 1
+      - name: Run Cal visual suite (Docker)
+        id: visual
+        if: ${{ !inputs.run_browser_matrix }}
+        continue-on-error: true
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PW_REPORT_ID: visual-cal
+          VISUAL_MODE: ${{ inputs.visual_mode }}
+          CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
+          CAL_E2E_PASSWORD: pro
+          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
+          CAL_DST_PASSWORD: trial
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          case "$VISUAL_MODE" in test|update) ;; *) echo "::error::bad visual_mode $VISUAL_MODE"; exit 1 ;; esac
+          npm run "visual:${VISUAL_MODE}" -- --product=cal --output=test-results-visual
+      - name: Merge visual HTML report (cal)
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-visual-cal
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          set -euo pipefail
+          if [ -n "$(find blob-report-visual-cal -type f -print -quit 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-visual-cal
+          else
+            echo "No visual blob report to merge for cal."
+          fi
+      - name: Collect updated baselines (cal)
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          mkdir -p baselines
+          git status --porcelain -- tests/cal | grep '/__screenshots__/' > baselines/CHANGED.txt || true
+          git ls-files --modified --others --exclude-standard -- tests/cal | awk '/\/__screenshots__\//' | while read -r f; do
+            mkdir -p "baselines/$(dirname "$f")"
+            cp "$f" "baselines/$f"
+          done
+          cat baselines/CHANGED.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        with:
+          name: visual-baselines-cal
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/baselines
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-cal
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ steps.visual.outcome == 'failure' }}
+        with:
+          name: visual-failure-cal
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-cal
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-diff.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-actual.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-expected.png
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-visual-cal
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report-visual-cal
+          if-no-files-found: ignore
+          retention-days: 3
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && !inputs.visual_only && !inputs.run_browser_matrix && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-functional-cal
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Redact Cal server log
         if: ${{ always() }}
@@ -588,10 +721,25 @@ jobs:
     needs: [structural, changes]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.documenso_self_hosted_timeout_minutes }}
-    if: needs.changes.outputs.documenso == 'true'
+    if: >-
+      needs.changes.outputs.documenso == 'true'
+      && (inputs.visual_product == '' || inputs.visual_product == 'documenso')
+    outputs:
+      visual: ${{ steps.visual.outcome }}
+      visual_requested: ${{ steps.visual_requested.outputs.requested }}
     env:
       P1_WORKING_DIRECTORY: p1
     steps:
+      - name: Decide whether visual is requested
+        id: visual_requested
+        env:
+          PROBE_ONLY: ${{ inputs.documenso_probe_only }}
+          MATRIX: ${{ inputs.run_browser_matrix }}
+        run: |
+          set -euo pipefail
+          # true on every normal run (PR, push, visual_only dispatch); false only for probe-only or matrix runs
+          if [ "$PROBE_ONLY" = "true" ] || [ "$MATRIX" = "true" ]; then requested=false; else requested=true; fi
+          echo "requested=${requested}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -705,7 +853,7 @@ jobs:
           "${NODE24}" node_modules/qa-portfolio-harness/scripts/up.mjs documenso
 
       - name: Run P1-DOC-RL-001
-        if: ${{ !inputs.documenso_probe_only && steps.documenso_up.outcome == 'success' }}
+        if: ${{ !inputs.documenso_probe_only && !inputs.visual_only && steps.documenso_up.outcome == 'success' }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
           P1_PLAYWRIGHT_HARNESS: "0"
@@ -770,7 +918,7 @@ jobs:
 
       - name: Run Documenso E2E suite
         if: >-
-          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix
+          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix && !inputs.visual_only
           && steps.documenso_up_bypass.outcome == 'success' }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
@@ -913,7 +1061,7 @@ jobs:
 
       - name: Write Playwright job summary
         if: >-
-          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix
+          ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix && !inputs.visual_only
           && !cancelled() && steps.documenso_up_bypass.outcome == 'success' }}
         timeout-minutes: 2
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
@@ -933,6 +1081,94 @@ jobs:
           else
             echo "No blob report to merge (tests may have failed before reporters ran)."
           fi
+
+      - name: Pull Playwright image (visual documenso)
+        id: visual_pull_documenso
+        if: ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix && steps.documenso_up_bypass.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          image="mcr.microsoft.com/playwright:v$(node -p "require('./package.json').devDependencies['@playwright/test']")-jammy"
+          for attempt in 1 2 3; do
+            if docker pull "$image"; then exit 0; fi
+            sleep $((attempt * 20))
+          done
+          exit 1
+      - name: Run Documenso visual suite (Docker)
+        id: visual
+        if: ${{ !inputs.documenso_probe_only && !inputs.run_browser_matrix && steps.documenso_up_bypass.outcome == 'success' }}
+        continue-on-error: true
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PW_REPORT_ID: visual-documenso
+          VISUAL_MODE: ${{ inputs.visual_mode }}
+          DOCUMENSO_BASE_URL: ${{ env.DOCUMENSO_E2E_LISTEN_URL }}
+          DOCUMENSO_PUBLIC_URL: ${{ env.DOCUMENSO_E2E_PUBLIC_URL }}
+          DOCUMENSO_DB_URL: ${{ env.DOCUMENSO_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          case "$VISUAL_MODE" in test|update) ;; *) echo "::error::bad visual_mode $VISUAL_MODE"; exit 1 ;; esac
+          npm run "visual:${VISUAL_MODE}" -- --product=documenso --output=test-results-visual
+      - name: Merge visual HTML report (documenso)
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-visual-documenso
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          set -euo pipefail
+          if [ -n "$(find blob-report-visual-documenso -type f -print -quit 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-visual-documenso
+          else
+            echo "No visual blob report to merge for documenso."
+          fi
+      - name: Collect updated baselines (documenso)
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          mkdir -p baselines
+          git status --porcelain -- tests/documenso | grep '/__screenshots__/' > baselines/CHANGED.txt || true
+          git ls-files --modified --others --exclude-standard -- tests/documenso | awk '/\/__screenshots__\//' | while read -r f; do
+            mkdir -p "baselines/$(dirname "$f")"
+            cp "$f" "baselines/$f"
+          done
+          cat baselines/CHANGED.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        with:
+          name: visual-baselines-documenso
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/baselines
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-documenso
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ steps.visual.outcome == 'failure' }}
+        with:
+          name: visual-failure-documenso
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-documenso
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-diff.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-actual.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-expected.png
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-visual-documenso
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report-visual-documenso
+          if-no-files-found: ignore
+          retention-days: 3
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && !inputs.visual_only && !inputs.run_browser_matrix && !inputs.documenso_probe_only && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-functional-documenso
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Count Documenso QA leaks
         if: >-
@@ -1002,13 +1238,28 @@ jobs:
     needs: [structural, changes]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.twenty_chromium_timeout_minutes }}
-    if: needs.changes.outputs.twenty == 'true'
+    if: >-
+      needs.changes.outputs.twenty == 'true'
+      && (inputs.visual_product == '' || inputs.visual_product == 'twenty')
+    outputs:
+      visual: ${{ steps.visual.outcome }}
+      visual_requested: ${{ steps.visual_requested.outputs.requested }}
     env:
       P1_WORKING_DIRECTORY: p1
       PRODUCTS_ROOT: ${{ github.workspace }}/products
       TWENTY_CHECKOUT_PATH: products/twenty-CRM
       TWENTY_IMAGES_TAR: twenty-images.tar.gz
     steps:
+      - name: Decide whether visual is requested
+        id: visual_requested
+        env:
+          PROBE_ONLY: "false"
+          MATRIX: ${{ inputs.run_browser_matrix }}
+        run: |
+          set -euo pipefail
+          # true on every normal run (PR, push, visual_only dispatch); false only for probe-only or matrix runs
+          if [ "$PROBE_ONLY" = "true" ] || [ "$MATRIX" = "true" ]; then requested=false; else requested=true; fi
+          echo "requested=${requested}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -1118,7 +1369,7 @@ jobs:
 
       - name: Run Twenty E2E suite
         if: >-
-          ${{ steps.twenty_up.outcome == 'success'
+          ${{ steps.twenty_up.outcome == 'success' && !inputs.visual_only
           && github.event_name != 'schedule' && !inputs.run_browser_matrix }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
@@ -1134,7 +1385,7 @@ jobs:
 
       - name: Run Twenty E2E suite (nightly / matrix)
         if: >-
-          ${{ steps.twenty_up.outcome == 'success'
+          ${{ steps.twenty_up.outcome == 'success' && !inputs.visual_only
           && (github.event_name == 'schedule' || inputs.run_browser_matrix) }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
@@ -1150,7 +1401,7 @@ jobs:
           npm run test:twenty -- --retries=0
 
       - name: Write Playwright job summary
-        if: ${{ !cancelled() && steps.twenty_up.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.visual_only && steps.twenty_up.outcome == 'success' }}
         timeout-minutes: 2
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
@@ -1183,6 +1434,105 @@ jobs:
               echo "No blob report to merge (tests may have failed before reporters ran)."
             fi
           fi
+
+      - name: Seed Twenty for visual only
+        if: ${{ steps.twenty_up.outcome == 'success' && inputs.visual_only }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_DB_URL: ${{ env.TWENTY_E2E_DB_URL }}
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+          TWENTY_IMAGE_TAG: ${{ env.TWENTY_IMAGE_TAG }}
+          TWENTY_PASSWORD: tim@apple.dev
+        run: |
+          set -euo pipefail
+          npx playwright test --project=twenty-setup
+      - name: Pull Playwright image (visual twenty)
+        id: visual_pull_twenty
+        if: ${{ steps.twenty_up.outcome == 'success' && !inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          image="mcr.microsoft.com/playwright:v$(node -p "require('./package.json').devDependencies['@playwright/test']")-jammy"
+          for attempt in 1 2 3; do
+            if docker pull "$image"; then exit 0; fi
+            sleep $((attempt * 20))
+          done
+          exit 1
+      - name: Run Twenty visual suite (Docker)
+        id: visual
+        if: ${{ steps.twenty_up.outcome == 'success' && !inputs.run_browser_matrix }}
+        continue-on-error: true
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PW_REPORT_ID: visual-twenty
+          VISUAL_MODE: ${{ inputs.visual_mode }}
+          TWENTY_BASE_URL: ${{ env.TWENTY_E2E_BASE_URL }}
+          TWENTY_PASSWORD: tim@apple.dev
+          PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
+        run: |
+          set -euo pipefail
+          case "$VISUAL_MODE" in test|update) ;; *) echo "::error::bad visual_mode $VISUAL_MODE"; exit 1 ;; esac
+          npm run "visual:${VISUAL_MODE}" -- --product=twenty --output=test-results-visual
+      - name: Merge visual HTML report (twenty)
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-visual-twenty
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          set -euo pipefail
+          if [ -n "$(find blob-report-visual-twenty -type f -print -quit 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-visual-twenty
+          else
+            echo "No visual blob report to merge for twenty."
+          fi
+      - name: Collect updated baselines (twenty)
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          mkdir -p baselines
+          git status --porcelain -- tests/twenty | grep '/__screenshots__/' > baselines/CHANGED.txt || true
+          git ls-files --modified --others --exclude-standard -- tests/twenty | awk '/\/__screenshots__\//' | while read -r f; do
+            mkdir -p "baselines/$(dirname "$f")"
+            cp "$f" "baselines/$f"
+          done
+          cat baselines/CHANGED.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        with:
+          name: visual-baselines-twenty
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/baselines
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-twenty
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ steps.visual.outcome == 'failure' }}
+        with:
+          name: visual-failure-twenty
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-twenty
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-diff.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-actual.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-expected.png
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-visual-twenty
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report-visual-twenty
+          if-no-files-found: ignore
+          retention-days: 3
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && !inputs.visual_only && !inputs.run_browser_matrix && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-functional-twenty
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Count Twenty QA leaks
         if: ${{ always() && !cancelled() && steps.twenty_up.outcome == 'success' }}
@@ -1271,3 +1621,46 @@ jobs:
         with:
           path: ${{ env.TWENTY_IMAGES_TAR }}
           key: ${{ runner.os }}-twenty-images-v2.44.0
+
+  visual:
+    name: visual
+    needs: [changes, cal-self-hosted, documenso-self-hosted, twenty-chromium]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Gate on visual outcomes
+        env:
+          CAL_RESULT: ${{ needs.cal-self-hosted.result }}
+          CAL_VISUAL: ${{ needs.cal-self-hosted.outputs.visual }}
+          CAL_REQUESTED: ${{ needs.cal-self-hosted.outputs.visual_requested }}
+          DOC_RESULT: ${{ needs.documenso-self-hosted.result }}
+          DOC_VISUAL: ${{ needs.documenso-self-hosted.outputs.visual }}
+          DOC_REQUESTED: ${{ needs.documenso-self-hosted.outputs.visual_requested }}
+          TW_RESULT: ${{ needs.twenty-chromium.result }}
+          TW_VISUAL: ${{ needs.twenty-chromium.outputs.visual }}
+          TW_REQUESTED: ${{ needs.twenty-chromium.outputs.visual_requested }}
+        run: |
+          set -euo pipefail
+          status=0
+          check() {
+            local name="$1" result="$2" visual="$3" requested="$4"
+            # Job never started (path filter, live-URL path, visual_product filter): nothing to gate.
+            if [ "$result" = "skipped" ]; then echo "$name: job skipped"; return; fi
+            case "$visual" in
+              success) echo "$name: visual passed"; return ;;
+              failure) echo "::error::$name: visual suite failed (see visual-failure-$name artifact)"; status=1; return ;;
+            esac
+            # visual is skipped or empty from here on.
+            if [ "$requested" = "false" ]; then
+              echo "$name: visual not requested (probe-only or matrix run)"
+            else
+              # requested=true, or empty because the job died before writing it (e.g. bypass start failed).
+              echo "::error::$name: visual was requested but did not run (job result: ${result}, visual: '${visual}')"
+              status=1
+            fi
+          }
+          check cal "$CAL_RESULT" "$CAL_VISUAL" "$CAL_REQUESTED"
+          check documenso "$DOC_RESULT" "$DOC_VISUAL" "$DOC_REQUESTED"
+          check twenty "$TW_RESULT" "$TW_VISUAL" "$TW_REQUESTED"
+          exit "$status"

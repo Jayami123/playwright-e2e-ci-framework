@@ -29,24 +29,46 @@ runs:
       with:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-ms-playwright-${{ steps.playwright.outputs.version }}
+    - name: Configure apt retries
+      run: |
+        set -euo pipefail
+        echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-p1-retries >/dev/null
+      shell: bash
+    # The Chrome .deb comes from dl.google.com and is not covered by the ms-playwright cache
+    # (PR #34: curl (92) HTTP/2 stream not closed cleanly), so every install retries.
     - name: Install Chromium only
       if: inputs.install_firefox_webkit != 'true'
       run: |
         set -euo pipefail
-        npx playwright install chromium --with-deps
+        for attempt in 1 2 3; do
+          if npx playwright install chromium --with-deps; then exit 0; fi
+          echo "::warning::playwright install chromium failed (attempt ${attempt}/3)"
+          sleep $((attempt * 20))
+        done
+        exit 1
       shell: bash
       working-directory: ${{ inputs.working-directory }}
     - name: Install Chromium and Firefox
       if: inputs.install_firefox_webkit == 'true'
       run: |
         set -euo pipefail
-        npx playwright install chromium firefox --with-deps
+        for attempt in 1 2 3; do
+          if npx playwright install chromium firefox --with-deps; then exit 0; fi
+          echo "::warning::playwright install chromium firefox failed (attempt ${attempt}/3)"
+          sleep $((attempt * 20))
+        done
+        exit 1
       shell: bash
       working-directory: ${{ inputs.working-directory }}
     - name: Install Chrome
       if: inputs.install_chrome == 'true'
       run: |
         set -euo pipefail
-        npx playwright install chrome --with-deps
+        for attempt in 1 2 3; do
+          if npx playwright install chrome --with-deps; then exit 0; fi
+          echo "::warning::playwright install chrome failed (attempt ${attempt}/3)"
+          sleep $((attempt * 20))
+        done
+        exit 1
       shell: bash
       working-directory: ${{ inputs.working-directory }}

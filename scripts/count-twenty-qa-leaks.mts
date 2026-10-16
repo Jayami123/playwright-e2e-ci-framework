@@ -1,11 +1,20 @@
 import "dotenv/config";
 import fs from "node:fs";
+import {
+  createPinnedTwentyApiSession,
+  readAdminWorkspaceIds,
+} from "../src/products/twenty/fixtures/auth.js";
+import { countQaMembers } from "../src/products/twenty/fixtures/qa-member.js";
 import { sweepTwentyQaRecords } from "../src/products/twenty/fixtures/sweep.js";
 
 async function main(): Promise<void> {
   const result = await sweepTwentyQaRecords("P1-QA-");
+  const ids = await readAdminWorkspaceIds();
+  const qaMembers = await countQaMembers(
+    await createPinnedTwentyApiSession(ids.workspaceId, ids.memberId),
+  );
 
-  console.log(JSON.stringify(result, null, 2));
+  console.log(JSON.stringify({ ...result, qaMembers }, null, 2));
 
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (summaryPath !== undefined && summaryPath !== "") {
@@ -19,12 +28,13 @@ async function main(): Promise<void> {
       `- viewsBefore: ${String(result.viewsBefore)}`,
       `- viewsDeleted: ${String(result.viewsDeleted)}`,
       `- viewsAfter: ${String(result.viewsAfter)}`,
+      `- qaMembers: ${String(qaMembers)}`,
       "",
     ].join("\n");
     fs.appendFileSync(summaryPath, block, "utf8");
   }
 
-  if (result.after > 0 || result.viewsAfter > 0) {
+  if (result.after > 0 || result.viewsAfter > 0 || qaMembers > 0) {
     process.exitCode = 1;
   }
   if (process.env.P1_TWENTY_SWEEP_FAIL_ON_BEFORE === "1" && result.before > 0) {
