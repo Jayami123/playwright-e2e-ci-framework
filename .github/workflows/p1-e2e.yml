@@ -92,6 +92,7 @@ jobs:
           DOC_CHROMIUM_MD="$(browser_summary results-documenso-chromium.json documenso-chromium)"
           DOC_FIREFOX_MD="$(browser_summary results-documenso-firefox.json documenso-firefox)"
           TWENTY_MD="$(browser_summary results-twenty-chromium.json twenty-chromium)"
+          MEDUSA_MD="$(browser_summary results-medusa-chromium.json medusa-chromium)"
 
           case "$E2E_RESULT" in
             cancelled|skipped)
@@ -130,6 +131,7 @@ jobs:
             echo "$DOC_CHROMIUM_MD"
             echo "$DOC_FIREFOX_MD"
             echo "$TWENTY_MD"
+            echo "$MEDUSA_MD"
           } > "$BODY_FILE"
 
           if [ -n "$OPEN_ISSUE" ]; then
