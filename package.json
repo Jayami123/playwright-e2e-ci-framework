@@ -20,6 +20,7 @@
     "test:cal:headed": "playwright test --project=cal-chromium --headed",
     "test:cal:debug": "playwright test --project=cal-chromium --debug",
     "test:twenty": "playwright test --project=twenty-chromium",
+    "test:medusa": "playwright test --project=medusa-chromium",
     "visual:update": "tsx scripts/visual-docker.mts update",
     "visual:test": "tsx scripts/visual-docker.mts test",
     "report": "playwright show-report",

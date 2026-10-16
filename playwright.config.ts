@@ -12,6 +12,11 @@ import {
   documensoTreatInsecureOriginAsSecureLaunchArg,
 } from "./src/products/documenso/env.js";
 import {
+  medusaAuthStatePath,
+  medusaBaseUrlFromEnv,
+  MEDUSA_TIMEOUTS,
+} from "./src/products/medusa/env.js";
+import {
   loadTwentyConfig,
   twentyBaseUrlFromEnv,
   twentyTimeouts,
@@ -26,6 +31,7 @@ const DOCUMENSO_PROJECT_NAMES = [
   "documenso-firefox",
 ] as const;
 const TWENTY_PROJECT_NAMES = ["twenty-setup", "twenty-chromium"] as const;
+const MEDUSA_PROJECT_NAMES = ["medusa-setup", "medusa-chromium"] as const;
 const VISUAL_PROJECT_NAMES = ["visual-mobile", "visual-tablet", "visual-desktop"] as const;
 type VisualProjectName = (typeof VISUAL_PROJECT_NAMES)[number];
 const VISUAL_VIEWPORTS: Readonly<Record<VisualProjectName, { width: number; height: number }>> = {
@@ -77,6 +83,10 @@ function runsTwentyProject(): boolean {
   return selectedProjects(projectSelectionArgv, TWENTY_PROJECT_NAMES);
 }
 
+function runsMedusaProject(): boolean {
+  return selectedProjects(projectSelectionArgv, MEDUSA_PROJECT_NAMES);
+}
+
 function runsVisualProject(): boolean {
   return selectedProjects(projectSelectionArgv, VISUAL_PROJECT_NAMES);
 }
@@ -84,6 +94,7 @@ function runsVisualProject(): boolean {
 const runsCal = runsCalProject();
 const runsDocumenso = runsDocumensoProject();
 const runsTwenty = runsTwentyProject();
+const runsMedusa = runsMedusaProject();
 const runsVisual = runsVisualProject();
 
 /** Set by `npm run test:unit` so globalSetup does not start product harnesses. */
@@ -117,7 +128,22 @@ if (shouldStartHarness()) {
   if (runsTwenty) {
     harnessSetups.push("./global-setup/twenty.ts");
   }
+  if (runsMedusa) {
+    harnessSetups.push("./global-setup/medusa.ts");
+  }
 }
+
+const harnessTeardowns: string[] = [];
+if (shouldStartHarness()) {
+  if (runsTwenty) {
+    harnessTeardowns.push("./global-teardown/twenty.ts");
+  }
+  if (runsMedusa) {
+    harnessTeardowns.push("./global-teardown/medusa.ts");
+  }
+}
+
+const medusaChromeUse = { baseURL: medusaBaseUrlFromEnv() };
 
 const twentyChromeUse = {
   baseURL: runsTwenty ? loadTwentyConfig().baseUrl : twentyBaseUrlFromEnv(),
@@ -172,7 +198,7 @@ export default defineConfig({
   timeout: TIMEOUTS[webMode].test,
   expect: { timeout: TIMEOUTS[webMode].expect },
   ...(harnessSetups.length > 0 ? { globalSetup: harnessSetups } : {}),
-  ...(runsTwenty && shouldStartHarness() ? { globalTeardown: "./global-teardown/twenty.ts" } : {}),
+  ...(harnessTeardowns.length > 0 ? { globalTeardown: harnessTeardowns } : {}),
   use: {
     ...(baseURL === undefined ? {} : { baseURL }),
     navigationTimeout: TIMEOUTS[webMode].navigation,
@@ -277,6 +303,37 @@ export default defineConfig({
               storageState: loadTwentyConfig().authStatePath,
             }
           : {}),
+      },
+    },
+    {
+      name: "medusa-setup",
+      testDir: "./tests/setup",
+      testMatch: /medusa.setup.ts/,
+      retries: 0,
+      timeout: MEDUSA_TIMEOUTS.test,
+      expect: { timeout: MEDUSA_TIMEOUTS.expect },
+      use: {
+        ...devices["Desktop Chrome"],
+        actionTimeout: MEDUSA_TIMEOUTS.action,
+        navigationTimeout: MEDUSA_TIMEOUTS.navigation,
+        ...medusaChromeUse,
+        trace: "off",
+      },
+    },
+    {
+      name: "medusa-chromium",
+      dependencies: ["medusa-setup"],
+      testDir: "./tests/medusa",
+      testIgnore: VISUAL_A11Y_IGNORE,
+      retries: 0,
+      timeout: MEDUSA_TIMEOUTS.test,
+      expect: { timeout: MEDUSA_TIMEOUTS.expect },
+      use: {
+        ...devices["Desktop Chrome"],
+        actionTimeout: MEDUSA_TIMEOUTS.action,
+        navigationTimeout: MEDUSA_TIMEOUTS.navigation,
+        ...medusaChromeUse,
+        storageState: medusaAuthStatePath(),
       },
     },
     ...VISUAL_PROJECT_NAMES.map(visualProject),

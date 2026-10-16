@@ -21,6 +21,8 @@ const ALL = [
   "documenso-firefox",
   "twenty-setup",
   "twenty-chromium",
+  "medusa-setup",
+  "medusa-chromium",
 ];
 
 test.describe("Playwright --project argv selection", () => {
@@ -133,6 +135,34 @@ test.describe("Playwright --project argv selection", () => {
     const argv = ["playwright", "test", "--project=twenty-chromium"];
     expect(selectedProjects(argv, ["twenty-chromium"])).toBe(true);
     expect(selectedProjects(argv, ["cal-chromium", "cal-setup", "documenso-chromium"])).toBe(false);
+  });
+
+  test(
+    "npm test:medusa infers medusa-chromium when argv lacks --project",
+    { tag: ["@unit"] },
+    () => {
+      const prior = process.env.npm_lifecycle_event;
+      process.env.npm_lifecycle_event = "test:medusa";
+      try {
+        const argv = argvForProjectSelection(["node", "playwright", "test"]);
+        expect(selectedProjects(argv, ["medusa-chromium"])).toBe(true);
+        expect(selectedProjects(argv, ["cal-chromium", "twenty-chromium"])).toBe(false);
+      } finally {
+        if (prior === undefined) {
+          delete process.env.npm_lifecycle_event;
+        } else {
+          process.env.npm_lifecycle_event = prior;
+        }
+      }
+    },
+  );
+
+  test("--project=medusa-chromium does not select other products", { tag: ["@unit"] }, () => {
+    const argv = ["playwright", "test", "--project=medusa-chromium"];
+    expect(selectedProjects(argv, ["medusa-chromium"])).toBe(true);
+    expect(selectedProjects(argv, ["cal-chromium", "documenso-chromium", "twenty-chromium"])).toBe(
+      false,
+    );
   });
 
   test("npm test script limits Playwright to the unit project", { tag: ["@unit"] }, () => {
