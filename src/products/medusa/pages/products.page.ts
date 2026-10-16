@@ -69,8 +69,9 @@ export class MedusaProductsPage extends BasePage {
     await this.page.keyboard.type(name);
     await this.page.getByRole("option", { name: `Create "${name}"`, includeHidden: true }).click();
     await this.optionPicker.press("Tab");
+    // Only the empty input carries the placeholder; after the first value it keeps focus, so click once.
+    await this.emptyValuesInput.click();
     for (const value of values) {
-      await this.emptyValuesInput.click();
       await this.page.keyboard.type(value);
       await this.page.keyboard.press("Enter");
     }
