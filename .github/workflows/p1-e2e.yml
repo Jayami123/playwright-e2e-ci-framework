@@ -140,3 +140,53 @@ jobs:
               --label nightly-failure \
               --body-file "$BODY_FILE"
           fi
+
+  # Prerequisite (repo admin, once): Settings -> Pages -> Build and deployment -> Source "GitHub Actions".
+  # Without it deploy-pages fails with "Pages site not found" on every push to main.
+  pages-build:
+    name: pages-build
+    needs: e2e
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-p1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: blob-*
+          path: all-blobs
+          merge-multiple: true
+      - name: Merge, scrub and scan the report
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          npx playwright merge-reports --config playwright.merge.config.ts ./all-blobs
+          npx tsx scripts/prepare-pages-report.mts playwright-report
+          npx tsx scripts/scan-report-secrets.mts playwright-report test-results/results.json
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: playwright-report
+
+  pages-deploy:
+    name: pages-deploy
+    needs: pages-build
+    if: ${{ !cancelled() && needs.pages-build.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

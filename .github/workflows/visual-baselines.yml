@@ -1,0 +1,45 @@
+name: Update visual baselines
+
+# Regenerates one product's baselines on a feature branch and uploads the changed PNGs as an
+# artifact for human review. It does not commit: pushes made with GITHUB_TOKEN do not trigger CI.
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Product whose baselines to regenerate
+        type: choice
+        options: [cal, documenso, twenty]
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-baselines-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: refuse main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Refuse main
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          echo "::error::Run this on a feature branch; baselines never change on main directly."
+          exit 1
+      - name: Announce
+        env:
+          PRODUCT: ${{ inputs.product }}
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "Updating ${PRODUCT} baselines on ${REF_NAME}"
+
+  update:
+    needs: guard
+    uses: ./.github/workflows/e2e.yml
+    with:
+      visual_mode: update
+      visual_only: true
+      visual_product: ${{ inputs.product }}
+    secrets: inherit
