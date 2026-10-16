@@ -6,7 +6,25 @@ export type FocusStyle = {
   readonly outlineColor: string;
   readonly boxShadow: string;
   readonly borderColor: string;
+  /** Four sides, space separated, as read by the test (top right bottom left). */
+  readonly borderStyle: string;
+  readonly borderWidth: string;
 };
+
+function outlinePaints(s: FocusStyle): boolean {
+  return (
+    !["none", "hidden"].includes(s.outlineStyle) &&
+    parseFloat(s.outlineWidth) > 0 &&
+    colorAlpha(s.outlineColor) > 0
+  );
+}
+
+/** Pure. True when at least one border side has a visible style and a non-zero width. */
+export function borderPaints(s: FocusStyle): boolean {
+  const styles = s.borderStyle.split(/\s+/);
+  const widths = s.borderWidth.split(/\s+/).map(parseFloat);
+  return styles.some((st, i) => !["none", "hidden"].includes(st) && (widths[i] ?? 0) > 0);
+}
 
 /** Pure. Alpha of a computed CSS colour: rgb() is 1, rgba() its 4th value, transparent 0. */
 export function colorAlpha(color: string): number {
@@ -42,18 +60,20 @@ export function focusIndicators(
   focused.forEach((f, i) => {
     const before = idle[i];
     const where = `${String(i)}:${f.tag}`;
-    if (
-      !["none", "hidden"].includes(f.outlineStyle) &&
-      parseFloat(f.outlineWidth) > 0 &&
-      colorAlpha(f.outlineColor) > 0
-    ) {
+    const sameOutline =
+      before !== undefined &&
+      outlinePaints(before) &&
+      before.outlineStyle === f.outlineStyle &&
+      before.outlineWidth === f.outlineWidth &&
+      before.outlineColor === f.outlineColor;
+    if (outlinePaints(f) && !sameOutline) {
       found.push(`${where} outline`);
     }
     const idleLayers = before === undefined ? [] : visibleShadowLayers(before.boxShadow);
     if (visibleShadowLayers(f.boxShadow).some((l) => !idleLayers.includes(l))) {
       found.push(`${where} box-shadow`);
     }
-    if (before !== undefined && before.borderColor !== f.borderColor) {
+    if (before !== undefined && before.borderColor !== f.borderColor && borderPaints(f)) {
       found.push(`${where} border-color`);
     }
   });

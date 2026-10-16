@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  borderPaints,
   colorAlpha,
   focusIndicators,
   visibleShadowLayers,
@@ -13,6 +14,8 @@ const plain = (tag: string, boxShadow = "none"): FocusStyle => ({
   outlineColor: "rgb(0, 0, 0)",
   boxShadow,
   borderColor: "rgb(229, 231, 235) rgb(229, 231, 235)",
+  borderStyle: "solid solid solid solid",
+  borderWidth: "1px 1px 1px 1px",
 });
 
 // CI run 38909004523, timezone-select wrapper: a Tailwind ring layer with 0px spread paints nothing.
@@ -62,6 +65,30 @@ test.describe("focus indicator styles", () => {
       ),
     ).toEqual(["1:DIV border-color"]);
   });
+
+  test("an outline already there when idle is not a focus indicator", { tag: ["@unit"] }, () => {
+    const ringed = [{ ...plain("INPUT"), outlineStyle: "solid", outlineWidth: "2px" }];
+    expect(focusIndicators(ringed, ringed)).toEqual([]);
+    const thicker = [{ ...plain("INPUT"), outlineStyle: "solid", outlineWidth: "3px" }];
+    expect(focusIndicators(thicker, ringed)).toEqual(["0:INPUT outline"]);
+  });
+
+  test(
+    "a border colour change with no painted border is not an indicator",
+    { tag: ["@unit"] },
+    () => {
+      const none = {
+        ...plain("DIV"),
+        borderStyle: "none none none none",
+        borderWidth: "0px 0px 0px 0px",
+      };
+      expect(borderPaints(none)).toBe(false);
+      expect(borderPaints(plain("DIV"))).toBe(true);
+      expect(
+        focusIndicators([{ ...none, borderColor: "rgb(0, 0, 0) rgb(0, 0, 0)" }], [none]),
+      ).toEqual([]);
+    },
+  );
 
   test("a shadow already there when idle is not a focus indicator", { tag: ["@unit"] }, () => {
     const card = [plain("DIV", "rgba(0, 0, 0, 0.1) 0px 1px 3px 0px")];

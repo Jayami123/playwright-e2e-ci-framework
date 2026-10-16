@@ -7,8 +7,9 @@ export interface SecretHit {
 /** From the P0b scan of a CI trace: these must never appear in a published report. */
 export const SECRET_PATTERNS: readonly { readonly name: string; readonly re: RegExp }[] = [
   { name: "set-cookie header", re: /set-cookie/gi },
-  // \b: a Cookie header, not an identifier such as hasSessionCookie: in copied test source.
-  { name: "cookie header", re: /"cookie"\s*:|\bCookie:/g },
+  // Any case (HTTP/2 sends cookie:). Not an identifier such as hasSessionCookie: in copied test
+  // source, and not Set-Cookie:, which the set-cookie pattern already reports.
+  { name: "cookie header", re: /"cookie"\s*:|(?<![\w-])cookie:/gi },
   { name: "documenso session", re: /sessionId=/g },
   { name: "csrf token", re: /csrfToken=/g },
   { name: "twenty session", re: /twenty-session/g },

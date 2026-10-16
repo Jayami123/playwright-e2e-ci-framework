@@ -49,6 +49,15 @@ test.describe("report secret scan", () => {
         [],
       );
       expect(findSecretHits("f.md", "hasSessionCookie: false")).toEqual([]);
+      for (const text of ["cookie: a=b", "COOKIE: a=b", "cOoKiE: a=b", '{"Cookie": "a=b"}']) {
+        expect(
+          findSecretHits("f.md", text).map((h) => h.pattern),
+          text,
+        ).toEqual(["cookie header"]);
+      }
+      expect(findSecretHits("f.md", "set-cookie: a=b").map((h) => h.pattern)).toEqual([
+        "set-cookie header",
+      ]);
     },
   );
 });

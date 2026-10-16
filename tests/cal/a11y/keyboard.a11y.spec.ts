@@ -246,7 +246,7 @@ test.describe("Cal keyboard", () => {
       // focused and blurred shots changing the frame with no ring in either (WCAG 2.4.7 check).
       const readChain = (): Promise<FocusStyle[]> =>
         page.evaluate<FocusStyle[]>(
-          `(() => { const out = []; let e = document.querySelector('[data-testid="timezone-select"] input[role="combobox"]'); for (let i = 0; i < 5 && e; i += 1) { const s = getComputedStyle(e); out.push({ tag: e.tagName, outlineStyle: s.outlineStyle, outlineWidth: s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderTopColor + ' ' + s.borderRightColor + ' ' + s.borderBottomColor + ' ' + s.borderLeftColor }); e = e.parentElement; } return out; })()`,
+          `(() => { const out = []; let e = document.querySelector('[data-testid="timezone-select"] input[role="combobox"]'); for (let i = 0; i < 5 && e; i += 1) { const s = getComputedStyle(e); out.push({ tag: e.tagName, outlineStyle: s.outlineStyle, outlineWidth: s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderTopColor + ' ' + s.borderRightColor + ' ' + s.borderBottomColor + ' ' + s.borderLeftColor, borderStyle: s.borderTopStyle + ' ' + s.borderRightStyle + ' ' + s.borderBottomStyle + ' ' + s.borderLeftStyle, borderWidth: s.borderTopWidth + ' ' + s.borderRightWidth + ' ' + s.borderBottomWidth + ' ' + s.borderLeftWidth }); e = e.parentElement; } return out; })()`,
         );
       const focusedStyles = await readChain();
       expect(focusedStyles.length, "timezone combobox and wrappers were read").toBeGreaterThan(1);
