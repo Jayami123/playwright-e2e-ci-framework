@@ -52,6 +52,10 @@ const MASKS: Readonly<Record<MaskSet, readonly MaskSpec[]>> = {
   "medusa-order-detail": [
     { text: /^#\d+$/, reason: "breadcrumb shows the display id" },
     {
+      text: /^\d{1,2}\. \S+ \d{4} \d{2}:\d{2}/,
+      reason: "creation date and minute are server time; page.clock does not reach them",
+    },
+    {
       selector: "main div:has(> h1)",
       reason: "heading row holds display id and creation date",
     },
