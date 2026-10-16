@@ -263,6 +263,30 @@ async function fetchCurrentUser(authorizationHeader: string): Promise<CurrentUse
   return user;
 }
 
+/** Jane's workspace and member ids from the API alone (visual runs have no .auth state). */
+export async function readAdminWorkspaceIds(): Promise<UiWorkspaceIds> {
+  const { baseUrl } = loadTwentyConfig();
+  const signIn = await signInJane();
+  const workspace = signIn.workspaces[0];
+  if (
+    workspace === undefined ||
+    workspace.loginToken === undefined ||
+    workspace.loginToken === null
+  ) {
+    throw new Error("Twenty signIn returned no workspace for Jane");
+  }
+  const token = await exchangeWorkspaceAccess(
+    workspace.loginToken,
+    selectWorkspaceOrigin(workspace, baseUrl),
+  );
+  const me = await fetchCurrentUser(`Bearer ${token}`);
+  const memberId = me.workspaceMember?.id;
+  if (me.currentWorkspace?.id === undefined || memberId === undefined) {
+    throw new Error("Twenty currentUser has no workspace/member");
+  }
+  return { workspaceId: me.currentWorkspace.id, memberId };
+}
+
 async function mintPinnedAccessToken(
   uiWorkspaceId: string,
   uiMemberId: string,

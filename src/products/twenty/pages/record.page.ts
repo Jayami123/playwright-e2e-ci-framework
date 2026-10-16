@@ -2,11 +2,13 @@ import { type Locator, type Page } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { TWENTY_ROUTES } from "../env.js";
 
-export type TwentyRecordKind = "pet" | "opportunity";
+export type TwentyRecordKind = "pet" | "opportunity" | "person" | "company";
 
 const RECORD_PATH: Record<TwentyRecordKind, (id: string) => string> = {
   pet: (id) => TWENTY_ROUTES.petRecord(id),
   opportunity: (id) => TWENTY_ROUTES.opportunityRecord(id),
+  person: (id) => TWENTY_ROUTES.personRecord(id),
+  company: (id) => TWENTY_ROUTES.companyRecord(id),
 };
 
 export class TwentyRecordPage extends BasePage {
