@@ -118,6 +118,10 @@ export async function provisionQaMember(
       break;
     } catch (error) {
       if (attempt >= 2) {
+        // signUpInWorkspace already created the user; the fixture teardown never sees it.
+        await twentyGraphql(TWENTY_ROUTES.metadata, { authorization, query: DELETE_USER }).catch(
+          () => undefined,
+        );
         await rm(stateDir, { recursive: true, force: true });
         throw error;
       }
@@ -131,6 +135,10 @@ export async function provisionQaMember(
   }>(TWENTY_ROUTES.metadata, { authorization, query: MEMBER_QUERY });
   const memberId = me.currentUser?.workspaceMember?.id;
   if (memberId === undefined) {
+    await twentyGraphql(TWENTY_ROUTES.metadata, { authorization, query: DELETE_USER }).catch(
+      () => undefined,
+    );
+    await rm(stateDir, { recursive: true, force: true });
     throw new Error("QA member has no workspace member after onboarding");
   }
   return { email, memberId, workspaceId: workspace.id, storageStatePath, authorization };
