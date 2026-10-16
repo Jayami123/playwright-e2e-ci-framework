@@ -17,6 +17,15 @@ export class MedusaProductsPage extends BasePage {
     .getByRole("dialog", { name: "Create Product", includeHidden: true })
     // eslint-disable-next-line playwright/no-nth-methods -- two identical aria-hidden dialogs (probe P-22)
     .last();
+  /** Strict: what assistive technology can reach. Zero today (MED-F-03). */
+  readonly exposedCreateDialog: Locator = this.page.getByRole("dialog", {
+    name: "Create Product",
+  });
+  readonly createDialogsIncludingHidden: Locator = this.page.getByRole("dialog", {
+    name: "Create Product",
+    includeHidden: true,
+  });
+  readonly tooltip: Locator = this.page.getByRole("tooltip");
   readonly title: Locator = this.dialog.getByLabel("Title", { exact: true });
   readonly variantsSwitch: Locator = this.dialog.getByRole("switch", {
     name: "Yes, this is a product with variants",
@@ -45,6 +54,20 @@ export class MedusaProductsPage extends BasePage {
 
   row(title: string): Locator {
     return this.page.getByRole("row", { name: new RegExp(`^${escapeRegExp(title)} `) });
+  }
+
+  titleText(row: Locator, title: string): Locator {
+    return row.getByText(title, { exact: true });
+  }
+
+  /**
+   * The tooltip measures overflow on mouseenter and is enabled afterwards, so a cold page needs a second
+   * pointer move (probe Q-15). Two deterministic moves, not a retry.
+   */
+  async revealTitleTooltip(row: Locator, title: string): Promise<void> {
+    const text = this.titleText(row, title);
+    await text.hover();
+    await text.hover({ position: { x: 4, y: 4 } });
   }
 
   tab(name: string): Locator {

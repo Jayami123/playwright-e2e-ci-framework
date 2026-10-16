@@ -8,11 +8,14 @@ export class MedusaLoginPage extends BasePage {
     level: 1,
   });
   readonly email: Locator = this.page.getByRole("textbox", { name: "Email" });
-  // The password textbox has no accessible name (a11y finding logged in batch 2).
+  // type=password has no textbox role; the field is labelled (probe Q-36).
   readonly password: Locator = this.page.getByPlaceholder("Password");
   readonly submit: Locator = this.page.getByRole("button", { name: "Continue with Email" });
-  // No role or live region exists on the error (a11y finding logged in batch 2).
+  // No role or live region exists on the error (a11y finding MED-F-06).
   readonly error: Locator = this.page.getByText("Invalid email or password", { exact: true });
+  readonly errorAlert: Locator = this.page
+    .getByRole("alert")
+    .filter({ hasText: "Invalid email or password" });
 
   async goto(): Promise<void> {
     await this.gotoPath(MEDUSA_ROUTES.login);
