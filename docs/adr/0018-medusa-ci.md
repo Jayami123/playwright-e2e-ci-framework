@@ -22,7 +22,7 @@ The harness always runs `medusa start` in production mode, which forces `secure:
 - **Workers and retries:** `PW_WORKERS=1` and `retries: 0`. Workers stay at 1 because the race cases must not share the server with other traffic. Retries 0 is the same flake-is-red policy as Twenty.
 - **Cleanup:** orders have no delete route. Fixture teardown cancels open fulfillments (via `POST /admin/fulfillments/{id}/cancel`, because the order-scoped route rejects canceled orders), cancels the order, then archives it. Products and guest customers are deleted by id. A local sweep runs in global setup and teardown when `CI` is unset.
 - **Leak gate:** `scripts/count-medusa-qa-leaks.mts` fails on live products, options, customers, non-archived orders and open fulfillments. Archived orders and completed carts are counted and printed, never failing. `schedule` also fails on `before > 0` (`P1_MEDUSA_SWEEP_FAIL_ON_BEFORE=1`).
-- **Timeout:** `medusa_self_hosted_timeout_minutes` default **60**. Worst-case budget is about 27.5 minutes (pnpm install 6, build 2, migrate 4, boot 1.5, seed 1, browsers up to 10, tests about 3). Cold pnpm install is unmeasured and a 238.7 s warm migrate was seen locally. Lower it only from step-summary numbers of real runs, recorded here.
+- **Timeout:** `medusa_self_hosted_timeout_minutes` default **60**. Worst-case budget is about 27.5 minutes (pnpm install 6, build 2, migrate 4, boot 1.5, seed 1, browsers up to 10, tests about 3). A 238.7 s warm migrate was seen locally. First green PR [run 38934316725](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38934316725) (5449fa0): job **2 m 42 s** in total, `pnpm install --frozen-lockfile` 14 s, harness up + seed 69 s, Medusa E2E suite 35 s; the pnpm store and build cache saves were skipped (saved on push to `main` only), so a run that misses the caches may take longer. Lower the timeout only from more real step-summary numbers, recorded here.
 - **Visual gate:** the job outputs `visual: ""` and `visual_requested=false` until batch 2, so `e2e / visual` stays green with no Medusa visual suite and a Medusa failure does not affect it.
 - **Nightly alert:** `results-medusa-chromium.json` via `P1_PW_REPORT_ID=medusa-chromium`.
 - **Log artifact:** `medusa-backend.log` with secret lines, `Bearer` lines and `pk_` keys redacted.
@@ -32,7 +32,7 @@ The harness always runs `medusa start` in production mode, which forces `secure:
 - **O-01:** a negative variant price is accepted (`price -1` returns 200). No documented Medusa contract to cite, so X03 does not assert it.
 - **O-02:** `GET /store/orders/{id}` returns the full order with a publishable key and no customer token. By design per `store/orders/middlewares.js:51-57` (the order id is the capability). Not a finding.
 - **Tax is always 0:** the seeded tax regions have no rates, so the tax term of the FW-003 oracle is weak. The arithmetic still includes `tax_total`. Seeded data is read-only, so rates are not changed.
-- **Harness seed time:** `ensureMedusaAdminUser` runs `pnpm medusa user`, which took about 74 s on a loaded local machine against a 120 s harness limit. Cold CI timing is unmeasured.
+- **Harness seed time:** `ensureMedusaAdminUser` runs `pnpm medusa user`, which took about 74 s on a loaded local machine against a 120 s harness limit. In CI ([run 38934316725](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38934316725)) harness up and seed together took 69 s (16:46:31Z to 16:47:40Z).
 
 ## Alternatives
 
@@ -44,7 +44,7 @@ The harness always runs `medusa start` in production mode, which forces `secure:
 
 ## Consequences
 
-- The first PR run supplies authoritative `up` and seed seconds, pnpm install time and Playwright totals in the job summary; record them here.
+- The first green PR run ([run 38934316725](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38934316725)) supplied the numbers recorded under Timeout and Harness seed time; later runs on `main` add more.
 - X04 and X05 are expected failures ([medusa-known-issues.md](../observations/medusa-known-issues.md)). If a race stops reproducing, the unexpected pass turns the run red. Never loosen the assertion.
 - Making `e2e / medusa-self-hosted` required is a manual GitHub setting after two green runs on `main`.
 - a11y findings from the probe (duplicate aria-hidden Create Product dialog, unnamed option picker, unassociated values label, unnamed order menu trigger, login error not announced, unnamed password field) are recorded in batch 2 with their own a11y tests.
