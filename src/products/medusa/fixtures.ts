@@ -102,6 +102,8 @@ export const test = base.extend<MedusaQaFixtures, MedusaWorkerFixtures>({
     const context = await playwrightRequest.newContext({
       baseURL: config.baseUrl,
       timeout: MEDUSA_TIMEOUTS.request,
+      // Never inherit the project storageState: these contexts authenticate by Bearer token only.
+      storageState: { cookies: [], origins: [] },
     });
     try {
       const token = await loginAdminToken(context, config.adminEmail, config.adminPassword);
@@ -118,6 +120,8 @@ export const test = base.extend<MedusaQaFixtures, MedusaWorkerFixtures>({
     const storeContext = await playwrightRequest.newContext({
       baseURL: config.baseUrl,
       timeout: MEDUSA_TIMEOUTS.request,
+      // Never inherit the project storageState: these contexts authenticate by Bearer token only.
+      storageState: { cookies: [], origins: [] },
     });
 
     const createProduct: MedusaQaFixture["createProduct"] = async (leaf) => {

@@ -136,3 +136,11 @@ export function medusaBaseUrlFromEnv(): string {
 export function medusaAuthStatePath(): string {
   return path.join(repoRoot(), AUTH_STATE_RELATIVE);
 }
+
+/** Seeded storefront customer; matches the harness MEDUSA_DEFAULT_CUSTOMER_* (override: MEDUSA_SEED_CUSTOMER_PASSWORD). */
+export function medusaSeedCustomer(): { readonly email: string; readonly password: string } {
+  return {
+    email: "customer@test.com",
+    password: process.env.MEDUSA_SEED_CUSTOMER_PASSWORD?.trim() || "customer123",
+  };
+}

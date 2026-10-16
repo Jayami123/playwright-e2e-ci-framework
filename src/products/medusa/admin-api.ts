@@ -29,8 +29,10 @@ export interface MedusaOrder {
   readonly shipping_methods: readonly { readonly amount: number }[];
   readonly fulfillments?: readonly MedusaFulfillment[];
   readonly payment_collections?: readonly {
-    readonly payments?: readonly { readonly canceled_at: string | null }[];
-    readonly refunded_amount?: number;
+    readonly payments?: readonly {
+      readonly canceled_at: string | null;
+      readonly refunds?: readonly unknown[];
+    }[];
   }[];
 }
 
@@ -73,7 +75,8 @@ export interface MedusaAdminApi {
     items: readonly { id: string; quantity: number }[],
     locationId: string,
   ): Promise<APIResponse>;
-  cancelFulfillment(orderId: string, fulfillmentId: string): Promise<void>;
+  /** Uses the fulfillment route: the order route rejects canceled orders (the F-01 state). */
+  cancelFulfillment(fulfillmentId: string): Promise<void>;
   archiveOrder(id: string): Promise<void>;
   listOrderChanges(id: string): Promise<readonly { change_type: string; status: string }[]>;
   findCustomerIdsByEmail(email: string): Promise<readonly string[]>;
@@ -229,9 +232,9 @@ export function createMedusaAdminApi(request: APIRequestContext, token: string):
     async createFulfillment(id, items, locationId) {
       return post(`/admin/orders/${id}/fulfillments`, { items, location_id: locationId });
     },
-    async cancelFulfillment(orderId, fulfillmentId) {
-      const response = await post(`/admin/orders/${orderId}/fulfillments/${fulfillmentId}/cancel`);
-      expect(response.status(), "POST /admin/orders/{id}/fulfillments/{fid}/cancel").toBe(200);
+    async cancelFulfillment(fulfillmentId) {
+      const response = await post(`/admin/fulfillments/${fulfillmentId}/cancel`);
+      expect(response.status(), "POST /admin/fulfillments/{id}/cancel").toBe(200);
     },
     async archiveOrder(id) {
       const body = await expectJson<{ order: { status: string } }>(

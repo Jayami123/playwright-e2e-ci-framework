@@ -19,7 +19,7 @@ export async function destroyOrderById(api: MedusaAdminApi, orderId: string): Pr
   }
   for (const fulfillment of order.fulfillments ?? []) {
     if (fulfillment.canceled_at === null) {
-      await api.cancelFulfillment(orderId, fulfillment.id);
+      await api.cancelFulfillment(fulfillment.id);
     }
   }
   if (order.status !== "canceled") {
@@ -111,6 +111,8 @@ export async function sweepMedusaQaRecords(prefix: string): Promise<MedusaSweepR
   const context = await playwrightRequest.newContext({
     baseURL: config.baseUrl,
     timeout: MEDUSA_TIMEOUTS.request,
+    // Never inherit the project storageState: these contexts authenticate by Bearer token only.
+    storageState: { cookies: [], origins: [] },
   });
   try {
     const token = await loginAdminToken(context, config.adminEmail, config.adminPassword);
