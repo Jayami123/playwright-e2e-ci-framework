@@ -293,7 +293,7 @@ export async function attachAxeReport(
 
 /**
  * Per allowlisted finding, attach a viewport screenshot and a JSON of the nodes it covered
- * (axe-evidence-<name>.png/.json). The exporter turns these into docs/observations/evidence/.
+ * (axe-evidence-<name>.png/.json). They stay in the Playwright report only.
  */
 export async function attachAxeEvidence(
   page: Page,

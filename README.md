@@ -183,7 +183,7 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 
 ### Phase 3 known product bugs
 
-Evidence (one PNG and one JSON per bug) is committed under [`docs/observations/evidence/`](docs/observations/evidence/); details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md) and [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md).
+Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md) and [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md).
 
 | ID                                          | Product   | Finding                                                                                                                     | Test                                             |
 | ------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |

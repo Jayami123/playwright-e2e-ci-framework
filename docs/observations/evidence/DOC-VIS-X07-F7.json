@@ -1,9 +1,0 @@
-{
-  "finding": "DOC-VIS-X07-F7",
-  "test": "P1-DOC-VIS-X07 /documents full WCAG serious and critical findings are all recorded",
-  "project": "visual-desktop",
-  "nodes": [
-    ".min-h-screen > input[accept=\"application/pdf,.pdf\"][multiple=\"\"][type=\"file\"]",
-    "input[data-testid=\"document-upload-input\"]"
-  ]
-}

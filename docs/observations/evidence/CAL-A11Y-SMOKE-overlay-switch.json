@@ -1,6 +1,0 @@
-{
-  "finding": "CAL-A11Y-SMOKE-overlay-switch",
-  "test": "booker /pro/30min axe scan is attached to the report",
-  "project": "visual-desktop",
-  "nodes": ["#radix-_r_r_"]
-}

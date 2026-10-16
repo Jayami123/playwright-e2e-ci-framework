@@ -1,6 +1,0 @@
-{
-  "finding": "DOC-VIS-004-F2",
-  "test": "P1-DOC-VIS-004 /documents light color-contrast",
-  "project": "visual-desktop",
-  "nodes": [".mt-1"]
-}

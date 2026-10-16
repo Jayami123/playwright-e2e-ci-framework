@@ -1,9 +1,0 @@
-{
-  "issue": "PRODUCT BUG: choosing a slot by keyboard moves focus to <body> instead of the booking form (WCAG 2.4.3, Phase 3 probe 2026-10-15)",
-  "observed": {
-    "focusAfterSelect": "BODY"
-  },
-  "expected": {
-    "focusAfterSelect": "an element inside the booking form, not BODY"
-  }
-}
