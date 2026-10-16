@@ -89,56 +89,67 @@ test(
   },
 );
 
-test(
-  "P1-MED-FW-X14 Title boundaries 254/256/multi-byte",
+const X14_WORDS = "Donaudampfschifffahrt Gesellschaft Kapitän Mütze ";
+
+/** One test per boundary title (plan §6 X14); each creates its own products, so none needs a longer timeout. */
+const X14_CASES: ReadonlyArray<{
+  readonly label: string;
+  readonly build: (prefix: string) => string;
+}> = [
+  { label: "254 chars", build: (prefix) => medusaQaTitleOfLength(prefix, 254, "x") },
+  { label: "256 chars", build: (prefix) => medusaQaTitleOfLength(prefix, 256, "x") },
+  { label: "255 umlauts", build: (prefix) => medusaQaTitleOfLength(prefix, 255, "ä") },
   {
-    tag: ["@medusa", "@visual"],
-    annotation: [
-      { type: "testId", description: "P1-MED-FW-X14" },
-      { type: "priority", description: "P3" },
-    ],
+    label: "255 UTF-16 units with emoji",
+    build: (prefix) => medusaQaTitleOfLength(prefix, 255, "😀"),
   },
-  async ({ page, medusaQa }, testInfo) => {
-    onlyOnProjects(testInfo.project.name, PROJECTS);
-    test.setTimeout(240_000);
-    const products = new MedusaProductsPage(page);
-    const words = "Donaudampfschifffahrt Gesellschaft Kapitän Mütze ";
+  {
+    label: "255 German words",
     // A trailing space would not survive Playwright's exact text match; the length stays 255.
-    const titles: Readonly<Record<string, string>> = {
-      "254 chars": medusaQaTitleOfLength(medusaQa.prefix, 254, "x"),
-      "256 chars": medusaQaTitleOfLength(medusaQa.prefix, 256, "x"),
-      "255 umlauts": medusaQaTitleOfLength(medusaQa.prefix, 255, "ä"),
-      "255 UTF-16 units with emoji": medusaQaTitleOfLength(medusaQa.prefix, 255, "😀"),
-      "255 German words": medusaQaTitleOfLength(medusaQa.prefix, 255, words).replace(/\s$/, "x"),
-    };
-    const stored: Record<string, string> = {};
-    let shortTitle = "";
+    build: (prefix) => medusaQaTitleOfLength(prefix, 255, X14_WORDS).replace(/\s$/, "x"),
+  },
+];
 
-    await test.step("create the boundary products and a short one", async () => {
-      for (const [label, title] of Object.entries(titles)) {
+for (const { label, build } of X14_CASES) {
+  test(
+    `P1-MED-FW-X14 Title boundary ${label}`,
+    {
+      tag: ["@medusa", "@visual"],
+      annotation: [
+        { type: "testId", description: "P1-MED-FW-X14" },
+        { type: "priority", description: "P3" },
+      ],
+    },
+    async ({ page, medusaQa }, testInfo) => {
+      onlyOnProjects(testInfo.project.name, PROJECTS);
+      const products = new MedusaProductsPage(page);
+      const title = build(medusaQa.prefix);
+      let stored = "";
+      let shortTitle = "";
+
+      await test.step(`create the ${label} product and a short one`, async () => {
         const created = await medusaQa.createProduct(undefined, { exactTitle: title });
-        stored[label] = await storedTitle(medusaQa, created.id);
-        expect(stored[label], `${label} is stored as sent`).toBe(title);
-      }
-      shortTitle = (await medusaQa.createProduct("short")).title;
-    });
+        stored = await storedTitle(medusaQa, created.id);
+        expect(stored, `${label} is stored as sent`).toBe(title);
+        shortTitle = (await medusaQa.createProduct("short")).title;
+      });
 
-    await test.step("open the products list", async () => {
-      await products.gotoSearch(medusaQa.prefix);
-      await expect(products.rowWithTitle(shortTitle)).toBeVisible();
-    });
+      await test.step("open the products list", async () => {
+        await products.gotoSearch(medusaQa.prefix);
+        await expect(products.rowWithTitle(title)).toBeVisible();
+        await expect(products.rowWithTitle(shortTitle)).toBeVisible();
+      });
 
-    for (const [label, title] of Object.entries(titles)) {
-      await test.step(label, async () => {
+      await test.step("truncated with an ellipsis, stable row height, full tooltip", async () => {
         await expectTruncatedInList(
           page,
           products,
           products.rowWithTitle(title),
           products.rowWithTitle(shortTitle),
           title,
-          stored[label] ?? title,
+          stored,
         );
       });
-    }
-  },
-);
+    },
+  );
+}

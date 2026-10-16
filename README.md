@@ -241,13 +241,13 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 | P1-MED-FW-X10 Response ordering on search                     | desktop                 | pass          |
 | P1-MED-FW-X11 Unknown order id shows not-found, no stale data | desktop                 | pass          |
 | P1-MED-FW-X12 Back after a 500 recovers                       | desktop                 | pass          |
-| P1-MED-FW-X14 Title boundaries 254/256/multi-byte             | desktop, tablet         | pass          |
+| P1-MED-FW-X14 Title boundaries 254/256/multi-byte (5 tests)   | desktop, tablet         | pass          |
 | P1-MED-FW-X06 Create Product dialog exposed to AT (MED-F-03)  | desktop                 | expected fail |
 | P1-MED-FW-X07 Order header menu name (MED-F-05)               | desktop                 | expected fail |
 | P1-MED-FW-X08 Login error announced (MED-F-06)                | desktop                 | expected fail |
 | P1-MED-FW-X13 Order detail reflows at 320 px (MED-F-07)       | mobile                  | expected fail |
 
-`npm run visual:test -- --product=medusa` runs 19 tests and skips 23 (viewport rules): 15 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
+`npm run visual:test -- --product=medusa` runs 27 tests and skips 27 (viewport rules): 23 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
 
 ### Phase 3 known product bugs
 
