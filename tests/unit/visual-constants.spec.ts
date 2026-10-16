@@ -5,7 +5,11 @@ import {
   DOC_PDF_ROUTE,
   DOCUMENSO_AXE_ALLOWLIST,
 } from "../../src/products/documenso/visual.js";
-import { longCompanyName, qaMemberEmail } from "../../src/products/twenty/fixtures/qa-member.js";
+import {
+  longCompanyName,
+  qaMemberCountFilter,
+  qaMemberEmail,
+} from "../../src/products/twenty/fixtures/qa-member.js";
 import { TWENTY_AXE_ALLOWLIST } from "../../src/products/twenty/visual.js";
 
 test.describe("visual constants", () => {
@@ -26,6 +30,14 @@ test.describe("visual constants", () => {
     const name = longCompanyName("P1-QA-1-0");
     expect(name).toHaveLength(150);
     expect(name.startsWith("P1-QA-1-0-")).toBe(true);
+  });
+
+  test("qaMemberCountFilter scopes to one member or all p1-qa- members", { tag: ["@unit"] }, () => {
+    expect(qaMemberCountFilter()).toEqual({ userEmail: { like: "p1-qa-%" } });
+    expect(qaMemberCountFilter(qaMemberEmail(5, 1))).toEqual({
+      userEmail: { like: "p1-qa-5-1@example.test" },
+    });
+    expect(() => qaMemberCountFilter("p1-qa-%@x")).toThrow(/wildcard/);
   });
 
   test("qaMemberEmail uses the p1-qa- prefix the leak check counts", { tag: ["@unit"] }, () => {

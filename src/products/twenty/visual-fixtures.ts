@@ -62,7 +62,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
           errors.push(e);
         }
         try {
-          if ((await countQaMembers(admin)) !== 0) {
+          if ((await countQaMembers(admin, member.email)) !== 0) {
             errors.push(new Error("P1-QA Twenty member leaked"));
           }
         } catch (e) {

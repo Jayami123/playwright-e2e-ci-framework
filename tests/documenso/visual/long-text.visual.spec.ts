@@ -41,6 +41,7 @@ test.describe("Documenso long text", () => {
         .getByRole("row")
         .filter({ has: link })
         .getByTestId("document-table-action-btn");
+      await expect(action).toBeVisible();
       expect(
         rectsOverlap(
           await boundingBoxOf("title link", link),

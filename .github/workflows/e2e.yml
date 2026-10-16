@@ -578,6 +578,10 @@ jobs:
           VISUAL_MODE: ${{ inputs.visual_mode }}
           CAL_E2E_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
           CAL_BASE_URL: ${{ env.CAL_E2E_LOCAL_BASE_URL }}
+          CAL_E2E_EMAIL: ${{ env.CAL_DEFAULT_E2E_EMAIL }}
+          CAL_E2E_PASSWORD: pro
+          CAL_DST_EMAIL: ${{ env.CAL_DEFAULT_DST_EMAIL }}
+          CAL_DST_PASSWORD: trial
           PRODUCTS_ROOT: ${{ env.PRODUCTS_ROOT }}
         run: |
           set -euo pipefail
@@ -603,7 +607,7 @@ jobs:
           set -euo pipefail
           mkdir -p baselines
           git status --porcelain -- tests/cal | grep '/__screenshots__/' > baselines/CHANGED.txt || true
-          git ls-files --modified --others --exclude-standard -- tests/cal | grep '/__screenshots__/' | while read -r f; do
+          git ls-files --modified --others --exclude-standard -- tests/cal | awk '/\/__screenshots__\//' | while read -r f; do
             mkdir -p "baselines/$(dirname "$f")"
             cp "$f" "baselines/$f"
           done
@@ -1126,7 +1130,7 @@ jobs:
           set -euo pipefail
           mkdir -p baselines
           git status --porcelain -- tests/documenso | grep '/__screenshots__/' > baselines/CHANGED.txt || true
-          git ls-files --modified --others --exclude-standard -- tests/documenso | grep '/__screenshots__/' | while read -r f; do
+          git ls-files --modified --others --exclude-standard -- tests/documenso | awk '/\/__screenshots__\//' | while read -r f; do
             mkdir -p "baselines/$(dirname "$f")"
             cp "$f" "baselines/$f"
           done
@@ -1490,7 +1494,7 @@ jobs:
           set -euo pipefail
           mkdir -p baselines
           git status --porcelain -- tests/twenty | grep '/__screenshots__/' > baselines/CHANGED.txt || true
-          git ls-files --modified --others --exclude-standard -- tests/twenty | grep '/__screenshots__/' | while read -r f; do
+          git ls-files --modified --others --exclude-standard -- tests/twenty | awk '/\/__screenshots__\//' | while read -r f; do
             mkdir -p "baselines/$(dirname "$f")"
             cp "$f" "baselines/$f"
           done

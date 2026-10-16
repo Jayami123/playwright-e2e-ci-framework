@@ -30,7 +30,7 @@ Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2F
 | P1-TW-TZ-X04 CSV vs fixture UTC                  | Observation (assert CSV = stored ISO, no `test.fail`) | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
 | OBS-001 bare date on DATE_TIME                   | Observation (not automated)                           | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
 
-**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German and RTL layout, light and dark axe scans for Cal, Documenso and Twenty. Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](docs/adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
+**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German layout and light and dark axe scans for Cal, Documenso and Twenty, and Arabic RTL layout for Cal only (Twenty RTL is carried). Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](docs/adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
 
 ## Prerequisites
 
@@ -203,7 +203,7 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 | ------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | Cal VIS, I18N, A11Y (PR #34)                                                         | Done                                            |
 | Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06 | Done                                            |
-| CI visual job, baseline update workflow, GitHub Pages, committed evidence            | Done                                            |
+| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                            |
 | Medusa visual and i18n                                                               | Carried (blocked on the Medusa suite)           |
 | TW-VIS-X07 Arabic RTL People layout                                                  | Carried (dropped 2026-10-16: not probed)        |
 | `e2e / visual` as a required check                                                   | Carried (set it after two green runs on `main`) |
@@ -223,7 +223,7 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 
 **Documenso (always self-hosted, not gated on `CAL_E2E_BASE_URL`):** job `documenso-self-hosted` checks out [Jayami123/documenso](https://github.com/Jayami123/documenso) to `products/documenso`, maps `127.0.0.1 p1.lvh.me`, runs harness `up()` under Node 24, then `npm run test:documenso` on Node 22 (`documenso-chromium`, Chrome channel). `workflow_dispatch` with `documenso_probe_only: true` runs harness `up()`, secure-context preflight, and `playwright --list` only. Nightly / `browser_matrix` also runs `test:documenso:firefox` (`P1-DOC-FW-001..003` only). After the first green PR run, add required check `e2e / documenso-self-hosted` on `main`.
 
-**Visual job (Phase 3):** each product job runs `npm run visual:test -- --product=<p>` in the pinned Playwright Docker image with `continue-on-error`, then exports `visual` and `visual_requested`. The `visual` aggregator job (check `e2e / visual`) fails when a visual run was requested but failed, was skipped, or never started, so a failed Documenso bypass start cannot turn it green. Failures upload `visual-failure-<product>` (report plus diff, actual and expected PNGs, 14 days).
+**Visual job (Phase 3):** each product job runs `npm run visual:test -- --product=<p>` in the pinned Playwright Docker image with `continue-on-error`, then exports `visual` and `visual_requested`. The `visual` aggregator job (check `e2e / visual`) fails when a product job ran and its requested visual step failed, was skipped, or never started, so a failed Documenso bypass start cannot turn it green. A product job that was skipped as a whole (path filter, live-URL path, `visual_product` filter) is not gated. Failures upload `visual-failure-<product>` (report plus diff, actual and expected PNGs, 14 days).
 
 **Update baselines:** Actions → **Update visual baselines** → _Use workflow from_ your feature branch → product. It never runs on `main` and never commits. Download `visual-baselines-<product>`, unzip at the repo root, read `CHANGED.txt`, compare every changed PNG with `git show HEAD:<path>`, accept only changes the PR explains, run `npm run visual:test -- --product=<p>` twice, then commit only the reviewed PNGs (`test(visual): update <product> baselines for <reason>`).
 

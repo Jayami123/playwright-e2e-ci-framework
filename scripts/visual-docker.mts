@@ -9,6 +9,7 @@ import { getStatus } from "../src/core/http-status.js";
 import {
   buildDockerRunArgs,
   buildVisualDockerEnv,
+  calCredentialsFromEnv,
   calPortFromBaseUrl,
   dbPortFromUrl,
   documensoPortFromUrls,
@@ -60,7 +61,12 @@ async function main(): Promise<void> {
       await requireHealthy("Cal", `${baseUrl.replace(/\/$/, "")}/api/auth/csrf`, "cal");
       const dbUrl = getAdapter("cal").dbUrl;
       forwardPorts.push(port, dbPortFromUrl(dbUrl));
-      parts.cal = { port, dbUrl, webMode: process.env.CAL_WEB_MODE ?? "prod" };
+      parts.cal = {
+        port,
+        dbUrl,
+        webMode: process.env.CAL_WEB_MODE ?? "prod",
+        credentials: calCredentialsFromEnv(process.env),
+      };
     } else if (product === "documenso") {
       const listenUrl = process.env.DOCUMENSO_BASE_URL ?? "http://127.0.0.1:3001";
       const publicUrl = process.env.DOCUMENSO_PUBLIC_URL ?? `http://${DOCUMENSO_PUBLIC_HOST}:3001`;

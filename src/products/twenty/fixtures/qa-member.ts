@@ -184,11 +184,21 @@ export async function deleteQaMember(member: TwentyQaMember): Promise<void> {
   }
 }
 
-export async function countQaMembers(admin: TwentyPinnedApiSession): Promise<number> {
+/** Pure; unit-tested. No email: every p1-qa- member. Email: only that member (contains no LIKE wildcard). */
+export function qaMemberCountFilter(email?: string): { userEmail: { like: string } } {
+  if (email !== undefined && /[%_]/.test(email))
+    throw new Error(`QA email has a LIKE wildcard: ${email}`);
+  return { userEmail: { like: email ?? "p1-qa-%" } };
+}
+
+export async function countQaMembers(
+  admin: TwentyPinnedApiSession,
+  email?: string,
+): Promise<number> {
   const data = await admin.query<{ workspaceMembers?: { totalCount?: number } | null }>(
     TWENTY_ROUTES.graphql,
     COUNT_MEMBERS,
-    { filter: { userEmail: { like: "p1-qa-%" } } },
+    { filter: qaMemberCountFilter(email) },
   );
   return data.workspaceMembers?.totalCount ?? 0;
 }

@@ -17,6 +17,7 @@ import {
   buildDockerRunArgs,
   calPortFromBaseUrl,
   buildVisualDockerEnv,
+  calCredentialsFromEnv,
   CONTAINER_PRODUCTS_ROOT,
   dbPortFromUrl,
   documensoPortFromUrls,
@@ -234,6 +235,36 @@ test.describe("visual docker argv", () => {
       /explicit port/,
     );
   });
+
+  test(
+    "buildVisualDockerEnv passes the Cal seed credentials into the container",
+    { tag: ["@unit"] },
+    () => {
+      const credentials = calCredentialsFromEnv({
+        CAL_E2E_EMAIL: "pro@example.com",
+        CAL_E2E_PASSWORD: "pro",
+        CAL_DST_EMAIL: "trial@example.com",
+        CAL_DST_PASSWORD: "",
+        UNRELATED: "x",
+      });
+      expect(credentials).toEqual({
+        CAL_E2E_EMAIL: "pro@example.com",
+        CAL_E2E_PASSWORD: "pro",
+        CAL_DST_EMAIL: "trial@example.com",
+      });
+      const env = buildVisualDockerEnv({
+        cal: {
+          port: 3000,
+          dbUrl: "postgresql://postgres:@localhost:5450/calendso",
+          webMode: "prod",
+          credentials,
+        },
+      });
+      expect(env.CAL_E2E_EMAIL).toBe("pro@example.com");
+      expect(env.CAL_E2E_PASSWORD).toBe("pro");
+      expect(env.CAL_DST_PASSWORD).toBeUndefined();
+    },
+  );
 
   test("buildVisualDockerEnv points the container at IPv4 Cal and DB", { tag: ["@unit"] }, () => {
     const env = buildVisualDockerEnv({

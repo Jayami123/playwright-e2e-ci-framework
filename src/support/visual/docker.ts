@@ -109,7 +109,13 @@ export function containerDbUrl(dbUrl: string): string {
 }
 
 export interface VisualEnvInput {
-  readonly cal?: { readonly port: number; readonly dbUrl: string; readonly webMode: string };
+  readonly cal?: {
+    readonly port: number;
+    readonly dbUrl: string;
+    readonly webMode: string;
+    /** Seed logins; Cal's loadConfig() needs them in every Cal test. Local runs also get them from the mounted .env. */
+    readonly credentials?: Readonly<Record<string, string>>;
+  };
   readonly documenso?: {
     readonly listenUrl: string;
     readonly publicUrl: string;
@@ -137,6 +143,7 @@ export function buildVisualDockerEnv(input: VisualEnvInput): Record<string, stri
     env.CAL_E2E_BASE_URL = `http://127.0.0.1:${String(input.cal.port)}`;
     env.CAL_WEB_MODE = input.cal.webMode;
     env.CAL_DB_URL = containerDbUrl(input.cal.dbUrl);
+    Object.assign(env, input.cal.credentials ?? {});
   }
   if (input.documenso !== undefined) {
     env.DOCUMENSO_BASE_URL = input.documenso.listenUrl;
@@ -156,6 +163,25 @@ export function buildVisualDockerEnv(input: VisualEnvInput): Record<string, stri
   if (input.ci !== undefined && input.ci !== "") env.CI = input.ci;
   if (input.reportId !== undefined && input.reportId !== "") env.P1_PW_REPORT_ID = input.reportId;
   return env;
+}
+
+export const CAL_CREDENTIAL_ENV = [
+  "CAL_E2E_EMAIL",
+  "CAL_E2E_PASSWORD",
+  "CAL_DST_EMAIL",
+  "CAL_DST_PASSWORD",
+] as const;
+
+/** Pure. The Cal seed credentials present (non-empty) in the host env; passed into the container. */
+export function calCredentialsFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of CAL_CREDENTIAL_ENV) {
+    const value = env[key];
+    if (value !== undefined && value !== "") out[key] = value;
+  }
+  return out;
 }
 
 export interface DockerRunInput {
