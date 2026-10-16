@@ -1,0 +1,22 @@
+{
+  "issue": "PRODUCT BUG: the timezone select shows no visible focus indicator when focused by keyboard; focused and blurred screenshots of the control are byte-identical (WCAG 2.4.7 Focus Visible, Phase 3 probe 2026-10-15)",
+  "observed": {
+    "focusTarget": {
+      "tag": "INPUT",
+      "role": "combobox",
+      "testId": null,
+      "ariaLabel": "Timezone Select",
+      "insideTimezoneSelect": true
+    },
+    "boxShadows": [
+      "none",
+      "none",
+      "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+      "none"
+    ],
+    "focusedEqualsIdle": true
+  },
+  "expected": {
+    "focusedEqualsIdle": false
+  }
+}

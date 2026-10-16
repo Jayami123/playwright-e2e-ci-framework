@@ -1,0 +1,15 @@
+{
+  "finding": "TW-VIS-001-F3",
+  "test": "P1-TW-VIS-001 People and person record Light color-contrast",
+  "project": "visual-desktop",
+  "nodes": [
+    "#base-ui-_r_16_",
+    "#base-ui-_r_19_",
+    "#base-ui-_r_1c_",
+    "#base-ui-_r_1f_",
+    "#base-ui-_r_1i_",
+    "#base-ui-_r_1l_",
+    "#base-ui-_r_1o_",
+    "#base-ui-_r_1r_"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "issue": "PRODUCT BUG TW-I18N-001: the German column header Berufsbezeichnung is truncated with an ellipsis at the default column width (Phase 3 probe 2026-10-16)",
+  "observed": {
+    "truncatedHeaders": [
+      "KI",
+      "Einstellungen",
+      "Berufsbezeichnung",
+      "Einzigartig von E-Mails",
+      "Leer von Telefone",
+      "Früheste von Erstellungsdatum"
+    ]
+  },
+  "expected": {
+    "truncatedHeaders": []
+  }
+}

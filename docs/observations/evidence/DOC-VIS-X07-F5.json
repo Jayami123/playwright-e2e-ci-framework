@@ -1,0 +1,6 @@
+{
+  "finding": "DOC-VIS-X07-F5",
+  "test": "P1-DOC-VIS-X07 /documents full WCAG serious and critical findings are all recorded",
+  "project": "visual-mobile",
+  "nodes": [".space-x-4 > button:nth-child(1)", ".space-x-4 > button:nth-child(2)"]
+}

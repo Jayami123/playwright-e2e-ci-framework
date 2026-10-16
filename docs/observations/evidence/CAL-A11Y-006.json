@@ -1,0 +1,16 @@
+{
+  "issue": "PRODUCT BUG: booker view-toggle radios expose accessible names with a literal \"$\" prefix, e.g. \"$Switch to monthly view\" (Phase 3 probe 2026-10-15)",
+  "observed": {
+    "dollarPrefixedRadios": 3,
+    "names": [
+      "$Switch to monthly view",
+      "$Switch to weekly view",
+      "$Switch to column view",
+      "12h",
+      "24h"
+    ]
+  },
+  "expected": {
+    "dollarPrefixedRadios": 0
+  }
+}

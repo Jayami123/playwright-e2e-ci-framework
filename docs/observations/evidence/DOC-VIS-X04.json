@@ -1,0 +1,10 @@
+{
+  "issue": "PRODUCT BUG DOC-VIS-X04: at 200% zoom (197 CSS px) the Complete button is clipped past the right edge and cannot be scrolled into view (WCAG 1.4.10, Phase 3 probe 2026-10-16)",
+  "observed": {
+    "boxRight": 264,
+    "viewport": 197
+  },
+  "expected": {
+    "boxRightMax": 198
+  }
+}

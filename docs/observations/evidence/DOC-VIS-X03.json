@@ -1,0 +1,13 @@
+{
+  "issue": "PRODUCT BUG DOC-VIS-X03: a PDF request that never answers leaves an endless spinner with no error or timeout message (fetch has no timeout; Phase 3 probe 2026-10-16)",
+  "observed": {
+    "hits": 1,
+    "waitedMs": 30081,
+    "spinner": 1,
+    "errorText": 0
+  },
+  "expected": {
+    "spinner": 0,
+    "errorOrTimeoutMessage": 1
+  }
+}

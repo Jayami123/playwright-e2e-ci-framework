@@ -1,0 +1,13 @@
+{
+  "issue": "PRODUCT BUG: slots getSchedule HTTP 500 shows a skeleton, then silently jumps to an empty next month; no user-facing error (Phase 3 probe 2026-10-15)",
+  "observed": {
+    "hits": 8,
+    "alerts": 0,
+    "month": "February 2030",
+    "search": "?month=2030-02"
+  },
+  "expected": {
+    "alerts": 1,
+    "month": "January 2030"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "issue": "PRODUCT BUG DOC-VIS-X01: a 200-char document title on the signing page at >=768px is not truncated (whitespace-nowrap), the page scrolls horizontally and the primary action is pushed off-screen (Phase 3 probe 2026-10-16)",
+  "observed": {
+    "scrollWidth": 1874,
+    "clientWidth": 1440,
+    "primaryActionRight": 1873.59375
+  },
+  "expected": {
+    "scrollWidthMax": 1441
+  }
+}

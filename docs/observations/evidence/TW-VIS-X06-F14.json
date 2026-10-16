@@ -1,0 +1,6 @@
+{
+  "finding": "TW-VIS-X06-F14",
+  "test": "P1-TW-VIS-X06 People and person record full WCAG findings are all recorded",
+  "project": "visual-tablet",
+  "nodes": [".sz9u4x4 > .s1cjc50x[width=\"auto\"][aria-haspopup=\"true\"]"]
+}

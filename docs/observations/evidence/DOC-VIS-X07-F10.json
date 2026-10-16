@@ -1,0 +1,6 @@
+{
+  "finding": "DOC-VIS-X07-F10",
+  "test": "P1-DOC-VIS-X07 /documents full WCAG serious and critical findings are all recorded",
+  "project": "visual-desktop",
+  "nodes": ["a[href$=\"inbox\"]"]
+}
