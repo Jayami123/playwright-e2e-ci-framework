@@ -34,7 +34,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.10"
+    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.11"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
