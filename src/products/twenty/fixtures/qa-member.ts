@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { loadTwentyConfig, TWENTY_ROUTES, twentyTimeouts } from "../env.js";
 import { TwentyLoginPage } from "../pages/login.page.js";
-import { exchangeWorkspaceAccess, type TwentyPinnedApiSession } from "./auth.js";
+import {
+  exchangeWorkspaceAccess,
+  signInWithPassword,
+  type TwentyPinnedApiSession,
+  type TwentyWorkspaceForSignIn,
+} from "./auth.js";
 import { twentyGraphql, type TwentyGraphqlPath } from "./graphql.js";
 
 export interface TwentyQaMember {
@@ -58,6 +63,33 @@ const COUNT_MEMBERS = `query QaMembers($filter: WorkspaceMemberFilterInput) {
   workspaceMembers(filter: $filter) { totalCount }
 }`;
 
+/** Pure; unit-tested. The QA member's own login token for the workspace, from its signIn result. */
+export function recoveryLoginToken(
+  workspaces: readonly TwentyWorkspaceForSignIn[],
+  workspaceId: string,
+): string | undefined {
+  const token = workspaces.find((w) => w.id === workspaceId)?.loginToken?.trim();
+  return token === undefined || token === "" ? undefined : token;
+}
+
+/** Sign in as the QA member itself (never Jane), get a fresh token and delete the user. Best effort. */
+async function deleteQaUserBySignIn(
+  email: string,
+  password: string,
+  workspaceId: string,
+  origin: string,
+): Promise<void> {
+  const { workspaces } = await signInWithPassword(email, password);
+  const token = recoveryLoginToken(workspaces, workspaceId);
+  if (token === undefined)
+    throw new Error("QA member signIn returned no login token for the workspace");
+  const access = await exchangeWorkspaceAccess(token, origin);
+  await twentyGraphql(TWENTY_ROUTES.metadata, {
+    authorization: `Bearer ${access}`,
+    query: DELETE_USER,
+  });
+}
+
 export async function provisionQaMember(
   admin: TwentyPinnedApiSession,
   browser: Browser,
@@ -96,7 +128,14 @@ export async function provisionQaMember(
   if (loginToken === undefined || loginToken === null || loginToken === "") {
     throw new Error("Twenty signUpInWorkspace returned no loginToken");
   }
-  const accessToken = await exchangeWorkspaceAccess(loginToken, baseUrl);
+  let accessToken: string;
+  try {
+    accessToken = await exchangeWorkspaceAccess(loginToken, baseUrl);
+  } catch (error) {
+    // signUpInWorkspace already created the user; remove it as itself, then surface the original error.
+    await deleteQaUserBySignIn(email, password, workspace.id, baseUrl).catch(() => undefined);
+    throw error;
+  }
   const authorization = `Bearer ${accessToken}`;
 
   const stateDir = await mkdtemp(path.join(os.tmpdir(), "p1-tw-qa-"));

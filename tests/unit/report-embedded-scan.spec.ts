@@ -78,6 +78,6 @@ test.describe("embedded report scan", () => {
     expect(findSecretHits("results.json", decoded[0] ?? "").map((h) => h.pattern)).toEqual([
       "bearer token",
     ]);
-    expect(decodedAttachmentBodies("not json")).toEqual([]);
+    expect(() => decodedAttachmentBodies("not json")).toThrow(/attachments: JSON is not parseable/);
   });
 });

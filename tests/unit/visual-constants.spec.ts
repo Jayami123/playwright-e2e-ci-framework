@@ -9,6 +9,7 @@ import {
   longCompanyName,
   qaMemberCountFilter,
   qaMemberEmail,
+  recoveryLoginToken,
 } from "../../src/products/twenty/fixtures/qa-member.js";
 import { TWENTY_AXE_ALLOWLIST } from "../../src/products/twenty/visual.js";
 
@@ -31,6 +32,21 @@ test.describe("visual constants", () => {
     expect(name).toHaveLength(150);
     expect(name.startsWith("P1-QA-1-0-")).toBe(true);
   });
+
+  test(
+    "recoveryLoginToken picks the QA member's token for the pinned workspace",
+    { tag: ["@unit"] },
+    () => {
+      const workspaces = [
+        { id: "other", loginToken: "tok-other" },
+        { id: "ws-1", loginToken: " tok-1 " },
+      ];
+      expect(recoveryLoginToken(workspaces, "ws-1")).toBe("tok-1");
+      expect(recoveryLoginToken(workspaces, "missing")).toBeUndefined();
+      expect(recoveryLoginToken([{ id: "ws-1", loginToken: "" }], "ws-1")).toBeUndefined();
+      expect(recoveryLoginToken([{ id: "ws-1", loginToken: null }], "ws-1")).toBeUndefined();
+    },
+  );
 
   test("qaMemberCountFilter scopes to one member or all p1-qa- members", { tag: ["@unit"] }, () => {
     expect(qaMemberCountFilter()).toEqual({ userEmail: { like: "p1-qa-%" } });

@@ -187,6 +187,14 @@ export function assertPinnedWorkspaceAccess(params: {
 
 export async function signInJane(): Promise<SignInJaneResult> {
   const { email, password } = loadTwentyConfig();
+  return signInWithPassword(email, password);
+}
+
+/** signIn as any user (Jane, or a p1-qa- member signing in as itself); returns the workspaces it can enter. */
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<SignInJaneResult> {
   const data = await twentyGraphql<{
     signIn?: {
       availableWorkspaces?: {

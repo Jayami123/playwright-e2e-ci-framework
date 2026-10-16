@@ -59,8 +59,8 @@ export function decodedAttachmentBodies(jsonText: string): string[] {
   let root: unknown;
   try {
     root = JSON.parse(jsonText) as unknown;
-  } catch {
-    return [];
+  } catch (error) {
+    throw new Error(`attachments: JSON is not parseable: ${String(error)}`);
   }
   const out: string[] = [];
   const visit = (v: unknown): void => {

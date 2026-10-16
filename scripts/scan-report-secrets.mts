@@ -38,15 +38,21 @@ for (const file of files) {
       try {
         for (const e of readZipTextEntries(zip))
           hits.push(...findSecretHits(`${file}!${e.name}`, e.text));
-      } catch {
-        // Fail closed: data we cannot read cannot be published.
+      } catch (error) {
+        // Fail closed: data we cannot read cannot be published. Reason only, never entry contents.
+        console.error(`${file}: ${error instanceof Error ? error.message : String(error)}`);
         hits.push({ file, pattern: "unreadable embedded report", count: 1 });
       }
     }
   }
   if (file.endsWith(".json")) {
-    for (const body of decodedAttachmentBodies(text))
-      hits.push(...findSecretHits(`${file}!attachment`, body));
+    try {
+      for (const body of decodedAttachmentBodies(text))
+        hits.push(...findSecretHits(`${file}!attachment`, body));
+    } catch (error) {
+      console.error(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+      hits.push({ file, pattern: "unparseable json", count: 1 });
+    }
   }
 }
 

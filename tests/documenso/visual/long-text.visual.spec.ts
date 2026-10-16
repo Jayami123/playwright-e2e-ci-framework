@@ -42,12 +42,15 @@ test.describe("Documenso long text", () => {
         .filter({ has: link })
         .getByTestId("document-table-action-btn");
       await expect(action).toBeVisible();
-      expect(
-        rectsOverlap(
-          await boundingBoxOf("title link", link),
-          await boundingBoxOf("row action", action),
-        ),
-      ).toBe(false);
+      // CI: the mobile list re-rendered between toBeVisible and boundingBox ("row action" / "title link has no bounding box").
+      await expect(async () => {
+        expect(
+          rectsOverlap(
+            await boundingBoxOf("title link", link),
+            await boundingBoxOf("row action", action),
+          ),
+        ).toBe(false);
+      }).toPass({ timeout: 10_000 });
       const listScroll = await documentScroll(ownerPage);
       expect(listScroll.scrollWidth).toBeLessThanOrEqual(listScroll.clientWidth + 1);
 
