@@ -11,6 +11,7 @@ import {
 } from "../../../src/products/cal/visual.js";
 import { freezeClock, VISUAL_FROZEN_INSTANT } from "../../../src/support/visual/clock.js";
 import { frameBands } from "../../../src/support/visual/layout.js";
+import { focusIndicators, type FocusStyle } from "../../../src/support/visual/focus-indicator.js";
 import { onlyOnProjects } from "../../../src/support/visual/projects.js";
 
 const MAX_TABS = 60;
@@ -241,33 +242,40 @@ test.describe("Cal keyboard", () => {
         "focus is on the combobox inside timezone-select",
       ).toBe(true);
       expect(focusTarget.tag).toBe("INPUT");
-      const boxShadows = await page.evaluate<string[]>(
-        `(() => { let e = document.activeElement; const out = []; for (let i = 0; i < 4; i += 1) { e = e.parentElement; out.push(getComputedStyle(e).boxShadow); } return out; })()`,
-      );
+      // Computed styles, not pixels: CI run 38909004523 showed a 1-2 px text shift between the
+      // focused and blurred shots changing the frame with no ring in either (WCAG 2.4.7 check).
+      const readChain = (): Promise<FocusStyle[]> =>
+        page.evaluate<FocusStyle[]>(
+          `(() => { const out = []; let e = document.querySelector('[data-testid="timezone-select"] input[role="combobox"]'); for (let i = 0; i < 5 && e; i += 1) { const s = getComputedStyle(e); out.push({ tag: e.tagName, outlineStyle: s.outlineStyle, outlineWidth: s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderTopColor + ' ' + s.borderRightColor + ' ' + s.borderBottomColor + ' ' + s.borderLeftColor }); e = e.parentElement; } return out; })()`,
+        );
+      const focusedStyles = await readChain();
+      expect(focusedStyles.length, "timezone combobox and wrappers were read").toBeGreaterThan(1);
       const tz = await focusedAndIdle(
         page,
         booker.timezoneSelect,
         booker.timezoneSelectRoot,
         "timezone-select",
       );
+      const idleStyles = await readChain();
+      const indicators = focusIndicators(focusedStyles, idleStyles);
       await testInfo.attach("timezone-focused", { body: tz.focused, contentType: "image/png" });
       await testInfo.attach("timezone-idle", { body: tz.idle, contentType: "image/png" });
       await attachKnownBugEvidence(page, testInfo, {
         issue: A11Y002_TIMEZONE_FOCUS_ISSUE,
         observed: {
           focusTarget,
-          boxShadows,
+          indicators,
+          focusedStyles,
+          idleStyles,
           focusedEqualsIdle: tz.focused.equals(tz.idle),
-          frameEqual: tz.focusedFrame.equals(tz.idleFrame),
         },
-        expected: { frameEqual: false },
+        expected: { indicators: "at least one outline, box-shadow or border-color change" },
       });
       test.fail(true, A11Y002_TIMEZONE_FOCUS_ISSUE);
-      // Frame only: CI text anti-aliasing differs between the two shots (run 38879200538) without any ring.
       expect(
-        tz.focusedFrame.equals(tz.idleFrame),
+        indicators,
         "timezone select must show a visible focus indicator around the control",
-      ).toBe(false);
+      ).not.toEqual([]);
     },
   );
 });
