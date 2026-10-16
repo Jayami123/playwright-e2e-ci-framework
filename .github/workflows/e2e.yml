@@ -32,6 +32,10 @@ on:
         description: Timeout for the twenty-chromium job
         type: number
         default: 60
+      medusa_self_hosted_timeout_minutes:
+        description: Timeout for the medusa-self-hosted job
+        type: number
+        default: 60
       visual_mode:
         description: test (compare) or update (regenerate baselines, upload PNGs)
         type: string
@@ -73,6 +77,7 @@ env:
   TWENTY_IMAGE_TAG: v2.44.0
   TWENTY_E2E_BASE_URL: http://127.0.0.1:3002
   TWENTY_E2E_DB_URL: postgres://postgres:postgres@127.0.0.1:5434/default
+  MEDUSA_REF: f677db438f27294fc50e4c7c6612e71ff38eeff5
   CAL_E2E_LOCAL_BASE_URL: http://127.0.0.1:3000
   CAL_DEFAULT_E2E_EMAIL: pro@example.com
   CAL_DEFAULT_DST_EMAIL: trial@example.com
@@ -88,6 +93,7 @@ jobs:
       cal: ${{ steps.paths.outputs.cal }}
       documenso: ${{ steps.paths.outputs.documenso }}
       twenty: ${{ steps.paths.outputs.twenty }}
+      medusa: ${{ steps.paths.outputs.medusa }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -99,25 +105,30 @@ jobs:
           cal=false
           documenso=false
           twenty=false
+          medusa=false
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             cal=true
             documenso=true
             twenty=true
+            medusa=true
           else
             mapfile -t changed < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
             cal_re='^(src/support/|scripts/visual-docker|tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             doc_re='^(src/support/|scripts/visual-docker|tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             tw_re='^(src/support/|scripts/visual-docker|tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            med_re='^(tests/medusa/|tests/setup/medusa\.setup\.ts|src/products/medusa/|global-setup/medusa\.ts|global-teardown/medusa\.ts|scripts/count-medusa-qa-leaks\.mts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             for file in "${changed[@]}"; do
               if [[ "$file" =~ $cal_re ]]; then cal=true; fi
               if [[ "$file" =~ $doc_re ]]; then documenso=true; fi
               if [[ "$file" =~ $tw_re ]]; then twenty=true; fi
+              if [[ "$file" =~ $med_re ]]; then medusa=true; fi
             done
           fi
           {
             echo "cal=$cal"
             echo "documenso=$documenso"
             echo "twenty=$twenty"
+            echo "medusa=$medusa"
           } >> "$GITHUB_OUTPUT"
 
   lint:
@@ -1622,9 +1633,270 @@ jobs:
           path: ${{ env.TWENTY_IMAGES_TAR }}
           key: ${{ runner.os }}-twenty-images-v2.44.0
 
+  medusa-self-hosted:
+    name: medusa-self-hosted
+    needs: [structural, changes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.medusa_self_hosted_timeout_minutes }}
+    if: >-
+      needs.changes.outputs.medusa == 'true'
+      && inputs.visual_product == '' && !inputs.visual_only
+    outputs:
+      # No Medusa visual suite yet (batch 2): the gate reads an empty visual outcome and requested=false.
+      visual: ""
+      visual_requested: ${{ steps.visual_requested.outputs.requested }}
+    env:
+      P1_WORKING_DIRECTORY: p1
+      PRODUCTS_ROOT: ${{ github.workspace }}/products
+      MEDUSA_CHECKOUT_PATH: products/medusa-dtc-starter
+      MEDUSA_BASE_URL: http://127.0.0.1:9000
+      # Public harness default database URL, not a secret.
+      MEDUSA_DB_URL: postgres://medusa:medusa@127.0.0.1:5433/medusa
+      MEDUSA_ADMIN_EMAIL: admin@qa.local
+      MEDUSA_SKIP_STOREFRONT: "1"
+      # The harness runs pnpm from p1/, whose packageManager is npm; strict corepack refuses pnpm there
+      # (PR #37 run 38931396826). Off for this job only; the fork install still pins pnpm 10.11.1.
+      COREPACK_ENABLE_STRICT: "0"
+    steps:
+      - name: Decide whether visual is requested
+        id: visual_requested
+        run: |
+          set -euo pipefail
+          # flips to true in batch 2 when the Medusa visual suite lands
+          echo "requested=false" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Checkout Medusa fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Jayami123/medusa-dtc-starter
+          ref: ${{ env.MEDUSA_REF }}
+          path: ${{ env.MEDUSA_CHECKOUT_PATH }}
+          persist-credentials: false
+
+      - name: Verify Medusa fork HEAD
+        run: |
+          set -euo pipefail
+          head="$(git -C "${MEDUSA_CHECKOUT_PATH}" rev-parse HEAD)"
+          if [ "$head" != "${MEDUSA_REF}" ]; then
+            echo "::error::Medusa HEAD ${head} does not match MEDUSA_REF ${MEDUSA_REF}"
+            exit 1
+          fi
+
+      - name: Stub harness product roots
+        run: |
+          set -euo pipefail
+          mkdir -p "${PRODUCTS_ROOT}/cal" "${PRODUCTS_ROOT}/documenso" "${PRODUCTS_ROOT}/twenty-CRM"
+
+      - uses: ./p1/.github/actions/setup-p1
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Enable pnpm via corepack
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.11.1 --activate
+          version="$(pnpm --version)"
+          if [ "$version" != "10.11.1" ]; then
+            echo "::error::pnpm ${version} is not the 10.11.1 the Medusa fork pins"
+            exit 1
+          fi
+          echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Restore pnpm store cache
+        id: medusa_pnpm
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: ${{ runner.os }}-medusa-pnpm-${{ env.MEDUSA_REF }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', env.MEDUSA_CHECKOUT_PATH)) }}
+
+      - name: Install Medusa dependencies
+        working-directory: ${{ env.MEDUSA_CHECKOUT_PATH }}
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+
+      - name: Restore Medusa build cache
+        id: medusa_build
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.MEDUSA_CHECKOUT_PATH }}/apps/backend/.medusa/server
+          key: ${{ runner.os }}-medusa-build-${{ env.MEDUSA_REF }}
+
+      - uses: ./p1/.github/actions/playwright-browsers
+        timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
+        with:
+          working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+
+      - name: Generate the CI admin password
+        run: |
+          set -euo pipefail
+          pw="$(openssl rand -hex 16)"
+          echo "::add-mask::${pw}"
+          echo "MEDUSA_ADMIN_PASSWORD=${pw}" >> "$GITHUB_ENV"
+
+      - name: Start Medusa (harness up)
+        id: medusa_up
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          UP_START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          SECONDS=0
+          node node_modules/qa-portfolio-harness/scripts/up.mjs medusa
+          UP_SECONDS=$SECONDS
+          UP_END="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          {
+            echo "### Medusa harness up"
+            echo ""
+            echo "- start: ${UP_START}"
+            echo "- end: ${UP_END}"
+            echo "- seconds: ${UP_SECONDS}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "MEDUSA_UP_START=${UP_START}"
+            echo "MEDUSA_UP_END=${UP_END}"
+            echo "MEDUSA_UP_SECONDS=${UP_SECONDS}"
+          } >> "$GITHUB_ENV"
+
+      - name: Run Medusa E2E suite
+        if: >-
+          ${{ steps.medusa_up.outcome == 'success'
+          && github.event_name != 'schedule' && !inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PW_WORKERS: "1"
+        run: |
+          set -euo pipefail
+          npm run test:medusa -- --retries=0
+
+      - name: Run Medusa E2E suite (nightly / matrix)
+        if: >-
+          ${{ steps.medusa_up.outcome == 'success'
+          && (github.event_name == 'schedule' || inputs.run_browser_matrix) }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PW_WORKERS: "1"
+          P1_PW_REPORT_ID: medusa-chromium
+        run: |
+          set -euo pipefail
+          npm run test:medusa -- --retries=0
+
+      - name: Write Playwright job summary
+        if: ${{ !cancelled() && steps.medusa_up.outcome == 'success' }}
+        timeout-minutes: 2
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.run_browser_matrix }}" = "true" ]; then
+            npx tsx scripts/write-ci-job-summary.mts test-results/results-medusa-chromium.json medusa-chromium "${MEDUSA_UP_SECONDS:-}"
+          else
+            npx tsx scripts/write-ci-job-summary.mts test-results/results.json
+          fi
+
+      - name: Merge blob reports into HTML
+        if: ${{ !cancelled() && steps.medusa_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.run_browser_matrix }}" = "true" ]; then
+            blob_dir=blob-report-medusa-chromium
+          else
+            blob_dir=blob-report
+          fi
+          if [ -d "$blob_dir" ] && [ -n "$(find "$blob_dir" -type f -print -quit)" ]; then
+            npx playwright merge-reports --reporter html "./${blob_dir}"
+            rm -rf playwright-report-medusa
+            mv playwright-report playwright-report-medusa
+          else
+            echo "No blob report to merge (tests may have failed before reporters ran)."
+          fi
+
+      - name: Count Medusa QA leaks
+        if: ${{ always() && !cancelled() && steps.medusa_up.outcome == 'success' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_MEDUSA_SWEEP_FAIL_ON_BEFORE: ${{ github.event_name == 'schedule' && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/count-medusa-qa-leaks.mts
+
+      - name: Redact Medusa server log
+        if: ${{ always() }}
+        env:
+          P1_DIR: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          LOG_SRC="${P1_DIR}/node_modules/qa-portfolio-harness/.harness/medusa-backend.log"
+          LOG_DST="medusa-backend-redacted.log"
+          if [ ! -f "$LOG_SRC" ]; then
+            echo "(no medusa-backend.log from harness)" > "$LOG_DST"
+            exit 0
+          fi
+          sed -E \
+            -e '/(SECRET|PASSWORD|KEY|TOKEN|API_KEY|ENCRYPTION)=/Id' \
+            -e '/Bearer /Id' \
+            -e 's/pk_[A-Za-z0-9_-]+/pk_(redacted)/g' \
+            "$LOG_SRC" > "$LOG_DST"
+
+      - name: Stop Medusa (harness down)
+        if: ${{ always() }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          node node_modules/qa-portfolio-harness/scripts/down.mjs medusa || true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.medusa_up.outcome == 'success' }}
+        with:
+          name: playwright-report-medusa
+          path: ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-medusa
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.medusa_up.outcome == 'success' }}
+        with:
+          name: playwright-test-results-medusa-chromium
+          path: ${{ env.P1_WORKING_DIRECTORY }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: medusa-server-log
+          path: medusa-backend-redacted.log
+          retention-days: 14
+
+      - name: Save pnpm store cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.medusa_pnpm.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: ${{ runner.os }}-medusa-pnpm-${{ env.MEDUSA_REF }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', env.MEDUSA_CHECKOUT_PATH)) }}
+
+      - name: Save Medusa build cache
+        if: >-
+          ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.medusa_build.outputs.cache-hit != 'true'
+          && hashFiles(format('{0}/apps/backend/.medusa/server/harness-build.json', env.MEDUSA_CHECKOUT_PATH)) != '' }}
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.MEDUSA_CHECKOUT_PATH }}/apps/backend/.medusa/server
+          key: ${{ runner.os }}-medusa-build-${{ env.MEDUSA_REF }}
+
   visual:
     name: visual
-    needs: [changes, cal-self-hosted, documenso-self-hosted, twenty-chromium]
+    needs: [changes, cal-self-hosted, documenso-self-hosted, twenty-chromium, medusa-self-hosted]
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -1640,6 +1912,9 @@ jobs:
           TW_RESULT: ${{ needs.twenty-chromium.result }}
           TW_VISUAL: ${{ needs.twenty-chromium.outputs.visual }}
           TW_REQUESTED: ${{ needs.twenty-chromium.outputs.visual_requested }}
+          MED_RESULT: ${{ needs.medusa-self-hosted.result }}
+          MED_VISUAL: ${{ needs.medusa-self-hosted.outputs.visual }}
+          MED_REQUESTED: ${{ needs.medusa-self-hosted.outputs.visual_requested }}
         run: |
           set -euo pipefail
           status=0
@@ -1663,4 +1938,5 @@ jobs:
           check cal "$CAL_RESULT" "$CAL_VISUAL" "$CAL_REQUESTED"
           check documenso "$DOC_RESULT" "$DOC_VISUAL" "$DOC_REQUESTED"
           check twenty "$TW_RESULT" "$TW_VISUAL" "$TW_REQUESTED"
+          check medusa "$MED_RESULT" "$MED_VISUAL" "$MED_REQUESTED"
           exit "$status"
