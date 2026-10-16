@@ -16,7 +16,9 @@ Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 202
 
 Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
 
-**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases in the table below (`@twenty-tz`, serial Jane TZ). PR CI job `e2e / twenty-chromium` ([ADR 0016](docs/adr/0016-twenty-ci.md)). Typical Twenty CI duration: **TBD** (first green job summary). After **two** green `e2e / twenty-chromium` runs on `main`, add that check as required in GitHub settings (not automated in this repo). Medusa Admin is not wired here yet.
+**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases in the table below (`@twenty-tz`, serial Jane TZ). PR CI job `e2e / twenty-chromium` ([ADR 0016](docs/adr/0016-twenty-ci.md)). Typical Twenty CI duration: **TBD** (first green job summary). After **two** green `e2e / twenty-chromium` runs on `main`, add that check as required in GitHub settings (not automated in this repo). Medusa Admin is wired in Phase 4 batch 1 (below).
+
+**Phase 4 batch 1 (2026-10-16):** Medusa admin SPA and Admin API: `P1-MED-FW-001..005` plus extras `X01..X05` (`npm run test:medusa`, 11 tests including setup; X04 and X05 are expected failures). PR CI job `e2e / medusa-self-hosted` ([ADR 0018](docs/adr/0018-medusa-ci.md)); it needs `qa-portfolio-harness` `#v0.2.10`. Typical Medusa CI duration: **TBD** (first green job summary). Known product bugs: [medusa-known-issues.md](docs/observations/medusa-known-issues.md). Medusa visual, i18n and a11y are carried to batch 2.
 
 | Case                                             | Status                                                | ADR                                               |
 | ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------- |
@@ -47,8 +49,12 @@ src/core/                     product-agnostic config, BasePage, console guard, 
 src/products/cal/             Cal env, routes, test ids, auth, db, oracle, app shell, pages, fixtures
 src/products/documenso/       Documenso env, auth API, DB, pages, fixtures
 src/products/twenty/          Twenty env, login/home pages
+src/products/medusa/          Medusa env, Admin API client, store order helper, fixtures, sweep, pages
 tests/setup/cal.setup.ts      API login writes .auth/cal-pro.json and .auth/cal-trial.json
 tests/setup/twenty.setup.ts   UI login writes .auth/twenty-jane.json every run
+tests/setup/medusa.setup.ts   API login writes .auth/medusa-admin.json every run
+tests/medusa/journeys/        FW-001..005
+tests/medusa/api/             X01..X03 contract, X04..X05 races
 tests/twenty/smoke/           @twenty-smoke home spec
 tests/twenty/tz/              @twenty-tz P1-TW-TZ-001, 002, 003, X01, X02, X03, X04, X05
 tests/cal/journeys/           FW-001..004
@@ -131,6 +137,19 @@ npx tsc
 
 CI `npm ci` still runs `prepare`.
 
+### Run Medusa locally
+
+Medusa needs the [medusa-dtc-starter](https://github.com/Jayami123/medusa-dtc-starter) fork under `PRODUCTS_ROOT` (default `../products/medusa-dtc-starter`) and harness `v0.2.10` or newer (the admin UI session cookie does not work over http on earlier tags). Start it through the harness, then set the same admin values in P1's `.env` (`MEDUSA_ADMIN_EMAIL`, `MEDUSA_ADMIN_PASSWORD`; required, no default):
+
+```powershell
+$env:PRODUCTS_ROOT = "D:\Jayami\Portfolio\products"
+$env:MEDUSA_SKIP_STOREFRONT = "1"
+node node_modules/qa-portfolio-harness/scripts/up.mjs medusa
+npm run test:medusa
+```
+
+`globalSetup` skips `up()` when `GET /health` is 200, then runs the harness `seed()` and a local QA sweep. `medusa-setup` logs in through the API, creates the session and writes `.auth/medusa-admin.json` on every run. Orders cannot be deleted, so each test archives its order; check leftovers with `npx tsx scripts/count-medusa-qa-leaks.mts`.
+
 ## Debug
 
 | Command                            | What it does                              |
@@ -140,6 +159,7 @@ CI `npm ci` still runs `prepare`.
 | `npm run test:cal:matrix`          | Chromium + Firefox matrix (CI nightly)    |
 | `npm run test:cal:debug`           | Playwright Inspector                      |
 | `npm run test:twenty`              | Twenty Chromium smoke (`twenty-chromium`) |
+| `npm run test:medusa`              | Medusa Chromium suite (`medusa-chromium`) |
 | `npx playwright test --ui`         | UI mode                                   |
 | `npx playwright show-trace <path>` | Trace viewer (`trace: retain-on-failure`) |
 
@@ -181,6 +201,23 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 | P1-TW-I18N-002                                    | pseudo-en is not in the picker; no plain-English UI strings     | pass          |
 | P1-TW-VIS-002, 004, X01, X02, X05, P1-TW-I18N-001 | Company chip, error empty state, table semantics, German header | expected fail |
 
+### Phase 4 batch 1: Medusa
+
+| Case                                                    | Status        |
+| ------------------------------------------------------- | ------------- |
+| P1-MED-FW-001 Admin API login, session storageState     | pass          |
+| P1-MED-FW-002 Create a product with variants via the UI | pass          |
+| P1-MED-FW-003 Order detail totals (API vs UI)           | pass          |
+| P1-MED-FW-004 Cancel an order from the UI               | pass          |
+| P1-MED-FW-005 Invalid login shows an error, no session  | pass          |
+| P1-MED-FW-X01 Admin and store credentials do not cross  | pass          |
+| P1-MED-FW-X02 Error codes without stack traces          | pass          |
+| P1-MED-FW-X03 Product creation boundaries               | pass          |
+| P1-MED-FW-X04 Concurrent double cancel (MED-F-02)       | expected fail |
+| P1-MED-FW-X05 Concurrent cancel and fulfil (MED-F-01)   | expected fail |
+
+Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
+
 ### Phase 3 known product bugs
 
 Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md), [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md) and [cal-visual-a11y.md](docs/observations/cal-visual-a11y.md).
@@ -199,14 +236,15 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 
 ### Phase 3 done and carried to Phase 4
 
-| Item                                                                                 | Status                                          |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| Cal VIS, I18N, A11Y (PR #34)                                                         | Done                                            |
-| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06 | Done                                            |
-| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                            |
-| Medusa visual and i18n                                                               | Carried (blocked on the Medusa suite)           |
-| TW-VIS-X07 Arabic RTL People layout                                                  | Carried (dropped 2026-10-16: not probed)        |
-| `e2e / visual` as a required check                                                   | Carried (set it after two green runs on `main`) |
+| Item                                                                                   | Status                                          |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Cal VIS, I18N, A11Y (PR #34)                                                           | Done                                            |
+| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06   | Done                                            |
+| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence       | Done                                            |
+| Medusa FW-001..005 and X01..X05 (Phase 4 batch 1)                                      | Done                                            |
+| Medusa visual, i18n and a11y (VIS-001..003, I18N-001..002, Create Product dialog a11y) | Carried to Phase 4 batch 2                      |
+| TW-VIS-X07 Arabic RTL People layout                                                    | Carried (dropped 2026-10-16: not probed)        |
+| `e2e / visual` as a required check                                                     | Carried (set it after two green runs on `main`) |
 
 ## CI
 
