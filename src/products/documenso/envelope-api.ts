@@ -221,10 +221,11 @@ export async function createAndDistributePendingEnvelopeViaTrpc(
   teamId: number,
   recipient: DocumensoSigningRecipient,
   pdfPath: string,
+  title = "example.pdf",
 ): Promise<{ readonly envelopeId: string }> {
   const pdf = readFileSync(pdfPath);
   const payload = {
-    title: "example.pdf",
+    title,
     type: "DOCUMENT",
     recipients: [
       {
