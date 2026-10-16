@@ -11,6 +11,7 @@ export const VISUAL_TEST_DIRS: Readonly<Record<VisualProduct, string>> = {
   cal: "tests/cal",
   documenso: "tests/documenso",
   twenty: "tests/twenty",
+  medusa: "tests/medusa",
 };
 
 export interface VisualArgs {
@@ -24,13 +25,13 @@ export function parseVisualArgs(argv: readonly string[]): VisualArgs {
   const [mode, ...rest] = argv;
   if (mode !== "update" && mode !== "test") {
     throw new Error(
-      "usage: visual-docker.mts <update|test> [--product=cal|documenso|twenty|all] [playwright args]",
+      "usage: visual-docker.mts <update|test> [--product=cal|documenso|twenty|medusa|all] [playwright args]",
     );
   }
   let target: VisualTarget = "all";
   const extraArgs: string[] = [];
   for (const arg of rest) {
-    const m = /^--product=(cal|documenso|twenty|all)$/.exec(arg);
+    const m = /^--product=(cal|documenso|twenty|medusa|all)$/.exec(arg);
     if (m?.[1] !== undefined) {
       target = m[1] as VisualTarget;
     } else if (arg.startsWith("--product")) {
@@ -43,7 +44,7 @@ export function parseVisualArgs(argv: readonly string[]): VisualArgs {
 }
 
 export function productsFor(target: VisualTarget): VisualProduct[] {
-  return target === "all" ? ["cal", "documenso", "twenty"] : [target];
+  return target === "all" ? ["cal", "documenso", "twenty", "medusa"] : [target];
 }
 
 export function playwrightImage(packageJsonText: string): string {
@@ -127,6 +128,11 @@ export interface VisualEnvInput {
     readonly email?: string;
     readonly password?: string;
   };
+  readonly medusa?: {
+    readonly baseUrl: string;
+    readonly email?: string;
+    readonly password?: string;
+  };
   /** Host env CI / P1_PW_REPORT_ID, passed through so CI writes blob/JSON reports. */
   readonly ci?: string;
   readonly reportId?: string;
@@ -158,6 +164,15 @@ export function buildVisualDockerEnv(input: VisualEnvInput): Record<string, stri
     }
     if (input.twenty.password !== undefined && input.twenty.password !== "") {
       env.TWENTY_PASSWORD = input.twenty.password;
+    }
+  }
+  if (input.medusa !== undefined) {
+    env.MEDUSA_BASE_URL = input.medusa.baseUrl;
+    if (input.medusa.email !== undefined && input.medusa.email !== "") {
+      env.MEDUSA_ADMIN_EMAIL = input.medusa.email;
+    }
+    if (input.medusa.password !== undefined && input.medusa.password !== "") {
+      env.MEDUSA_ADMIN_PASSWORD = input.medusa.password;
     }
   }
   if (input.ci !== undefined && input.ci !== "") env.CI = input.ci;

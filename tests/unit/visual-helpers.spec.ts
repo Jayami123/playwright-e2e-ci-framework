@@ -24,10 +24,11 @@ import {
   parseVisualArgs,
   playwrightImage,
   portFromLoopbackUrl,
+  productsFor,
   redactDockerArgs,
   type DockerRunInput,
 } from "../../src/support/visual/docker.js";
-import { maskSpecs, type VisualProduct } from "../../src/support/visual/masks.js";
+import { maskSpecs, type MaskSet } from "../../src/support/visual/masks.js";
 import { assertScreenshotName, visualSkipReason } from "../../src/support/visual/screenshot.js";
 
 const NOW = Date.parse("2026-10-15T12:00:00.000Z");
@@ -104,7 +105,13 @@ test.describe("visual masks", () => {
     "every spec has a non-empty target and reason, unique per product",
     { tag: ["@unit"] },
     () => {
-      for (const product of ["cal", "documenso", "twenty"] as const satisfies VisualProduct[]) {
+      for (const product of [
+        "cal",
+        "documenso",
+        "twenty",
+        "medusa-orders-list",
+        "medusa-order-detail",
+      ] as const satisfies MaskSet[]) {
         const specs = maskSpecs(product);
         const keys = specs.map((spec) =>
           "testId" in spec ? spec.testId : "selector" in spec ? spec.selector : spec.text.source,
@@ -299,9 +306,40 @@ test.describe("visual docker argv", () => {
       target: "twenty",
       extraArgs: ["--grep", "X"],
     });
-    expect(() => parseVisualArgs(["test", "--product=medusa"])).toThrow(/unknown --product/);
+    expect(() => parseVisualArgs(["test", "--product=nope"])).toThrow(/unknown --product/);
     expect(() => parseVisualArgs(["bogus"])).toThrow(/usage/);
   });
+
+  test("parseVisualArgs accepts --product=medusa", { tag: ["@unit"] }, () => {
+    expect(parseVisualArgs(["test", "--product=medusa", "--grep", "VIS"])).toEqual({
+      mode: "test",
+      target: "medusa",
+      extraArgs: ["--grep", "VIS"],
+    });
+  });
+
+  test("productsFor(all) includes medusa", { tag: ["@unit"] }, () => {
+    expect(productsFor("all")).toEqual(["cal", "documenso", "twenty", "medusa"]);
+    expect(productsFor("medusa")).toEqual(["medusa"]);
+  });
+
+  test(
+    "buildVisualDockerEnv passes the Medusa URL and admin credentials",
+    { tag: ["@unit"] },
+    () => {
+      const env = buildVisualDockerEnv({
+        medusa: { baseUrl: "http://127.0.0.1:9000", email: "admin@test.com", password: "pw" },
+      });
+      expect(env.MEDUSA_BASE_URL).toBe("http://127.0.0.1:9000");
+      expect(env.MEDUSA_ADMIN_EMAIL).toBe("admin@test.com");
+      expect(env.MEDUSA_ADMIN_PASSWORD).toBe("pw");
+      const bare = buildVisualDockerEnv({
+        medusa: { baseUrl: "http://127.0.0.1:9000", email: "" },
+      });
+      expect(bare.MEDUSA_ADMIN_EMAIL).toBeUndefined();
+      expect(bare.MEDUSA_ADMIN_PASSWORD).toBeUndefined();
+    },
+  );
 
   test("portFromLoopbackUrl accepts only http 127.0.0.1 with a port", { tag: ["@unit"] }, () => {
     expect(portFromLoopbackUrl("X", "http://127.0.0.1:3002")).toBe(3002);

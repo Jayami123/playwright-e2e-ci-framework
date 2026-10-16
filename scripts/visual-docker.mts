@@ -85,6 +85,19 @@ async function main(): Promise<void> {
       );
       extraHosts.push(`${DOCUMENSO_PUBLIC_HOST}:127.0.0.1`);
       parts.documenso = { listenUrl, publicUrl, dbUrl, inbucketOrigin };
+    } else if (product === "medusa") {
+      const baseUrl = process.env.MEDUSA_BASE_URL ?? "http://127.0.0.1:9000";
+      forwardPorts.push(portFromLoopbackUrl("MEDUSA_BASE_URL", baseUrl));
+      await requireHealthy("Medusa", `${baseUrl.replace(/\/$/, "")}/health`, "medusa");
+      parts.medusa = {
+        baseUrl,
+        ...(process.env.MEDUSA_ADMIN_EMAIL === undefined
+          ? {}
+          : { email: process.env.MEDUSA_ADMIN_EMAIL }),
+        ...(process.env.MEDUSA_ADMIN_PASSWORD === undefined
+          ? {}
+          : { password: process.env.MEDUSA_ADMIN_PASSWORD }),
+      };
     } else {
       const baseUrl = process.env.TWENTY_BASE_URL ?? "http://127.0.0.1:3002";
       forwardPorts.push(portFromLoopbackUrl("TWENTY_BASE_URL", baseUrl));
