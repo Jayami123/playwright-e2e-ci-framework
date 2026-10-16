@@ -13,11 +13,17 @@ export const AXE_WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] as con
 
 export interface AxeAllowlistEntry {
   readonly rule: string;
-  /** CSS selector. Matches a node's axe target, or its `data-testid` when written as [data-testid="x"]. */
+  /**
+   * CSS selector. Matches a node's axe target, its `data-testid` when written as [data-testid="x"],
+   * or (in page) `element.matches(target)` for the node's axe target.
+   */
   readonly target: string;
+  /** "PRODUCT BUG <id>: …" — <id> is the issue reference recorded in docs/observations. */
   readonly finding: string;
   /** Playwright project names this entry applies to; omitted means every project. */
   readonly viewports?: readonly string[];
+  /** Scan contexts this entry applies to (e.g. "light", "dark"); omitted = every context. */
+  readonly contexts?: readonly string[];
 }
 
 /** Known product bugs. Each entry needs a finding; an entry that matches nothing fails the scan (stale). */
@@ -25,20 +31,32 @@ export const AXE_ALLOWLIST: readonly AxeAllowlistEntry[] = [
   {
     rule: "button-name",
     target: '[data-testid="overlay-calendar-switch"]',
-    finding: "Cal switch has no accessible name (PRODUCT BUG, found Phase 3 task 1)",
+    finding:
+      "PRODUCT BUG CAL-A11Y-SMOKE-overlay-switch: Cal switch has no accessible name (found Phase 3 task 1)",
     // The switch is not rendered at the mobile width.
     viewports: ["visual-tablet", "visual-desktop"],
   },
 ];
 
-/** Pure. Entries limited to other viewports are dropped, so they are never reported stale here. */
+/** Pure. Drops entries for other viewports or contexts so they are never reported stale. */
+export function allowlistFor(
+  allowlist: readonly AxeAllowlistEntry[],
+  project: string | undefined,
+  context?: string,
+): AxeAllowlistEntry[] {
+  return allowlist.filter(
+    (e) =>
+      (e.viewports === undefined || (project !== undefined && e.viewports.includes(project))) &&
+      (e.contexts === undefined || (context !== undefined && e.contexts.includes(context))),
+  );
+}
+
+/** Entries limited to other viewports are dropped (existing callers; no context). */
 export function allowlistForProject(
   allowlist: readonly AxeAllowlistEntry[],
   project: string | undefined,
 ): AxeAllowlistEntry[] {
-  return allowlist.filter(
-    (e) => e.viewports === undefined || (project !== undefined && e.viewports.includes(project)),
-  );
+  return allowlistFor(allowlist, project);
 }
 
 export interface AxePartition<T extends AxeViolationLike> {
@@ -48,6 +66,14 @@ export interface AxePartition<T extends AxeViolationLike> {
   readonly allowed: T[];
   /** Allowlist entries that matched no node. */
   readonly staleAllowlist: AxeAllowlistEntry[];
+  /** Finding id (text before the first ":") -> the node targets that entry covered. */
+  readonly allowedByFinding: Readonly<Record<string, readonly string[]>>;
+}
+
+/** "PRODUCT BUG DOC-VIS-004-F1: …" -> "PRODUCT BUG DOC-VIS-004-F1". */
+export function findingId(finding: string): string {
+  const i = finding.indexOf(":");
+  return i < 0 ? finding : finding.slice(0, i);
 }
 
 const TEST_ID_SELECTOR = /^\[data-testid="([^"]+)"\]$/;
@@ -114,6 +140,7 @@ export function partitionViolations<T extends AxeViolationLike>(
   resolved: ResolvedTargets = new Map(),
 ): AxePartition<T> {
   const used = new Set<AxeAllowlistEntry>();
+  const byFinding: Record<string, string[]> = {};
   const blocking: T[] = [];
   const allowed: T[] = [];
   for (const violation of violations) {
@@ -131,6 +158,9 @@ export function partitionViolations<T extends AxeViolationLike>(
       } else {
         used.add(entry);
         covered.push(node);
+        (byFinding[findingId(entry.finding)] ??= []).push(
+          node.target.map(targetToString).join(" "),
+        );
       }
     }
     if (open.length > 0) {
@@ -140,7 +170,12 @@ export function partitionViolations<T extends AxeViolationLike>(
       allowed.push({ ...violation, nodes: covered });
     }
   }
-  return { blocking, allowed, staleAllowlist: allowlist.filter((e) => !used.has(e)) };
+  return {
+    blocking,
+    allowed,
+    staleAllowlist: allowlist.filter((e) => !used.has(e)),
+    allowedByFinding: byFinding,
+  };
 }
 
 export function describeViolation(violation: AxeViolationLike): string {
@@ -155,14 +190,26 @@ export function describeViolation(violation: AxeViolationLike): string {
 export async function resolveAllowlistTargets(
   page: Page,
   allowlist: readonly AxeAllowlistEntry[],
+  nodeTargets: readonly string[] = [],
 ): Promise<ResolvedTargets> {
   const resolved = new Map<string, readonly string[]>();
+  const positional = nodeTargets.filter((t) => !t.includes(">>>"));
   for (const entry of allowlist) {
     // String expression: tsconfig has no DOM lib. CSS.escape matches how axe writes #id selectors.
     const selectors = await page.evaluate<string[]>(
-      `[...document.querySelectorAll(${JSON.stringify(entry.target)})]
-        .filter((e) => e.id !== "")
-        .map((e) => "#" + CSS.escape(e.id))`,
+      `(() => {
+        const out = [...document.querySelectorAll(${JSON.stringify(entry.target)})]
+          .filter((e) => e.id !== "")
+          .map((e) => "#" + CSS.escape(e.id));
+        for (const t of ${JSON.stringify(positional)}) {
+          try {
+            if (document.querySelector(t)?.matches(${JSON.stringify(entry.target)})) out.push(t);
+          } catch {
+            /* selector axe wrote may not be valid CSS for querySelector */
+          }
+        }
+        return out;
+      })()`,
     );
     resolved.set(entry.target, selectors);
   }
@@ -175,6 +222,8 @@ export interface AxeScanOptions {
   readonly allowlist?: readonly AxeAllowlistEntry[];
   /** Playwright project name (testInfo.project.name); selects viewport-scoped allowlist entries. */
   readonly project?: string;
+  /** Scan context (e.g. "light", "dark", "wcag"); selects context-scoped allowlist entries. */
+  readonly context?: string;
 }
 
 export interface AxeScanResult {
@@ -185,7 +234,24 @@ export interface AxeScanResult {
   readonly passes: number;
 }
 
+/**
+ * Scans, and re-scans up to twice when blocking nodes or stale entries remain: React ids and CSS
+ * transitions can change between axe's analysis and the allowlist resolution (seen 1 in 5 runs).
+ * A real bug or a truly stale entry persists across all three attempts.
+ */
 export async function axeScan(page: Page, opts: AxeScanOptions = {}): Promise<AxeScanResult> {
+  let scan = await axeScanOnce(page, opts);
+  for (
+    let attempt = 1;
+    attempt < 3 && (scan.partition.blocking.length > 0 || scan.partition.staleAllowlist.length > 0);
+    attempt += 1
+  ) {
+    scan = await axeScanOnce(page, opts);
+  }
+  return scan;
+}
+
+async function axeScanOnce(page: Page, opts: AxeScanOptions): Promise<AxeScanResult> {
   let builder = new AxeBuilder({ page });
   // withRules and withTags both set axe runOnly; use one, never both.
   builder =
@@ -196,11 +262,14 @@ export async function axeScan(page: Page, opts: AxeScanOptions = {}): Promise<Ax
     builder = builder.include(selector);
   }
   const results = await builder.analyze();
-  const allowlist = allowlistForProject(opts.allowlist ?? AXE_ALLOWLIST, opts.project);
+  const allowlist = allowlistFor(opts.allowlist ?? AXE_ALLOWLIST, opts.project, opts.context);
+  const nodeTargets = results.violations
+    .filter((v) => isBlocking(v.impact))
+    .flatMap((v) => v.nodes.map((n) => n.target.map(targetToString).join(" ")));
   const partition = partitionViolations(
     results.violations,
     allowlist,
-    await resolveAllowlistTargets(page, allowlist),
+    await resolveAllowlistTargets(page, allowlist, nodeTargets),
   );
   return {
     report: buildAxeReport(page.url(), results.violations, new Date().toISOString()),
@@ -218,6 +287,31 @@ export async function attachAxeReport(
 ): Promise<void> {
   await testInfo.attach(`${name}.json`, {
     body: formatAxeReport(report),
+    contentType: "application/json",
+  });
+}
+
+/**
+ * Per allowlisted finding, attach a viewport screenshot and a JSON of the nodes it covered
+ * (axe-evidence-<name>.png/.json). The exporter turns these into docs/observations/evidence/.
+ */
+export async function attachAxeEvidence(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+  scan: AxeScanResult,
+): Promise<void> {
+  await testInfo.attach(`axe-evidence-${name}.png`, {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+  await testInfo.attach(`axe-evidence-${name}.json`, {
+    body: `${JSON.stringify(
+      { url: page.url(), findings: scan.partition.allowedByFinding },
+      null,
+      2,
+    )}
+`,
     contentType: "application/json",
   });
 }

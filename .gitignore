@@ -10,3 +10,6 @@ playwright/.cache/
 P1-web-e2e-ci.html
 .DS_Store
 Thumbs.db
+test-results-*/
+blob-report-*/
+playwright-report-*/
