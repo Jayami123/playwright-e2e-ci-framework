@@ -12,7 +12,10 @@ import {
 } from "../../../src/support/visual/layout.js";
 import { maskLocators } from "../../../src/support/visual/masks.js";
 import { onlyOnProjects } from "../../../src/support/visual/projects.js";
-import { stableScreenshot } from "../../../src/support/visual/screenshot.js";
+import {
+  stableScreenshot,
+  waitForVisualStability,
+} from "../../../src/support/visual/screenshot.js";
 
 interface ScrollEl {
   scrollWidth: number;
@@ -47,28 +50,40 @@ test.describe("Cal long name and title", () => {
       const title = page.getByTestId(CAL_TEST_IDS.eventTitle);
       await expect(name).toBeVisible();
       await expect(title).toHaveText(LONG_TITLE);
+      // CI mobile (run 38884854945) measured the title over the month nav mid layout;
+      // its failure screenshot shows no overlap. Settle first, then poll the geometry.
+      await waitForVisualStability(page, 15_000);
       const width = await page.evaluate<number>("document.documentElement.clientWidth");
-      expect(
-        await page.evaluate<number>("document.documentElement.scrollWidth"),
-      ).toBeLessThanOrEqual(width);
+      await expect
+        .poll(() => page.evaluate<number>("document.documentElement.scrollWidth"), {
+          timeout: 5_000,
+        })
+        .toBeLessThanOrEqual(width);
 
-      const boxes = {
-        avatar: await boxOf("avatar", page.getByTestId(CAL_TEST_IDS.avatar)),
-        name: await boxOf("name", name),
-        title: await boxOf("title", title),
-        timezone: await boxOf("timezone", page.getByTestId(CAL_TEST_IDS.currentTimezone)),
-        prev: await boxOf("decrementMonth", page.getByTestId(CAL_TEST_IDS.decrementMonth)),
-        next: await boxOf("incrementMonth", page.getByTestId(CAL_TEST_IDS.incrementMonth)),
+      const layoutProblems = async (): Promise<string[]> => {
+        const boxes = {
+          avatar: await boxOf("avatar", page.getByTestId(CAL_TEST_IDS.avatar)),
+          name: await boxOf("name", name),
+          title: await boxOf("title", title),
+          timezone: await boxOf("timezone", page.getByTestId(CAL_TEST_IDS.currentTimezone)),
+          prev: await boxOf("decrementMonth", page.getByTestId(CAL_TEST_IDS.decrementMonth)),
+          next: await boxOf("incrementMonth", page.getByTestId(CAL_TEST_IDS.incrementMonth)),
+        };
+        const problems: string[] = [];
+        if (!rectInsideWidth(boxes.name, width)) problems.push("name outside width");
+        if (!rectInsideWidth(boxes.title, width)) problems.push("title outside width");
+        const pairs: [string, Rect, Rect][] = [
+          ["avatar/name", boxes.avatar, boxes.name],
+          ["name/title", boxes.name, boxes.title],
+          ["title/timezone", boxes.title, boxes.timezone],
+          ["title/decrementMonth", boxes.title, boxes.prev],
+          ["title/incrementMonth", boxes.title, boxes.next],
+        ];
+        for (const [label, a, b] of pairs)
+          if (rectsOverlap(a, b)) problems.push(label + " overlap");
+        return problems;
       };
-      for (const r of [boxes.name, boxes.title]) {
-        expect(rectInsideWidth(r, width)).toBe(true);
-      }
-      expect(rectsOverlap(boxes.avatar, boxes.name)).toBe(false);
-      expect(rectsOverlap(boxes.name, boxes.title)).toBe(false);
-      expect(rectsOverlap(boxes.title, boxes.timezone)).toBe(false);
-      for (const b of [boxes.prev, boxes.next]) {
-        expect(rectsOverlap(boxes.title, b)).toBe(false);
-      }
+      await expect.poll(layoutProblems, { timeout: 5_000 }).toEqual([]);
 
       // Wrap, not clip: scroll sizes fit (Step 0: clip text-overflow, normal white-space)
       const sizes = (el: ScrollEl): { sw: number; cw: number; sh: number; ch: number } => ({
