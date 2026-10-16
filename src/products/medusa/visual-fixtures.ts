@@ -1,6 +1,6 @@
-import type { Browser } from "@playwright/test";
+import { expect as baseExpect, type Browser } from "@playwright/test";
 import { createAdminSession, loginAdminToken } from "./admin-api.js";
-import { loadMedusaConfig, medusaBaseUrlFromEnv } from "./env.js";
+import { loadMedusaConfig, MEDUSA_TIMEOUTS, medusaBaseUrlFromEnv } from "./env.js";
 import { test as base } from "./fixtures.js";
 
 type StorageState = Awaited<ReturnType<Awaited<ReturnType<Browser["newContext"]>>["storageState"]>>;
@@ -77,4 +77,9 @@ export const test = base.extend<VisualFixtures, VisualWorkerFixtures>({
   },
 });
 
-export { expect } from "@playwright/test";
+/**
+ * The visual projects inherit Cal's 5 s expect timeout. The admin retries a failed list call once after
+ * 1 s and a cold page load is slow, so error and loading states can take about 4 s (probe, production
+ * bundle); Medusa's own budget is used, as the functional project does.
+ */
+export const expect = baseExpect.configure({ timeout: MEDUSA_TIMEOUTS.expect });
