@@ -18,7 +18,9 @@ Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2F
 
 **Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases in the table below (`@twenty-tz`, serial Jane TZ). PR CI job `e2e / twenty-chromium` ([ADR 0016](docs/adr/0016-twenty-ci.md)). Typical Twenty CI duration: **TBD** (first green job summary). After **two** green `e2e / twenty-chromium` runs on `main`, add that check as required in GitHub settings (not automated in this repo). Medusa Admin is wired in Phase 4 batch 1 (below).
 
-**Phase 4 batch 1 (2026-10-16):** Medusa admin SPA and Admin API: `P1-MED-FW-001..005` plus extras `X01..X05` (`npm run test:medusa`, 11 tests including setup; X04 and X05 are expected failures). PR CI job `e2e / medusa-self-hosted` ([ADR 0018](docs/adr/0018-medusa-ci.md)); it needs `qa-portfolio-harness` `#v0.2.10`. Typical Medusa CI duration: **TBD** (first green job summary). Known product bugs: [medusa-known-issues.md](docs/observations/medusa-known-issues.md). Medusa visual, i18n and a11y are carried to batch 2.
+**Phase 4 batch 1 (2026-10-16):** Medusa admin SPA and Admin API: `P1-MED-FW-001..005` plus extras `X01..X05` (`npm run test:medusa`, 11 tests including setup; X04 and X05 are expected failures). PR CI job `e2e / medusa-self-hosted` ([ADR 0018](docs/adr/0018-medusa-ci.md)); it needs `qa-portfolio-harness` `#v0.2.11` since batch 2. Typical Medusa CI duration: **TBD** (first green job summary). Known product bugs: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
+
+**Phase 4 batch 2 (2026-10-17):** Medusa German order page layout (`P1-MED-I18N-001`), long product title truncation (`P1-MED-I18N-002`), orders list baselines at three viewports (`P1-MED-VIS-001`), products API 500 error state (`P1-MED-VIS-002`), slow API skeleton (`P1-MED-VIS-003`) and extras `X06..X14`. They run only in the Docker `visual-*` projects, so `npm run test:medusa` is still 11 tests. The Medusa visual suite joins the `e2e / visual` gate through `e2e / medusa-self-hosted` ([ADR 0018 amendment](docs/adr/0018-medusa-ci.md)). It needs the production admin bundle from harness `v0.2.11`: the development bundle showed stack traces on the error state.
 
 | Case                                             | Status                                                | ADR                                               |
 | ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------- |
@@ -55,6 +57,9 @@ tests/setup/twenty.setup.ts   UI login writes .auth/twenty-jane.json every run
 tests/setup/medusa.setup.ts   API login writes .auth/medusa-admin.json every run
 tests/medusa/journeys/        FW-001..005
 tests/medusa/api/             X01..X03 contract, X04..X05 races
+tests/medusa/i18n/            @i18n German order page (Docker visual projects)
+tests/medusa/visual/          @visual long title, orders list baselines, network states
+tests/medusa/a11y/            @a11y X06, X07, X08, X13 (expected failures)
 tests/twenty/smoke/           @twenty-smoke home spec
 tests/twenty/tz/              @twenty-tz P1-TW-TZ-001, 002, 003, X01, X02, X03, X04, X05
 tests/cal/journeys/           FW-001..004
@@ -139,7 +144,7 @@ CI `npm ci` still runs `prepare`.
 
 ### Run Medusa locally
 
-Medusa needs the [medusa-dtc-starter](https://github.com/Jayami123/medusa-dtc-starter) fork under `PRODUCTS_ROOT` (default `../products/medusa-dtc-starter`) and harness `v0.2.10` or newer (the admin UI session cookie does not work over http on earlier tags). Start it through the harness, then set the same admin values in P1's `.env` (`MEDUSA_ADMIN_EMAIL`, `MEDUSA_ADMIN_PASSWORD`; required, no default):
+Medusa needs the [medusa-dtc-starter](https://github.com/Jayami123/medusa-dtc-starter) fork under `PRODUCTS_ROOT` (default `../products/medusa-dtc-starter`) and harness `v0.2.11` or newer (the admin UI session cookie does not work over http before `v0.2.10`, and the admin bundle is a development build before `v0.2.11`). Start it through the harness, then set the same admin values in P1's `.env` (`MEDUSA_ADMIN_EMAIL`, `MEDUSA_ADMIN_PASSWORD`; required, no default):
 
 ```powershell
 $env:PRODUCTS_ROOT = "D:\Jayami\Portfolio\products"
@@ -149,6 +154,13 @@ npm run test:medusa
 ```
 
 `globalSetup` skips `up()` when `GET /health` is 200, then runs the harness `seed()` and a local QA sweep. `medusa-setup` logs in through the API, creates the session and writes `.auth/medusa-admin.json` on every run. Orders cannot be deleted, so each test archives its order; check leftovers with `npx tsx scripts/count-medusa-qa-leaks.mts`.
+
+The batch 2 specs need Docker (baselines are Linux-only, [ADR 0017](docs/adr/0017-visual-baselines.md)) with Medusa running on `http://127.0.0.1:9000`:
+
+```powershell
+npm run visual:test -- --product=medusa
+npm run visual:update -- --product=medusa
+```
 
 ## Debug
 
@@ -216,7 +228,26 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 | P1-MED-FW-X04 Concurrent double cancel (MED-F-02)       | expected fail |
 | P1-MED-FW-X05 Concurrent cancel and fulfil (MED-F-01)   | expected fail |
 
-Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
+### Phase 4 batch 2: Medusa (Docker `visual-*` projects)
+
+| Case                                                          | Projects                | Status        |
+| ------------------------------------------------------------- | ----------------------- | ------------- |
+| P1-MED-I18N-001 German Admin order page layout                | desktop, tablet         | pass          |
+| P1-MED-I18N-002 Long product title truncation in list         | desktop, tablet         | pass          |
+| P1-MED-VIS-001 Orders list baseline                           | mobile, tablet, desktop | pass          |
+| P1-MED-VIS-002 Products API 500 shows an error state          | desktop                 | pass          |
+| P1-MED-VIS-003 Slow API shows a skeleton, not stale data      | desktop                 | pass          |
+| P1-MED-FW-X09 Error codes map to visible states               | desktop                 | pass          |
+| P1-MED-FW-X10 Response ordering on search                     | desktop                 | pass          |
+| P1-MED-FW-X11 Unknown order id shows not-found, no stale data | desktop                 | pass          |
+| P1-MED-FW-X12 Back after a 500 recovers                       | desktop                 | pass          |
+| P1-MED-FW-X14 Title boundaries 254/256/multi-byte             | desktop, tablet         | pass          |
+| P1-MED-FW-X06 Create Product dialog exposed to AT (MED-F-03)  | desktop                 | expected fail |
+| P1-MED-FW-X07 Order header menu name (MED-F-05)               | desktop                 | expected fail |
+| P1-MED-FW-X08 Login error announced (MED-F-06)                | desktop                 | expected fail |
+| P1-MED-FW-X13 Order detail reflows at 393 px (MED-F-07)       | mobile                  | expected fail |
+
+`npm run visual:test -- --product=medusa` runs 19 tests and skips 23 (viewport rules): 15 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
 
 ### Phase 3 known product bugs
 
@@ -236,15 +267,15 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 
 ### Phase 3 done and carried to Phase 4
 
-| Item                                                                                   | Status                                          |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Cal VIS, I18N, A11Y (PR #34)                                                           | Done                                            |
-| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06   | Done                                            |
-| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence       | Done                                            |
-| Medusa FW-001..005 and X01..X05 (Phase 4 batch 1)                                      | Done                                            |
-| Medusa visual, i18n and a11y (VIS-001..003, I18N-001..002, Create Product dialog a11y) | Carried to Phase 4 batch 2                      |
-| TW-VIS-X07 Arabic RTL People layout                                                    | Carried (dropped 2026-10-16: not probed)        |
-| `e2e / visual` as a required check                                                     | Carried (set it after two green runs on `main`) |
+| Item                                                                                 | Status                                          |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Cal VIS, I18N, A11Y (PR #34)                                                         | Done                                            |
+| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06 | Done                                            |
+| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                            |
+| Medusa FW-001..005 and X01..X05 (Phase 4 batch 1)                                    | Done                                            |
+| Medusa visual, i18n and a11y (VIS-001..003, I18N-001..002, X06..X14)                 | Done (Phase 4 batch 2)                          |
+| TW-VIS-X07 Arabic RTL People layout                                                  | Carried (dropped 2026-10-16: not probed)        |
+| `e2e / visual` as a required check                                                   | Carried (set it after two green runs on `main`) |
 
 ## CI
 
