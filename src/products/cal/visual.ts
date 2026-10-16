@@ -10,4 +10,4 @@ export const A11Y001_FOCUS_LOST_ISSUE =
 export const A11Y006_DOLLAR_NAME_ISSUE =
   'PRODUCT BUG: booker view-toggle radios expose accessible names with a literal "$" prefix, e.g. "$Switch to monthly view" (Phase 3 probe 2026-10-15)';
 export const A11Y002_TIMEZONE_FOCUS_ISSUE =
-  "PRODUCT BUG: the timezone select shows no visible focus indicator when focused by keyboard; focused and blurred screenshots of the control are byte-identical (WCAG 2.4.7 Focus Visible, Phase 3 probe 2026-10-15)";
+  "PRODUCT BUG: the timezone select shows no visible focus indicator when focused by keyboard; the combobox and its wrappers gain no outline, no visible box-shadow and no border-colour change (WCAG 2.4.7 Focus Visible, Phase 3 probe 2026-10-15)";
