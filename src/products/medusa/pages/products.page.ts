@@ -70,6 +70,18 @@ export class MedusaProductsPage extends BasePage {
     await text.hover({ position: { x: 4, y: 4 } });
   }
 
+  titleCell(row: Locator, title: string): Locator {
+    return row.getByRole("cell").filter({ has: this.page.getByText(title, { exact: true }) });
+  }
+
+  /**
+   * Row found by its title text instead of its accessible name: for very long titles the row name no
+   * longer starts with the title (probe 2026-10-17, 255-char title not matched by row(title)).
+   */
+  rowWithTitle(title: string): Locator {
+    return this.page.getByRole("row").filter({ has: this.page.getByText(title, { exact: true }) });
+  }
+
   tab(name: string): Locator {
     return this.dialog.getByRole("tab", { name, includeHidden: true });
   }

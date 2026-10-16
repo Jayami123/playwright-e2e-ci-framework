@@ -50,7 +50,7 @@ const MASKS: Readonly<Record<MaskSet, readonly MaskSpec[]>> = {
     },
   ],
   "medusa-order-detail": [
-    { text: /^#d+$/, reason: "breadcrumb shows the display id" },
+    { text: /^#\d+$/, reason: "breadcrumb shows the display id" },
     {
       selector: "main div:has(> h1)",
       reason: "heading row holds display id and creation date",

@@ -7,7 +7,7 @@ export class MedusaOrdersPage extends BasePage {
 
   readonly main: Locator = this.page.getByRole("main");
   readonly searchbox: Locator = this.page.getByRole("searchbox", { name: "Search" });
-  readonly orderLinks: Locator = this.page.getByRole("link", { name: /^#d+$/ });
+  readonly orderLinks: Locator = this.page.getByRole("link", { name: /^#\d+$/ });
   // eslint-disable-next-line playwright/no-raw-locators -- the loading skeleton has no role, aria-busy or test id (probe Q-28)
   readonly skeleton: Locator = this.main.locator("[class*=animate-pulse]");
 
