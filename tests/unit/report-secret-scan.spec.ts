@@ -35,4 +35,20 @@ test.describe("report secret scan", () => {
     const hits = findSecretHits("f.json", "sessionId=supersecretvalue");
     expect(JSON.stringify(hits)).not.toContain("supersecretvalue");
   });
+  test(
+    "a Cookie header is a hit; an identifier ending in Cookie is not",
+    { tag: ["@unit"] },
+    () => {
+      for (const text of ["Cookie: a=b", '{"cookie": "a=b"}', "Set-Cookie: a=b"]) {
+        expect(
+          findSecretHits("f.md", text).map((h) => h.pattern),
+          text,
+        ).toContain(text.startsWith("Set-") ? "set-cookie header" : "cookie header");
+      }
+      expect(findSecretHits("f.md", "secondHasSessionCookie: second.hasSessionCookie,")).toEqual(
+        [],
+      );
+      expect(findSecretHits("f.md", "hasSessionCookie: false")).toEqual([]);
+    },
+  );
 });
