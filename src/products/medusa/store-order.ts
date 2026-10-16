@@ -7,6 +7,16 @@ export interface StoreOrderInput {
   readonly variantId: string;
   readonly quantity: number;
   readonly email: string;
+  readonly address?: StoreAddress;
+}
+
+export interface StoreAddress {
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly address_1: string;
+  readonly city: string;
+  readonly country_code: string;
+  readonly postal_code: string;
 }
 
 export interface StoreOrderResult {
@@ -16,14 +26,14 @@ export interface StoreOrderResult {
   readonly shippingAmount: number;
 }
 
-const ADDRESS = {
+export const STORE_ADDRESS: StoreAddress = {
   first_name: "P1",
   last_name: "QA",
   address_1: "Teststr 1",
   city: "Berlin",
   country_code: "de",
   postal_code: "10115",
-} as const;
+};
 
 async function ok<T>(response: APIResponse, label: string): Promise<T> {
   expect(response.status(), label).toBe(200);
@@ -36,6 +46,7 @@ export async function createStoreOrder(
   input: StoreOrderInput,
 ): Promise<StoreOrderResult> {
   const headers = { "x-publishable-api-key": input.publishableKey };
+  const address = input.address ?? STORE_ADDRESS;
 
   const created = await ok<{ cart: { id: string } }>(
     await request.post("/store/carts", {
@@ -61,7 +72,7 @@ export async function createStoreOrder(
   await ok(
     await request.post(`/store/carts/${cartId}`, {
       headers,
-      data: { shipping_address: ADDRESS, billing_address: ADDRESS },
+      data: { shipping_address: address, billing_address: address },
     }),
     "POST /store/carts/{id}",
   );

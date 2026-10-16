@@ -4,7 +4,7 @@ import { parsePositiveInt } from "../../core/config.js";
 import { createMedusaAdminApi, loginAdminToken, type MedusaAdminApi } from "./admin-api.js";
 import { loadMedusaConfig, MEDUSA_TIMEOUTS } from "./env.js";
 import { medusaQaEmail, medusaQaOptionTitle, medusaQaPrefix, medusaQaTitle } from "./names.js";
-import { createStoreOrder, type StoreOrderResult } from "./store-order.js";
+import { createStoreOrder, STORE_ADDRESS, type StoreOrderResult } from "./store-order.js";
 import { destroyCustomersByEmail, destroyOrderById } from "./sweep.js";
 
 export const MEDUSA_QA_UNIT_PRICE = 25;
@@ -20,16 +20,36 @@ export interface MedusaQaOrder extends StoreOrderResult {
   readonly unitPrice: number;
 }
 
+export interface MedusaQaProductOptions {
+  /** Used verbatim as the title. Must start with the P1-QA- prefix so the sweep still matches it. */
+  readonly exactTitle?: string;
+}
+
+export interface MedusaQaOrderOptions {
+  /** Constant visual-baseline email (plan D2); defaults to a per-call unique one. */
+  readonly email?: string;
+  /** Shipping and billing last name: searchable via the orders `q` filter, not shown in the list. */
+  readonly lastName?: string;
+  readonly productTitle?: string;
+}
+
 export interface MedusaQaFixture {
   readonly prefix: string;
   readonly api: MedusaAdminApi;
-  createProduct(leaf?: string): Promise<{
+  createProduct(
+    leaf?: string,
+    opts?: MedusaQaProductOptions,
+  ): Promise<{
     id: string;
     variantId: string;
     title: string;
     unitPrice: number;
   }>;
-  createOrder(leaf?: string, quantity?: number): Promise<MedusaQaOrder>;
+  createOrder(
+    leaf?: string,
+    quantity?: number,
+    opts?: MedusaQaOrderOptions,
+  ): Promise<MedusaQaOrder>;
   captureProductId(id: string): void;
   captureOrderId(id: string): void;
 }
@@ -124,8 +144,13 @@ export const test = base.extend<MedusaQaFixtures, MedusaWorkerFixtures>({
       storageState: { cookies: [], origins: [] },
     });
 
-    const createProduct: MedusaQaFixture["createProduct"] = async (leaf) => {
-      const title = medusaQaTitle(prefix, leaf);
+    const createProduct: MedusaQaFixture["createProduct"] = async (leaf, opts) => {
+      const title = opts?.exactTitle ?? medusaQaTitle(prefix, leaf);
+      if (!title.startsWith("P1-QA-")) {
+        throw new Error(
+          `QA product title must start with "P1-QA-" so the sweep matches it: ${title}`,
+        );
+      }
       const created = await medusaAdmin.createProduct({
         title,
         optionTitle: medusaQaOptionTitle(prefix, "Size"),
@@ -139,9 +164,12 @@ export const test = base.extend<MedusaQaFixtures, MedusaWorkerFixtures>({
       prefix,
       api: medusaAdmin,
       createProduct,
-      createOrder: async (leaf = "order", quantity = 2) => {
-        const product = await createProduct(leaf);
-        const email = medusaQaEmail(prefix, `${leaf}-${String(Date.now())}`);
+      createOrder: async (leaf = "order", quantity = 2, opts) => {
+        const product = await createProduct(
+          leaf,
+          opts?.productTitle === undefined ? undefined : { exactTitle: opts.productTitle },
+        );
+        const email = opts?.email ?? medusaQaEmail(prefix, `${leaf}-${String(Date.now())}`);
         captured.customerEmails.push(email);
         const [publishableKey, regionId, salesChannelId] = await Promise.all([
           medusaAdmin.getPublishableKey(),
@@ -155,6 +183,9 @@ export const test = base.extend<MedusaQaFixtures, MedusaWorkerFixtures>({
           variantId: product.variantId,
           quantity,
           email,
+          ...(opts?.lastName === undefined
+            ? {}
+            : { address: { ...STORE_ADDRESS, last_name: opts.lastName } }),
         });
         captured.orderIds.push(order.id);
         return { ...order, productId: product.id, unitPrice: product.unitPrice };
