@@ -16,6 +16,8 @@
 
 **Harness:** The leak script still fails on QA users, org orphans, passkeys, `qaEnvelopes`, and `qaRecipients`. Orphan document storage is printed and appended to the GitHub job summary under this finding; the job fails only if either count exceeds the script ceiling (100).
 
+**Local dev DB, 2026-10-16:** the script exited 1 with **orphanDocumentMeta=318** and **orphanDocumentData=318** (users, `qaEnvelopes` and `qaRecipients` all 0). That count is the sum of about 60 verification envelopes created by repeated Phase 3 visual runs against one long-lived local database, not a harness regression. The ceiling stays at 100: CI starts from a fresh database, so a CI run is measured from zero.
+
 ## P7-OBS-DOC-FW-009 (TEST BUG, fixed 2026-10-13)
 
 **Evidence:** FW-009 failed in full `@fw` after tests 001–007. Trace `test.trace` (monotonic ms): navigate `/t/personal_15e2e48730a33702/documents` at **75687**; `waitForURL` done **76561**; `GET /api/limits` waiter done **76879**; **Documents** heading + upload `aria-disabled` checks passed at **76880–77052**; upload click at **77077** — button **detached from DOM** during retry; failure screenshot **404 Team not found**.
