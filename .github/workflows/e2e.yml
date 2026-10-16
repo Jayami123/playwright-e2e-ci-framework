@@ -45,7 +45,7 @@ on:
         type: boolean
         default: false
       visual_product:
-        description: Limit to one product (cal, documenso, twenty); empty = all
+        description: Limit to one product (cal, documenso, twenty, medusa); empty = all
         type: string
         default: ""
     secrets:
@@ -116,7 +116,7 @@ jobs:
             cal_re='^(src/support/|scripts/visual-docker|tests/cal/|tests/setup/cal\.setup\.ts|src/products/cal/|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             doc_re='^(src/support/|scripts/visual-docker|tests/documenso/|src/products/documenso/|global-setup/documenso\.ts|scripts/count-documenso-qa-leaks\.mts|scripts/assert-documenso-secure-context\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             tw_re='^(src/support/|scripts/visual-docker|tests/twenty/|tests/setup/twenty\.setup\.ts|src/products/twenty/|global-setup/twenty\.ts|global-teardown/twenty\.ts|scripts/count-twenty-qa-leaks\.mts|global-setup/index\.ts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
-            med_re='^(tests/medusa/|tests/setup/medusa\.setup\.ts|src/products/medusa/|global-setup/medusa\.ts|global-teardown/medusa\.ts|scripts/count-medusa-qa-leaks\.mts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
+            med_re='^(src/support/|scripts/visual-docker|tests/medusa/|tests/setup/medusa\.setup\.ts|src/products/medusa/|global-setup/medusa\.ts|global-teardown/medusa\.ts|scripts/count-medusa-qa-leaks\.mts|src/core/|playwright\.config\.ts|package\.json|package-lock\.json|\.github/workflows/|\.github/actions/)'
             for file in "${changed[@]}"; do
               if [[ "$file" =~ $cal_re ]]; then cal=true; fi
               if [[ "$file" =~ $doc_re ]]; then documenso=true; fi
@@ -1640,10 +1640,9 @@ jobs:
     timeout-minutes: ${{ inputs.medusa_self_hosted_timeout_minutes }}
     if: >-
       needs.changes.outputs.medusa == 'true'
-      && inputs.visual_product == '' && !inputs.visual_only
+      && (inputs.visual_product == '' || inputs.visual_product == 'medusa')
     outputs:
-      # No Medusa visual suite yet (batch 2): the gate reads an empty visual outcome and requested=false.
-      visual: ""
+      visual: ${{ steps.visual.outcome }}
       visual_requested: ${{ steps.visual_requested.outputs.requested }}
     env:
       P1_WORKING_DIRECTORY: p1
@@ -1660,10 +1659,13 @@ jobs:
     steps:
       - name: Decide whether visual is requested
         id: visual_requested
+        env:
+          MATRIX: ${{ inputs.run_browser_matrix }}
         run: |
           set -euo pipefail
-          # flips to true in batch 2 when the Medusa visual suite lands
-          echo "requested=false" >> "$GITHUB_OUTPUT"
+          # true on every normal run (PR, push, visual_only dispatch); false only for matrix runs
+          if [ "$MATRIX" = "true" ]; then requested=false; else requested=true; fi
+          echo "requested=${requested}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -1725,7 +1727,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.MEDUSA_CHECKOUT_PATH }}/apps/backend/.medusa/server
-          key: ${{ runner.os }}-medusa-build-${{ env.MEDUSA_REF }}
+          key: ${{ runner.os }}-medusa-build-${{ env.MEDUSA_REF }}-h0.2.11
 
       - uses: ./p1/.github/actions/playwright-browsers
         timeout-minutes: ${{ inputs.playwright_browsers_timeout_minutes }}
@@ -1765,7 +1767,7 @@ jobs:
 
       - name: Run Medusa E2E suite
         if: >-
-          ${{ steps.medusa_up.outcome == 'success'
+          ${{ steps.medusa_up.outcome == 'success' && !inputs.visual_only
           && github.event_name != 'schedule' && !inputs.run_browser_matrix }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
@@ -1776,7 +1778,7 @@ jobs:
 
       - name: Run Medusa E2E suite (nightly / matrix)
         if: >-
-          ${{ steps.medusa_up.outcome == 'success'
+          ${{ steps.medusa_up.outcome == 'success' && !inputs.visual_only
           && (github.event_name == 'schedule' || inputs.run_browser_matrix) }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         env:
@@ -1787,7 +1789,7 @@ jobs:
           npm run test:medusa -- --retries=0
 
       - name: Write Playwright job summary
-        if: ${{ !cancelled() && steps.medusa_up.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.visual_only && steps.medusa_up.outcome == 'success' }}
         timeout-minutes: 2
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
@@ -1799,7 +1801,7 @@ jobs:
           fi
 
       - name: Merge blob reports into HTML
-        if: ${{ !cancelled() && steps.medusa_up.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.visual_only && steps.medusa_up.outcome == 'success' }}
         working-directory: ${{ env.P1_WORKING_DIRECTORY }}
         run: |
           set -euo pipefail
@@ -1815,6 +1817,96 @@ jobs:
           else
             echo "No blob report to merge (tests may have failed before reporters ran)."
           fi
+
+      - name: Seed Medusa for visual only
+        if: ${{ steps.medusa_up.outcome == 'success' && inputs.visual_only }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          npx playwright test --project=medusa-setup
+      - name: Pull Playwright image (visual medusa)
+        id: visual_pull_medusa
+        if: ${{ steps.medusa_up.outcome == 'success' && !inputs.run_browser_matrix }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          image="mcr.microsoft.com/playwright:v$(node -p "require('./package.json').devDependencies['@playwright/test']")-jammy"
+          for attempt in 1 2 3; do
+            if docker pull "$image"; then exit 0; fi
+            sleep $((attempt * 20))
+          done
+          exit 1
+      - name: Run Medusa visual suite (Docker)
+        id: visual
+        if: ${{ steps.medusa_up.outcome == 'success' && !inputs.run_browser_matrix }}
+        continue-on-error: true
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          P1_PW_REPORT_ID: visual-medusa
+          VISUAL_MODE: ${{ inputs.visual_mode }}
+        run: |
+          set -euo pipefail
+          case "$VISUAL_MODE" in test|update) ;; *) echo "::error::bad visual_mode $VISUAL_MODE"; exit 1 ;; esac
+          npm run "visual:${VISUAL_MODE}" -- --product=medusa --output=test-results-visual
+      - name: Merge visual HTML report (medusa)
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-visual-medusa
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          set -euo pipefail
+          if [ -n "$(find blob-report-visual-medusa -type f -print -quit 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter html ./blob-report-visual-medusa
+          else
+            echo "No visual blob report to merge for medusa."
+          fi
+      - name: Collect updated baselines (medusa)
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        working-directory: ${{ env.P1_WORKING_DIRECTORY }}
+        run: |
+          set -euo pipefail
+          mkdir -p baselines
+          git status --porcelain -- tests/medusa | grep '/__screenshots__/' > baselines/CHANGED.txt || true
+          git ls-files --modified --others --exclude-standard -- tests/medusa | awk '/\/__screenshots__\//' | while read -r f; do
+            mkdir -p "baselines/$(dirname "$f")"
+            cp "$f" "baselines/$f"
+          done
+          cat baselines/CHANGED.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && inputs.visual_mode == 'update' && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' }}
+        with:
+          name: visual-baselines-medusa
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/baselines
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-medusa
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ steps.visual.outcome == 'failure' }}
+        with:
+          name: visual-failure-medusa
+          path: |
+            ${{ env.P1_WORKING_DIRECTORY }}/playwright-report-visual-medusa
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-diff.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-actual.png
+            ${{ env.P1_WORKING_DIRECTORY }}/test-results-visual/**/*-expected.png
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.visual.outcome != 'skipped' && steps.visual.outcome != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-visual-medusa
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report-visual-medusa
+          if-no-files-found: ignore
+          retention-days: 3
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && !inputs.visual_only && !inputs.run_browser_matrix && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: blob-functional-medusa
+          path: ${{ env.P1_WORKING_DIRECTORY }}/blob-report
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Count Medusa QA leaks
         if: ${{ always() && !cancelled() && steps.medusa_up.outcome == 'success' }}
@@ -1892,7 +1984,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.MEDUSA_CHECKOUT_PATH }}/apps/backend/.medusa/server
-          key: ${{ runner.os }}-medusa-build-${{ env.MEDUSA_REF }}
+          key: ${{ runner.os }}-medusa-build-${{ env.MEDUSA_REF }}-h0.2.11
 
   visual:
     name: visual

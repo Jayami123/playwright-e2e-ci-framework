@@ -8,7 +8,7 @@ on:
       product:
         description: Product whose baselines to regenerate
         type: choice
-        options: [cal, documenso, twenty]
+        options: [cal, documenso, twenty, medusa]
         required: true
 
 permissions:
