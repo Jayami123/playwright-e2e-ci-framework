@@ -183,7 +183,7 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 
 ### Phase 3 known product bugs
 
-Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md) and [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md).
+Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md), [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md) and [cal-visual-a11y.md](docs/observations/cal-visual-a11y.md).
 
 | ID                                          | Product   | Finding                                                                                                                     | Test                                             |
 | ------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
