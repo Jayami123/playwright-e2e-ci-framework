@@ -170,7 +170,7 @@ npm run visual:update -- --product=medusa
 | `npm run test:cal:firefox`         | Firefox `@tz` and `@2fa` only             |
 | `npm run test:cal:matrix`          | Chromium + Firefox matrix (CI nightly)    |
 | `npm run test:cal:debug`           | Playwright Inspector                      |
-| `npm run test:twenty`              | Twenty Chromium smoke (`twenty-chromium`) |
+| `npm run test:twenty`              | Twenty Chromium suite (`twenty-chromium`) |
 | `npm run test:medusa`              | Medusa Chromium suite (`medusa-chromium`) |
 | `npx playwright test --ui`         | UI mode                                   |
 | `npx playwright show-trace <path>` | Trace viewer (`trace: retain-on-failure`) |
@@ -249,6 +249,35 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 
 `npm run visual:test -- --product=medusa` runs 27 tests and skips 27 (viewport rules): 23 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
 
+### Phase 4 batch 3: Twenty (CSV import and TOTP 2FA)
+
+Both areas run as fresh QA members, never as Jane: CSV imports use the worker QA member, 2FA uses one member per test. Details and evidence: [ADR 0016](docs/adr/0016-twenty-ci.md) and [twenty-known-issues.md](docs/observations/twenty-known-issues.md).
+
+| Case                                                         | Status        |
+| ------------------------------------------------------------ | ------------- |
+| P1-TW-CSV-001 Import 100 people with a UTF-8 BOM             | pass          |
+| P1-TW-CSV-002 Semicolon-delimited German export              | pass          |
+| P1-TW-CSV-003 Bad row mid-file imports the other 99          | pass          |
+| P1-TW-CSV-004 Duplicate email in the file                    | pass          |
+| P1-TW-CSV-X01 Existing email updates that person (upsert)    | pass          |
+| P1-TW-CSV-X02 Same file imported twice at once (UI smoke)    | pass          |
+| P1-TW-CSV-X03 Cancel mid-import keeps whole 200-row batches  | pass          |
+| P1-TW-CSV-X04 Row limit is 10,000                            | pass          |
+| P1-TW-CSV-X05 Header-only and empty files create nothing     | pass          |
+| P1-TW-CSV-X06 LF and quoted fields round-trip exactly        | pass          |
+| P1-TW-CSV-X07 Confirm Submit exposed to assistive technology | expected fail |
+| P1-TW-2FA-001 Enable the authenticator app, then log in      | pass          |
+| P1-TW-2FA-002 Wrong code refused, right one signs in         | pass          |
+| P1-TW-2FA-X01 A used code is refused the second time         | expected fail |
+| P1-TW-2FA-X02 Codes one step either side sign in, two do not | pass          |
+| P1-TW-2FA-X03 Enabling 2FA keeps an open session             | pass          |
+| P1-TW-2FA-X04 Reset 2FA asks only for the typed email        | pass          |
+| P1-TW-2FA-X05 The login code field has an accessible name    | expected fail |
+
+`npm run test:twenty` runs 32 tests (setup, 13 earlier cases and these 18): 29 pass and 3 are the expected failures. Two final local runs took 26.0 and 23.9 minutes on one worker with 0 flaky; the three new files add 13.5 to 15 of those minutes, and CI time is measured on the pull request run. The `/welcome` stall (TW-LOGIN-F-01, about 1% of cold loads and 3.5 to 4.5% with two workers) did not occur in those two runs, so they show only that healthy loads still work; the one-reload handling in `login.page.ts` is covered by unit tests, not by an end-to-end run.
+
+Carried to batch 4: P1-TW-LU-001..002, P1-TW-RT-001..004, TW-VIS-X07 (Arabic RTL), `e2e / visual` as a required check.
+
 ### Phase 3 known product bugs
 
 Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md), [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md) and [cal-visual-a11y.md](docs/observations/cal-visual-a11y.md).
@@ -264,6 +293,9 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 | TW-VIS-001-F1..F6                           | Twenty    | People and person contrast (WCAG 1.4.3)                                                                                     | `contrast.a11y.spec.ts`                          |
 | TW-VIS-X06-F7..F14                          | Twenty    | Unnamed commands and checkboxes, nested controls, ARIA on role=none                                                         | `contrast.a11y.spec.ts`                          |
 | TW-VIS-002, 004, X01, X02, X05, TW-I18N-001 | Twenty    | Chip without ellipsis, misleading empty state, discarded data, duplicate toasts, no column headers, truncated German header | `visual`, `a11y`, `i18n` specs                   |
+| TW-CSV-X07, TW-CSV-F-01                     | Twenty    | Import confirm Submit, Exit confirm and toasts hidden under an aria-hidden modal layer (WCAG 4.1.2, 4.1.3)                  | `csv-edge.spec.ts`, `csv-import.spec.ts`         |
+| TW-2FA-X01, TW-2FA-X05                      | Twenty    | A used TOTP code is accepted again (ASVS V2.8.4); the 2FA code field has no accessible name (WCAG 4.1.2)                    | `2fa.spec.ts`                                    |
+| TW-LOGIN-F-01                               | Twenty    | `/welcome` form stays a loader after the title renders (about 1% of loads, more under load)                                 | `login.page.ts` reload, unit-tested              |
 
 ### Phase 3 done and carried to Phase 4
 
@@ -274,6 +306,7 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 | CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                            |
 | Medusa FW-001..005 and X01..X05 (Phase 4 batch 1)                                    | Done                                            |
 | Medusa visual, i18n and a11y (VIS-001..003, I18N-001..002, X06..X14)                 | Done (Phase 4 batch 2)                          |
+| Twenty CSV import and 2FA (Phase 4 batch 3)                                          | Done                                            |
 | TW-VIS-X07 Arabic RTL People layout                                                  | Carried (dropped 2026-10-16: not probed)        |
 | `e2e / visual` as a required check                                                   | Carried (set it after two green runs on `main`) |
 

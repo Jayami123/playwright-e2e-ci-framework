@@ -40,3 +40,60 @@ Recorded during Phase 4 batch 3 against `twentycrm/twenty:v2.44.0` (fork `Jayami
 - `D:\Jayami\Portfolio\welcome-probe-out\20261018-000127-sweep` delay sweep
 - `D:\Jayami\Portfolio\welcome-probe-out\20261018-002818-probe2-par` probe v2, 200 loads
 - `D:\Jayami\Portfolio\welcome-probe-out\20261018-005331-probe2-par-cc` probe v2 with client-config state, 200 loads
+
+## Observation: the sign-in title is not a heading (`/welcome`)
+
+**Observed:** the workspace title "Welcome, Apple." is a plain `<div class="f5jqen4" data-duration="normal">` with no `role="heading"` and no `h1` to `h6` element. Playwright resolves `getByText("Welcome,")` to that div, the accessibility snapshot of the stalled page lists it as `text: Welcome, Apple.`, and a heading role query cannot match it (trace and error-context of the TW-LOGIN-F-01 probe, 2026-10-17/18).
+
+**Expected (standard):** the page title is exposed as a heading (WCAG 2.2 SC 1.3.1 Info and Relationships).
+
+**Handling:** observation only, no test. It is the reason `TwentyLoginPage` locates the title by text.
+
+## TW-CSV-F-01 (the import modal layer hides its own messages and confirm from assistive technology)
+
+**Label:** PRODUCT BUG candidate (same layer as TW-CSV-X07 below; the shared cause is probable, not proven).
+
+**Observed:** while the "Import data" dialog is open, the toast region is `<div role="region" aria-label="Notifications" aria-hidden="true" data-base-ui-inert="">`. The "Too many records. Up to 10000 allowed" toast (`<div role="status" aria-live="polite" title="Too many records. Up to 10000 allowed">`) lives inside it. It is on screen but a role query finds nothing: `getByRole("status").filter({ hasText })` timed out after 30 s while the toast was in the DOM (trace snapshot of CSV-X04, run 2026-10-17). The "Exit import flow" confirm that Close opens past the first step behaves the same way: its "Exit" button is visible, but `getByRole("button", { name: "Exit" })` timed out after 30 s in two runs, while `getByText("Exit")` finds it. The ancestors of the Exit button were not inspected.
+
+**Expected (standard):** status messages are announced without moving focus (WCAG 2.2 SC 4.1.3 Status Messages), and a visible confirm button is exposed as a button (SC 4.1.2 Name, Role, Value).
+
+**Evidence:** CSV-X04 failure and trace (`toast-1` inside the `aria-hidden` Notifications region), CSV-X05 failure (Exit button not found by role, found by text). `TwentyImportWizardPage` locates both by text for that reason.
+
+**Handling:** no dedicated test yet; the two locators are commented as the workaround.
+
+## TW-CSV-X07 (`P1-TW-CSV-X07`): the "Finish flow with errors" Submit is hidden from assistive technology
+
+**Observed:** the confirm's Submit is `<button tabindex="0">` inside `div[aria-hidden="true"][data-base-ui-inert]`, so it is focusable but absent from the role tree: `getByRole("button", { name: "Submit" })` count 0, while `getByText("Submit")` finds one, and the DOM ancestry check reports an `aria-hidden` ancestor (`submitRoleCount: 0, submitUnderAriaHidden: true, submitTextCount: 1`, identical in three full runs).
+
+**Expected (standard):** the Submit is exposed as a button (WCAG 2.2 SC 4.1.2).
+
+**axe is not part of the oracle:** axe `aria-hidden-focus` on the open confirm reports 0 violations, 22 passes and 3 incomplete nodes (`#root` and two focus guards, none of them the Submit), and the only violation in that state is `color-contrast` on the page behind it. The likely reason is that axe tolerates focusable content under `aria-hidden` while a modal dialog is open; that was not confirmed. No other rule was substituted.
+
+**Handling:** the working path (confirm text visible, Submit by text works) is hard-asserted in CSV-003. X07 attaches the evidence, calls `test.fail(true, …)` and then asserts the strict role query.
+
+## TW-2FA-X01 (`P1-TW-2FA-X01`): a TOTP code that already signed in is accepted again
+
+**Observed:** the same code used in two separate login contexts signs both in. The second use is not refused (`secondUseRefused: false`) and the second context lands on `/objects/` (`secondUseLandedOnObjects: true`), in every run.
+
+**Expected (standard):** OWASP ASVS 4.0.3 V2.8.4 (a time-based OTP can be used only once within its validity period); support: RFC 6238 section 5.2.
+
+**Evidence:** probe A-13 (3 runs) and the test evidence above. Source: the check is stateless (`totp.strategy.ts:125`) and no used-code store exists in `two-factor-authentication.service.ts:150-207`.
+
+## TW-2FA-X05 (`P1-TW-2FA-X05`): the 2FA login code field has no accessible name
+
+**Observed:** the challenge textbox has an empty accessible name; 0 textboxes match `/code/i`; axe rule `label` reports the `input` node (`accessibleName: ""`, `namedCount: 0`, `axeViolationIds: ["label"]`, `axeTargets: ["input"]`).
+
+**Expected (standard):** a non-empty accessible name (WCAG 2.2 SC 4.1.2).
+
+## Observations (asserted as observed, no standard violated)
+
+- **X05 empty file (probe against build):** the probe saw an empty CSV stay on Upload. In the build the upload prompt does stay on screen (two runs plus two re-runs, file confirmed 0 bytes), but the stepper moves to "Match Columns" over a blank dropzone, and Close then asks "Exit import flow". Both are the same dialog; the probe looked only at the prompt.
+- **CSV-X01 (upsert):** importing a row whose email belongs to an existing person updates that person (same id, first name overwritten) with no per-row error. This silently overwrites data.
+- **CSV-X03 (cancel):** Cancel after "200 out of 1,000" keeps whole 200-row batches (200 or more, fewer than 1,000, a multiple of 200) and shows no message.
+- **CSV-X02 (concurrent import):** the same 10-row file imported from two contexts at once creates no duplicate email (single-round UI smoke; multi-round concurrency belongs to P2).
+- **2FA-X03:** enabling 2FA keeps a session that was open before. **2FA-X04:** Reset 2FA asks only for the typed email, no code, and the next login has no challenge.
+- **2FA-X02:** codes one step either side of now sign in; two steps are refused (`window: 1`).
+
+## Tests
+
+`tests/twenty/import/csv-import.spec.ts` (CSV-001..004), `tests/twenty/import/csv-edge.spec.ts` (CSV-X01..X07), `tests/twenty/auth/2fa.spec.ts` (2FA-001..002, X01..X05). Each known-bug test asserts its working path, attaches `known-bug-evidence`, calls `test.fail(true, <issue>)` and then asserts the strict expectation.
