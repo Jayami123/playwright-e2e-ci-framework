@@ -10,6 +10,8 @@ export class MedusaOrderDetailPage extends BasePage {
   });
   // eslint-disable-next-line playwright/no-raw-locators, playwright/no-nth-methods -- the header menu trigger has no accessible name and is the first of 4 triggers (a11y finding logged in batch 2)
   readonly actionsMenuButton: Locator = this.main.locator("[aria-haspopup=menu]").first();
+  // eslint-disable-next-line playwright/no-raw-locators -- every section menu trigger is unnamed (a11y finding MED-F-05, probe Q-38)
+  readonly sectionMenuTriggers: Locator = this.main.locator("[aria-haspopup=menu]");
   readonly cancelMenuItem: Locator = this.page.getByRole("menuitem", { name: "Cancel" });
   readonly confirmDialog: Locator = this.page.getByRole("alertdialog", { name: "Are you sure?" });
   readonly confirmButton: Locator = this.confirmDialog.getByRole("button", { name: "Continue" });
@@ -36,6 +38,14 @@ export class MedusaOrderDetailPage extends BasePage {
         // eslint-disable-next-line playwright/no-nth-methods -- innermost matching row, see above
         .last()
     );
+  }
+
+  sectionHeading(name: string): Locator {
+    return this.main.getByRole("heading", { name, level: 2 });
+  }
+
+  menuItem(name: string): Locator {
+    return this.page.getByRole("menuitem", { name });
   }
 
   statusText(text: string): Locator {
