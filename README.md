@@ -274,7 +274,7 @@ Both areas run as fresh QA members, never as Jane: CSV imports use the worker QA
 | P1-TW-2FA-X04 Reset 2FA asks only for the typed email        | pass          |
 | P1-TW-2FA-X05 The login code field has an accessible name    | expected fail |
 
-`npm run test:twenty` runs 32 tests (setup, 13 earlier cases and these 18): 29 pass and 3 are the expected failures. Two final local runs took 26.0 and 23.9 minutes on one worker with 0 flaky; the three new files add 13.5 to 15 of those minutes, and CI time is measured on the pull request run. The `/welcome` stall (TW-LOGIN-F-01, about 1% of cold loads and 3.5 to 4.5% with two workers) did not occur in those two runs, so they show only that healthy loads still work; the one-reload handling in `login.page.ts` is covered by unit tests, not by an end-to-end run.
+`npm run test:twenty` runs 35 tests (setup, 13 earlier cases, 3 login-recovery tests and these 18): 32 pass and 3 are the expected failures. Two final local runs of the 32 tests before the login-recovery tests were added took 26.0 and 23.9 minutes on one worker with 0 flaky; the three new files add 13.5 to 15 of those minutes, and CI time is measured on the pull request run. The `/welcome` stall (TW-LOGIN-F-01, about 1% of cold loads and 3.5 to 4.5% with two workers) did not occur in those two runs, so they show only that healthy loads still work; the one-reload handling in `login.page.ts` is covered by unit tests, not by an end-to-end run.
 
 Carried to batch 4: P1-TW-LU-001..002, P1-TW-RT-001..004, TW-VIS-X07 (Arabic RTL), `e2e / visual` as a required check.
 
