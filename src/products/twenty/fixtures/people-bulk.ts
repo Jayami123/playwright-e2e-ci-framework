@@ -118,3 +118,24 @@ export async function destroyPeopleByIds(
   }
   return destroyed;
 }
+
+const CREATE_PERSON_WITH_EMAIL = `mutation CreatePersonWithEmail($input: PersonCreateInput!) {
+  createPerson(data: $input) { id }
+}`;
+
+/** Creates a person that owns a primary email (the plain createPerson helper cannot set one). */
+export async function createPersonWithEmail(
+  api: TwentyPinnedApiSession,
+  firstName: string,
+  lastName: string,
+  primaryEmail: string,
+): Promise<string> {
+  const data = await api.query<{ createPerson?: { id: string } | null }>(
+    TWENTY_ROUTES.graphql,
+    CREATE_PERSON_WITH_EMAIL,
+    { input: { name: { firstName, lastName }, emails: { primaryEmail } } },
+  );
+  const id = data.createPerson?.id;
+  if (id === undefined) throw new Error("Twenty createPerson returned no record");
+  return id;
+}

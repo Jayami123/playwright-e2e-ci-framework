@@ -23,6 +23,7 @@ export class TwentyImportWizardPage extends BasePage {
   readonly tooManyRecordsToast: Locator;
   readonly uploadPrompt: Locator;
   readonly closeButton: Locator;
+  readonly exitConfirmButton: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -41,11 +42,14 @@ export class TwentyImportWizardPage extends BasePage {
     this.submitIgnoringErrorsButton = page.getByText("Submit", { exact: true });
     this.progress = this.dialog.getByText(/records imported\./);
     this.cancelImportButton = this.dialog.getByRole("button", { name: "Cancel" });
-    this.tooManyRecordsToast = page
-      .getByRole("status")
-      .filter({ hasText: "Too many records. Up to 10000 allowed" });
+    // Found by text: while the dialog is open the Notifications region is aria-hidden, so a role query finds nothing.
+    this.tooManyRecordsToast = page.getByText("Too many records. Up to 10000 allowed", {
+      exact: true,
+    });
     this.uploadPrompt = this.dialog.getByText("Upload .xlsx, .xls or .csv file");
     this.closeButton = this.dialog.getByRole("button", { name: "Close import" });
+    // By text: the confirm sits in a layer that role queries cannot reach (same class as the toast).
+    this.exitConfirmButton = page.getByText("Exit", { exact: true });
   }
 
   importedColumn(label: string): Locator {
@@ -131,6 +135,13 @@ export class TwentyImportWizardPage extends BasePage {
 
   async close(): Promise<void> {
     await this.closeButton.click();
+    await expect(this.dialog).toBeHidden();
+  }
+
+  /** Past the Upload step, Close asks "Exit import flow": confirm it. */
+  async closeAndExit(): Promise<void> {
+    await this.closeButton.click();
+    await this.exitConfirmButton.click();
     await expect(this.dialog).toBeHidden();
   }
 }
