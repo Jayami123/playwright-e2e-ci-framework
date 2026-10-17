@@ -13,7 +13,6 @@ import {
 import { expect, test } from "../../../src/products/twenty/import-fixtures.js";
 import { TwentyImportWizardPage } from "../../../src/products/twenty/pages/import-wizard.page.js";
 import { TwentyPeoplePage } from "../../../src/products/twenty/pages/people.page.js";
-import { axeScan } from "../../../src/support/visual/axe.js";
 
 /** Open, upload, map Emails, validate and confirm a clean file on the given page. */
 async function importClean(page: Page, filePath: string): Promise<void> {
@@ -308,19 +307,14 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
         await expect(wizard.finishWithErrorsTitle).toBeVisible();
         await expect(wizard.submitIgnoringErrorsButton).toBeVisible();
       });
-      const evidence = await test.step("Record the role query and the axe scan", async () => {
-        const submitRoleCount = await page.getByRole("button", { name: "Submit" }).count();
-        const scan = await axeScan(page, { rules: ["aria-hidden-focus"] });
-        return {
-          submitRoleCount,
-          axeViolationIds: scan.report.blocking.map((entry) => entry.id),
-          axeTargets: scan.report.blocking.flatMap((entry) => [...entry.targets]),
-        };
-      });
+      const evidence = await test.step("Record the role query and the DOM ancestry", async () => ({
+        submitRoleCount: await page.getByRole("button", { name: "Submit" }).count(),
+        submitUnderAriaHidden: await wizard.submitIsUnderAriaHidden(),
+      }));
       await attachKnownBugEvidence(page, testInfo, {
         issue: TW_CSV_X07_SUBMIT_HIDDEN_ISSUE,
         observed: { ...evidence, submitTextCount: 1 },
-        expected: { submitRoleCount: 1, axeViolationIds: [] },
+        expected: { submitRoleCount: 1, submitUnderAriaHidden: false },
       });
       test.fail(true, TW_CSV_X07_SUBMIT_HIDDEN_ISSUE);
       await expect(page.getByRole("button", { name: "Submit" })).toBeVisible();

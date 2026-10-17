@@ -117,6 +117,13 @@ export class TwentyImportWizardPage extends BasePage {
     await expect(this.tooltip).toHaveText(message);
   }
 
+  /** DOM fact for the CSV-X07 evidence: the confirm's Submit sits under an aria-hidden ancestor. */
+  async submitIsUnderAriaHidden(): Promise<boolean> {
+    return this.submitIgnoringErrorsButton.evaluate<boolean, undefined>(
+      "(el) => el.closest('[aria-hidden=\"true\"]') !== null",
+    );
+  }
+
   async confirm(): Promise<void> {
     await this.confirmButton.click();
   }
