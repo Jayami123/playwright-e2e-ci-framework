@@ -27,6 +27,16 @@ async function importClean(page: Page, filePath: string): Promise<void> {
   await wizard.expectClosed();
 }
 
+/** The People batch create is the GraphQL operation named exactly CreatePeople (read from a live request). */
+function isPeopleBatchCreate(postData: string | null): boolean {
+  if (postData === null) return false;
+  try {
+    return (JSON.parse(postData) as { operationName?: unknown }).operationName === "CreatePeople";
+  } catch {
+    return false;
+  }
+}
+
 function annotations(id: string, priority: string): { type: string; description: string }[] {
   return [
     { type: "testId", description: id },
@@ -131,7 +141,36 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
         buildPeopleCsv({ prefix: twentyCsv.prefix, caseId: "CSVX03", rows: 1000 }),
       );
 
-      await test.step("Start the import and cancel after the first batch", async () => {
+      // Deterministic cancel. Batch 1 reaches the server, batch 2 is held in the route until Cancel has
+      // been clicked, then released. CI is slow enough that an unheld import finished before the click
+      // (all five batch requests were sent 4 s before it), so there was nothing left to cancel.
+      let batchesIssued = 0;
+      let issuedAfterCancel = 0;
+      let cancelClicked = false;
+      let batch2Held!: () => void;
+      const batch2HeldPromise = new Promise<void>((resolve) => {
+        batch2Held = resolve;
+      });
+      let releaseHeld!: () => void;
+      const released = new Promise<void>((resolve) => {
+        releaseHeld = resolve;
+      });
+      await page.route("**/graphql", async (route) => {
+        if (!isPeopleBatchCreate(route.request().postData())) {
+          await route.fallback();
+          return;
+        }
+        batchesIssued += 1;
+        if (cancelClicked) issuedAfterCancel += 1;
+        if (batchesIssued === 2) {
+          batch2Held();
+          await released;
+        }
+        // Twenty aborts the held batch 2 on Cancel (net::ERR_ABORTED in the trace), so releasing it adds no rows.
+        await route.continue().catch(() => undefined);
+      });
+
+      await test.step("Start the import, hold batch 2, cancel, then release it", async () => {
         await people.goto();
         await wizard.open();
         await wizard.upload(filePath);
@@ -141,14 +180,24 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
         await expect(wizard.progress).toHaveText("200 out of 1,000 records imported.", {
           timeout: twentyTimeouts().page,
         });
+        // Batch 2 is now in flight and held, so the import cannot finish before the click.
+        await batch2HeldPromise;
         await wizard.cancelDuringImport();
+        cancelClicked = true;
+        releaseHeld();
         await wizard.expectClosed();
       });
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      // Cancel stopped the remaining batches: the page issued only the two it had started.
+      expect(batchesIssued, "batch requests the page issued").toBe(2);
+      expect(issuedAfterCancel, "batch requests issued after Cancel").toBe(0);
       const persisted = await test.step("API: a whole number of batches remains", async () => {
         const n = await countPeople(twentyCsv.api, twentyCsv.caseFilter("CSVX03"));
         expect(n).toBeGreaterThanOrEqual(200);
         expect(n).toBeLessThan(1000);
         expect(n % 200).toBe(0);
+        // Batch 1 only: Twenty aborts the held batch 2 on Cancel, so exactly one 200-row batch persists.
+        expect(n).toBe(200);
         return n;
       });
       await test.step("The UI count equals the API count", async () => {
