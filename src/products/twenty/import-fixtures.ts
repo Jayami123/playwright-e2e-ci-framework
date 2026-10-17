@@ -84,9 +84,11 @@ export const test = visualTest.extend<{ twentyCsv: TwentyCsvFixture; secondMembe
       errors.push(error);
     }
     try {
-      const ids = new Set([...(await listIds(api, qaPeopleFilter(prefix))), ...captured]);
+      // Trailing separator: worker 1's prefix must not match worker 10's rows.
+      const ownFilter = qaPeopleFilter(`${prefix}-`);
+      const ids = new Set([...(await listIds(api, ownFilter)), ...captured]);
       await destroyPeopleByIds(api, [...ids]);
-      const left = await countPeople(api, qaPeopleFilter(prefix));
+      const left = await countPeople(api, ownFilter);
       if (left !== 0) errors.push(new Error(`${String(left)} P1-QA people leaked`));
     } catch (error) {
       errors.push(error);

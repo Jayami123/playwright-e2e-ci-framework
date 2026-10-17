@@ -48,7 +48,8 @@ export class TwentyLoginPage extends BasePage {
     this.textbox = page.getByRole("textbox");
   }
 
-  async goto(): Promise<void> {
+  async goto(options: { readonly formGraceMs?: number } = {}): Promise<void> {
+    const formGraceMs = options.formGraceMs ?? FORM_GRACE_MS;
     await this.gotoPath(TWENTY_ROUTES.welcome);
     for (let reloadsUsed = 0; ; reloadsUsed += 1) {
       await expect(this.page).toHaveURL(/\/welcome/);
@@ -60,7 +61,7 @@ export class TwentyLoginPage extends BasePage {
           () => false,
         );
       const textboxEditable = await expect(this.textbox)
-        .toBeEditable({ timeout: FORM_GRACE_MS })
+        .toBeEditable({ timeout: formGraceMs })
         .then(
           () => true,
           () => false,

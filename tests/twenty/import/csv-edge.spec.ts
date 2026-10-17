@@ -309,11 +309,12 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
       });
       const evidence = await test.step("Record the role query and the DOM ancestry", async () => ({
         submitRoleCount: await page.getByRole("button", { name: "Submit" }).count(),
+        submitTextCount: await wizard.submitIgnoringErrorsButton.count(),
         submitUnderAriaHidden: await wizard.submitIsUnderAriaHidden(),
       }));
       await attachKnownBugEvidence(page, testInfo, {
         issue: TW_CSV_X07_SUBMIT_HIDDEN_ISSUE,
-        observed: { ...evidence, submitTextCount: 1 },
+        observed: evidence,
         expected: { submitRoleCount: 1, submitUnderAriaHidden: false },
       });
       test.fail(true, TW_CSV_X07_SUBMIT_HIDDEN_ISSUE);

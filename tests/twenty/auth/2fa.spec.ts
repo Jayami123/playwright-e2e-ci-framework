@@ -29,6 +29,14 @@ function annotations(id: string, priority: string): { type: string; description:
   ];
 }
 
+/**
+ * A code from the next TOTP step. The server accepts one step either side (X02), and an enrolment
+ * code always belongs to an earlier step, so a sign-in never reuses it (replay protection would refuse it).
+ */
+function nextStepCode(secret: string): string {
+  return generateTotpCode(secret, Date.now() + TOTP_STEP_MS);
+}
+
 /** Password step, ending on the code challenge. */
 async function signInToChallenge(
   page: Page,
@@ -88,7 +96,7 @@ test.describe("Twenty 2FA enrolment", { tag: ["@twenty", "@2fa"] }, () => {
         await expect(page).toHaveURL(/\/welcome/);
       });
       await test.step("A valid code signs in", async () => {
-        await challenge.submitCode(generateTotpCode(secret, Date.now()));
+        await challenge.submitCode(nextStepCode(secret));
         await expect(page).toHaveURL(/\/objects\//);
       });
     },
@@ -165,7 +173,7 @@ test.describe("Twenty 2FA login challenge", { tag: ["@twenty", "@2fa"] }, () => 
         await expect(challengePage.codeInput).toHaveValue("");
       });
       await test.step("A valid code succeeds", async () => {
-        await challengePage.submitCode(generateTotpCode(enrolledTwentyMember.secret, Date.now()));
+        await challengePage.submitCode(nextStepCode(enrolledTwentyMember.secret));
         await expect(page).toHaveURL(/\/objects\//);
       });
     },
@@ -177,7 +185,7 @@ test.describe("Twenty 2FA login challenge", { tag: ["@twenty", "@2fa"] }, () => 
     async ({ page, extraContextPage, enrolledTwentyMember }, testInfo) => {
       const first = await signInToChallenge(page, enrolledTwentyMember);
       const second = await signInToChallenge(extraContextPage, enrolledTwentyMember);
-      const code = generateTotpCode(enrolledTwentyMember.secret, Date.now());
+      const code = nextStepCode(enrolledTwentyMember.secret);
 
       await test.step("The first use signs in", async () => {
         await first.submitCode(code);
@@ -247,7 +255,7 @@ test.describe("Twenty 2FA login challenge", { tag: ["@twenty", "@2fa"] }, () => 
       await attachKnownBugEvidence(page, testInfo, {
         issue: TW_2FA_X05_UNNAMED_CODE_ISSUE,
         observed: {
-          accessibleName: "",
+          accessibleNameSnapshot: await challenge.codeInput.ariaSnapshot(),
           namedCount,
           axeViolationIds: scan.report.blocking.map((entry) => entry.id),
           axeTargets: scan.report.blocking.flatMap((entry) => [...entry.targets]),
