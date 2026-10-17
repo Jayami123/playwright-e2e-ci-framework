@@ -5,6 +5,7 @@ import {
   destroyListedCompanies,
   destroyListedPets,
   listCompanyIds,
+  personPrefixFilter,
 } from "../../src/products/twenty/fixtures/sweep.js";
 import { destroyListedViews } from "../../src/products/twenty/fixtures/views.js";
 
@@ -179,5 +180,16 @@ test.describe("Twenty sweep pagination", { tag: ["@unit", "@twenty-fixture"] }, 
     const deleted = await destroyListedViews(api, "P1-QA-");
     expect(deleted).toBe(1);
     expect(callLog).toEqual(["list", "destroy:qa-1"]);
+  });
+});
+
+test.describe("Twenty person sweep filter", { tag: ["@unit", "@twenty-fixture"] }, () => {
+  test("matches the first name prefix or the lowercase email prefix", () => {
+    expect(personPrefixFilter("P1-QA-")).toEqual({
+      or: [
+        { name: { firstName: { ilike: "P1-QA-%" } } },
+        { emails: { primaryEmail: { ilike: "p1-qa-%" } } },
+      ],
+    });
   });
 });

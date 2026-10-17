@@ -5,6 +5,18 @@ import { destroyCompany, destroyOpportunity, destroyPerson, destroyPet } from ".
 import { destroyListedViews, listViewIdsByNamePrefix } from "./views.js";
 import type { TwentyPinnedApiSession } from "./auth.js";
 
+export type PersonFilter = Record<string, unknown>;
+
+/** Pure. People created by P1 carry the prefix in the first name or (CSV imports) the lowercase email. */
+export function personPrefixFilter(prefix: string): PersonFilter {
+  return {
+    or: [
+      { name: { firstName: { ilike: `${prefix}%` } } },
+      { emails: { primaryEmail: { ilike: `${prefix.toLowerCase()}%` } } },
+    ],
+  };
+}
+
 const PAGE_SIZE = 100;
 const MAX_PAGES = 1000;
 
@@ -42,7 +54,7 @@ interface ConnectionPage {
   readonly endCursor: string | null | undefined;
 }
 
-async function paginateConnectionIds(
+export async function paginateConnectionIds(
   fetchPage: (after: string | null) => Promise<ConnectionPage>,
 ): Promise<string[]> {
   const all: string[] = [];
@@ -185,7 +197,7 @@ async function listPersonIds(api: TwentyPinnedApiSession, prefix: string): Promi
         pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } | null;
       } | null;
     }>(TWENTY_ROUTES.graphql, LIST_PEOPLE, {
-      filter: { name: { firstName: { ilike: `${prefix}%` } } },
+      filter: personPrefixFilter(prefix),
       first: PAGE_SIZE,
       after,
     });
