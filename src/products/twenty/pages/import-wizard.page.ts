@@ -106,6 +106,13 @@ export class TwentyImportWizardPage extends BasePage {
     await expect(this.tooltip).toHaveText(message);
   }
 
+  /** Two rows can carry the same text (duplicate email): hover the first. */
+  async expectFirstCellError(cellText: string, message: string): Promise<void> {
+    // eslint-disable-next-line playwright/no-nth-methods -- a duplicate flags two identical cells; either shows the tooltip
+    await this.cell(cellText).first().hover();
+    await expect(this.tooltip).toHaveText(message);
+  }
+
   async confirm(): Promise<void> {
     await this.confirmButton.click();
   }
