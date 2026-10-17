@@ -18,6 +18,15 @@ export class TwentyPeoplePage extends BasePage {
     return this.page.getByTestId(/^row-id-/);
   }
 
+  /** The view header button, e.g. "All People · 100". */
+  viewCount(): Locator {
+    return this.page.getByRole("button", { name: /^All People/ });
+  }
+
+  rowsNamed(prefix: string): Locator {
+    return this.rows().filter({ hasText: prefix });
+  }
+
   errorToast(): Locator {
     return this.page.getByRole("status").filter({ hasText: "An error occurred." });
   }
