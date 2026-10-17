@@ -119,8 +119,9 @@ export class TwentyImportWizardPage extends BasePage {
 
   /** DOM fact for the CSV-X07 evidence: the confirm's Submit sits under an aria-hidden ancestor. */
   async submitIsUnderAriaHidden(): Promise<boolean> {
-    return this.submitIgnoringErrorsButton.evaluate<boolean, undefined>(
-      "(el) => el.closest('[aria-hidden=\"true\"]') !== null",
+    return this.submitIgnoringErrorsButton.evaluate(
+      (el: { closest: (selector: string) => unknown }) =>
+        el.closest('[aria-hidden="true"]') !== null,
     );
   }
 
