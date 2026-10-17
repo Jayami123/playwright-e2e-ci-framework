@@ -73,7 +73,12 @@ export class TwentyTwoFactorSettingsPage extends BasePage {
     await expect(this.status("Active")).toBeVisible();
   }
 
-  async resetWithEmail(email: string): Promise<void> {
+  async openReset(): Promise<void> {
+    await this.resetButton.click();
+  }
+
+  /** The modal asks only for the typed email, no code (probe A-15). */
+  async confirmReset(email: string): Promise<void> {
     await this.resetEmailInput(email).fill(email);
     await this.resetButton.click();
   }

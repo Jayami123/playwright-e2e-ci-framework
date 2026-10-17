@@ -31,7 +31,7 @@ export const test = base.extend<{
   twentyAdmin: TwentyPinnedApiSession;
   freshTwentyMember: FreshTwentyMember;
   enrolledTwentyMember: EnrolledTwentyMember;
-  /** An anonymous second browser context (baseURL only) for the same test. */
+  /** An anonymous second browser context (explicitly empty storage) for the same test. */
   extraContextPage: Page;
 }>({
   // eslint-disable-next-line no-empty-pattern -- fixture declares no upstream dependencies
@@ -84,7 +84,11 @@ export const test = base.extend<{
     use(freshTwentyMember.member.storageStatePath),
 
   extraContextPage: async ({ browser }, use) => {
-    const context = await browser.newContext({ baseURL: loadTwentyConfig().baseUrl });
+    // browser.newContext inherits the test's storageState; an explicit empty one keeps this context signed out.
+    const context = await browser.newContext({
+      baseURL: loadTwentyConfig().baseUrl,
+      storageState: { cookies: [], origins: [] },
+    });
     try {
       await use(await context.newPage());
     } finally {
