@@ -6,9 +6,11 @@ import {
   partitionViolations,
 } from "../../src/support/visual/axe.js";
 import {
+  axeRegressions,
   buildAxeReport,
   filterBlockingViolations,
   formatAxeReport,
+  idCounts,
   type AxeImpact,
   type AxeViolationLike,
 } from "../../src/support/visual/axe-format.js";
@@ -646,5 +648,36 @@ test.describe("axe allowlist contexts and findings", () => {
       [entry, unused],
     );
     expect(result.allowedByFinding).toEqual({ "PRODUCT BUG DOC-VIS-004-F1": [".a"] });
+  });
+});
+
+test.describe("axe arabic regressions", () => {
+  test("idCounts sums nodes per rule id", { tag: ["@unit"] }, () => {
+    const report = buildAxeReport(
+      "http://x.test/",
+      [
+        violation("a", "serious", [["#x"], ["#y"]]),
+        violation("b", "minor"),
+        violation("a", "critical"),
+      ],
+      "2026-10-15T12:00:00.000Z",
+    );
+    expect(idCounts(report)).toEqual({ a: 3 });
+  });
+
+  test("equal counts are not regressions", { tag: ["@unit"] }, () => {
+    expect(axeRegressions({ a: 2, b: 1 }, { a: 2, b: 1 })).toEqual([]);
+  });
+
+  test("Arabic with fewer violations is not a regression", { tag: ["@unit"] }, () => {
+    expect(axeRegressions({ a: 3, b: 1 }, { a: 1 })).toEqual([]);
+  });
+
+  test("Arabic with more nodes for an id is listed", { tag: ["@unit"] }, () => {
+    expect(axeRegressions({ a: 1, b: 2 }, { a: 3, b: 2 })).toEqual(["a: ar 3 > en 1"]);
+  });
+
+  test("an id new in Arabic is listed against English 0", { tag: ["@unit"] }, () => {
+    expect(axeRegressions({ a: 1 }, { a: 1, c: 2 })).toEqual(["c: ar 2 > en 0"]);
   });
 });

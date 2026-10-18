@@ -1,4 +1,5 @@
 import { loadTwentyConfig, TWENTY_ROUTES } from "../env.js";
+import { parseRestCreatePersonResponse } from "../live.js";
 import type { TwentyPinnedApiSession } from "./auth.js";
 import type { TwentyQaMember } from "./qa-member.js";
 
@@ -147,11 +148,7 @@ export async function createPersonViaRest(
     headers: { "Content-Type": "application/json", Authorization: member.authorization },
     body: JSON.stringify({ name: { firstName, lastName }, jobTitle }),
   });
-  const body = (await response.json()) as { data?: { createPerson?: { id?: string } } };
-  const id = body.data?.createPerson?.id;
-  if (response.status !== 201 || id === undefined) {
-    throw new Error(`REST create person failed: HTTP ${String(response.status)}`);
-  }
+  const { id } = parseRestCreatePersonResponse(response.status, await response.text());
   return { id, status: response.status };
 }
 

@@ -7,7 +7,11 @@ import { TwentyRecordPage } from "../../../src/products/twenty/pages/record.page
 import { TwentySettingsExperiencePage } from "../../../src/products/twenty/pages/settings-experience.page.js";
 import { expect, test, type RtlPerson } from "../../../src/products/twenty/rtl-fixtures.js";
 import { attachAxeReport, axeScan } from "../../../src/support/visual/axe.js";
-import type { AxeReport } from "../../../src/support/visual/axe-format.js";
+import {
+  axeRegressions,
+  idCounts,
+  type AxeReport,
+} from "../../../src/support/visual/axe-format.js";
 import { freezeClock, VISUAL_FROZEN_INSTANT } from "../../../src/support/visual/clock.js";
 import { documentScroll, measureScroll } from "../../../src/support/visual/dom.js";
 import { overflowingControls } from "../../../src/support/visual/layout.js";
@@ -43,14 +47,6 @@ async function expectRightOfCentre(page: Page, locator: Locator): Promise<void> 
   const viewport = page.viewportSize();
   if (box === null || viewport === null) throw new Error("no box or viewport");
   expect(box.x, "mirrored to the right half").toBeGreaterThan(viewport.width / 2);
-}
-
-function idCounts(report: AxeReport): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const entry of report.blocking) {
-    counts[entry.id] = (counts[entry.id] ?? 0) + entry.targets.length;
-  }
-  return counts;
 }
 
 const X07_ANNOTATION = [
@@ -169,9 +165,10 @@ test.describe("Twenty Arabic RTL", () => {
         await expectDir(page, "rtl", "ar-SA");
         const arabic = await scan();
         await attachAxeReport(testInfo, `axe-${target}-ar`, arabic);
-        expect(idCounts(arabic), "Arabic serious/critical axe ids and node counts").toEqual(
-          idCounts(english),
-        );
+        expect(
+          axeRegressions(idCounts(english), idCounts(arabic)),
+          "Arabic serious/critical axe ids with more nodes than English",
+        ).toEqual([]);
       },
     );
   }

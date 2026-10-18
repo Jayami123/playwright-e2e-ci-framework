@@ -48,3 +48,22 @@ export function lostUpdateVerdict(stored: string, names: RaceRoundNames): LostUp
   if (stored === names.b) return "B";
   return "lost";
 }
+
+/** Status first, then JSON: a non-JSON error body must not hide the HTTP status. */
+export function parseRestCreatePersonResponse(status: number, text: string): { id: string } {
+  const snippet = text.slice(0, 200);
+  const prefix = `REST create person failed: HTTP ${String(status)}`;
+  if (status !== 201) throw new Error(`${prefix}: ${snippet}`);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new Error(`${prefix}: body is not JSON: ${snippet}`);
+  }
+  const id = (body as { data?: { createPerson?: { id?: unknown } } } | null)?.data?.createPerson
+    ?.id;
+  if (typeof id !== "string" || id === "") {
+    throw new Error(`${prefix}: no data.createPerson.id: ${snippet}`);
+  }
+  return { id };
+}
