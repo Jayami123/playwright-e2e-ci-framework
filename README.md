@@ -282,9 +282,9 @@ Two QA members in two browser contexts: the worker member A and a worker-scoped 
 
 | Case                                                                   | Status                                  |
 | ---------------------------------------------------------------------- | --------------------------------------- |
-| P1-TW-LU-001 Two users edit the same field at once                     | pass (10 tests, one round each)         |
-| P1-TW-LU-002 Kanban move and a field edit at once                      | pass (10 tests, one round each)         |
-| P1-TW-LU-X01 Edits to different fields of one record both persist      | pass (3 tests)                          |
+| P1-TW-LU-001 Two users edit the same field at once                     | pass (one round)                        |
+| P1-TW-LU-002 Kanban move and a field edit at once                      | pass (one round)                        |
+| P1-TW-LU-X01 Edits to different fields of one record both persist      | pass (one round)                        |
 | P1-TW-LU-X02 A delete while B edits never brings the record back       | pass                                    |
 | P1-TW-RT-001 Update in context A appears in context B                  | pass                                    |
 | P1-TW-RT-002 Record created by API appears live                        | expected fail (TW-RT-002-F1)            |
@@ -295,6 +295,8 @@ Two QA members in two browser contexts: the worker member A and a worker-scoped 
 RT-003 and RT-004 are not tests: `setOffline` does not cut Twenty’s SSE stream, the real reconnect is random up to 120 s, and Playwright’s clock breaks it. Same-field edits are a silent last write wins; Arabic mirrors and adds no axe violations over English. The `e2e / visual` check passed on the last six `main` runs and can be made required by the repository owner.
 
 `npm run test:twenty` now lists 61 tests (35 before plus 26: LU-001 ×10, LU-002 ×10, LU-X01 ×3, LU-X02, RT-001, RT-002). The live folder on its own ran 27 tests (setup, 25 passes and the RT-002 expected failure) in 26.7 minutes, each test 36 to 72 s of the 120 s timeout. LU tests run one round each because two rounds took 90 to 120 s. A full one-worker run on this machine (87 minutes) was not green: late in the run the Twenty server logged `Query read timeout` on trivial queries, six LU-002 board loads, LU-X01 round 2 and the older TZ-003 timed out, and every other test passed; TZ-003 and the LU-002 board load are the open item to re-check on the CI runner. `npm run test:unit` lists 216 tests. The Twenty visual suite lists 57 tests: X07 adds 9 baseline tests and 9 axe tests (the axe tests run at 1440 px only, so 6 skip); in a full visual run X07 passed 12 and skipped 6, and four older desktop tests timed out or reported an unexpected pass under the same load (I18N-001, I18N-002, VIS-X02, VIS-002), which was not baselined against `main`.
+
+**Speed-up after batch 4.** P1 is functional UI E2E, so each LU case now runs one round on a fresh record, and the repeated race soak (many rounds per run) is planned for P6 as **P6-TW-RACE-001** (backlog, not built yet). `tests/twenty/live/concurrency.spec.ts` runs in parallel mode across both workers (fresh records per test, per-worker prefix, worker-scoped peer). `npm run test:twenty` now lists 41 tests (LU-001, LU-002, LU-X01 and LU-X02 are one test each). The LU-X02 live-banner observation waits 2 s instead of 10 s, and the X07 axe tests skip on mobile and tablet before their fixtures run.
 
 ### Phase 3 known product bugs
 
