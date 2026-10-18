@@ -653,16 +653,26 @@ test.describe("axe allowlist contexts and findings", () => {
 
 test.describe("axe arabic regressions", () => {
   test("idCounts sums nodes per rule id", { tag: ["@unit"] }, () => {
+    const twoNodes: AxeViolationLike = {
+      ...violation("a", "serious"),
+      nodes: [{ target: ["#x"] }, { target: ["#y"] }],
+    };
     const report = buildAxeReport(
       "http://x.test/",
-      [
-        violation("a", "serious", [["#x"], ["#y"]]),
-        violation("b", "minor"),
-        violation("a", "critical"),
-      ],
+      [twoNodes, violation("b", "minor"), violation("a", "critical")],
       "2026-10-15T12:00:00.000Z",
     );
     expect(idCounts(report)).toEqual({ a: 3 });
+  });
+
+  test("idCounts counts a multi-selector frame target as one node", { tag: ["@unit"] }, () => {
+    const report = buildAxeReport(
+      "http://x.test/",
+      [violation("a", "serious", ["iframe#f", "button"])],
+      "2026-10-15T12:00:00.000Z",
+    );
+    expect(report.blocking[0]?.targets).toHaveLength(2);
+    expect(idCounts(report)).toEqual({ a: 1 });
   });
 
   test("equal counts are not regressions", { tag: ["@unit"] }, () => {

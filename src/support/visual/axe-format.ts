@@ -19,6 +19,8 @@ export interface AxeReportEntry {
   readonly impact: "serious" | "critical";
   readonly help: string;
   readonly helpUrl: string;
+  /** Affected nodes; one node can have several selectors (frames), so this is not targets.length. */
+  readonly nodeCount: number;
   readonly targets: readonly string[];
 }
 
@@ -62,6 +64,7 @@ export function buildAxeReport(
             impact: v.impact,
             help: v.help,
             helpUrl: v.helpUrl,
+            nodeCount: v.nodes.length,
             targets: v.nodes.flatMap((n) => n.target.map(targetToString)),
           },
         ]
@@ -78,7 +81,7 @@ export function formatAxeReport(report: AxeReport): string {
 export function idCounts(report: AxeReport): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const entry of report.blocking) {
-    counts[entry.id] = (counts[entry.id] ?? 0) + entry.targets.length;
+    counts[entry.id] = (counts[entry.id] ?? 0) + entry.nodeCount;
   }
   return counts;
 }
