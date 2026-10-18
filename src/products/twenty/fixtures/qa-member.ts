@@ -152,7 +152,11 @@ export async function provisionQaMember(
   const storageStatePath = path.join(stateDir, "state.json");
   // The /welcome textbox occasionally did not render on the first load; one retry in a fresh context.
   for (let attempt = 1; ; attempt += 1) {
-    const context = await browser.newContext({ baseURL: baseUrl });
+    // Explicit empty state: a bare newContext() inherits the project storageState (Jane) in twenty-chromium.
+    const context = await browser.newContext({
+      baseURL: baseUrl,
+      storageState: { cookies: [], origins: [] },
+    });
     try {
       const page = await context.newPage();
       const login = new TwentyLoginPage(page);
