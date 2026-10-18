@@ -36,6 +36,11 @@ export function qaFreshMemberEmail(seed: number, worker: number, n: number): str
   return `p1-qa-${String(seed)}-${String(worker)}-f${String(n)}@example.test`;
 }
 
+/** Pure; unit-tested. Per-worker peer (second user): still under the p1-qa- prefix the leak check counts. */
+export function qaPeerMemberEmail(seed: number, worker: number): string {
+  return `p1-qa-${String(seed)}-${String(worker)}-peer@example.test`;
+}
+
 /** Pure; fixed so screenshots never show a seed. */
 export const QA_MEMBER_NAME = { firstName: "P1-QA Visual", lastName: "Member" } as const;
 
@@ -147,7 +152,11 @@ export async function provisionQaMember(
   const storageStatePath = path.join(stateDir, "state.json");
   // The /welcome textbox occasionally did not render on the first load; one retry in a fresh context.
   for (let attempt = 1; ; attempt += 1) {
-    const context = await browser.newContext({ baseURL: baseUrl });
+    // Explicit empty state: a bare newContext() inherits the project storageState (Jane) in twenty-chromium.
+    const context = await browser.newContext({
+      baseURL: baseUrl,
+      storageState: { cookies: [], origins: [] },
+    });
     try {
       const page = await context.newPage();
       const login = new TwentyLoginPage(page);

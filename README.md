@@ -34,7 +34,7 @@ Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2F
 | P1-TW-TZ-X04 CSV vs fixture UTC                  | Observation (assert CSV = stored ISO, no `test.fail`) | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
 | OBS-001 bare date on DATE_TIME                   | Observation (not automated)                           | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
 
-**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German layout and light and dark axe scans for Cal, Documenso and Twenty, and Arabic RTL layout for Cal only (Twenty RTL is carried). Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](docs/adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
+**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German layout and light and dark axe scans for Cal, Documenso and Twenty, and Arabic RTL layout for Cal, and for Twenty since Phase 4 batch 4. Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](docs/adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
 
 ## Prerequisites
 
@@ -276,7 +276,25 @@ Both areas run as fresh QA members, never as Jane: CSV imports use the worker QA
 
 `npm run test:twenty` runs 35 tests (setup, 13 earlier cases, 3 login-recovery tests and these 18): 32 pass and 3 are the expected failures. Two final local runs of the 32 tests before the login-recovery tests were added took 26.0 and 23.9 minutes on one worker with 0 flaky; the three new files add 13.5 to 15 of those minutes, and CI time is measured on the pull request run. The `/welcome` stall (TW-LOGIN-F-01, about 1% of cold loads and 3.5 to 4.5% with two workers) did not occur in those two runs, so they show only that healthy loads still work; the one-reload handling in `login.page.ts` is covered by unit tests, not by an end-to-end run.
 
-Carried to batch 4: P1-TW-LU-001..002, P1-TW-RT-001..004, TW-VIS-X07 (Arabic RTL), `e2e / visual` as a required check.
+### Phase 4 batch 4: Twenty (live updates, concurrent edits, Arabic RTL)
+
+Two QA members in two browser contexts: the worker member A and a worker-scoped peer B, both Members, never Jane. Details and evidence: [ADR 0016 amendment](docs/adr/0016-twenty-ci.md) and [twenty-known-issues.md](docs/observations/twenty-known-issues.md).
+
+| Case                                                                   | Status                                  |
+| ---------------------------------------------------------------------- | --------------------------------------- |
+| P1-TW-LU-001 Two users edit the same field at once                     | pass (10 tests, one round each)         |
+| P1-TW-LU-002 Kanban move and a field edit at once                      | pass (10 tests, one round each)         |
+| P1-TW-LU-X01 Edits to different fields of one record both persist      | pass (3 tests)                          |
+| P1-TW-LU-X02 A delete while B edits never brings the record back       | pass                                    |
+| P1-TW-RT-001 Update in context A appears in context B                  | pass                                    |
+| P1-TW-RT-002 Record created by API appears live                        | expected fail (TW-RT-002-F1)            |
+| P1-TW-RT-003 Offline edits show after reconnect                        | finding, not automated (O-04)           |
+| P1-TW-RT-004 Records created while offline show after reconnect        | finding, not automated (O-05)           |
+| P1-TW-VIS-X07 Arabic RTL: People, person record and Settings baselines | pass (9 baselines, 3 axe tests at 1440) |
+
+RT-003 and RT-004 are not tests: `setOffline` does not cut Twenty’s SSE stream, the real reconnect is random up to 120 s, and Playwright’s clock breaks it. Same-field edits are a silent last write wins; Arabic mirrors and adds no axe violations over English. The `e2e / visual` check passed on the last six `main` runs and can be made required by the repository owner.
+
+`npm run test:twenty` now lists 61 tests (35 before plus 26: LU-001 ×10, LU-002 ×10, LU-X01 ×3, LU-X02, RT-001, RT-002). The live folder on its own ran 27 tests (setup, 25 passes and the RT-002 expected failure) in 26.7 minutes, each test 36 to 72 s of the 120 s timeout. LU tests run one round each because two rounds took 90 to 120 s. A full one-worker run on this machine (87 minutes) was not green: late in the run the Twenty server logged `Query read timeout` on trivial queries, six LU-002 board loads, LU-X01 round 2 and the older TZ-003 timed out, and every other test passed; TZ-003 and the LU-002 board load are the open item to re-check on the CI runner. `npm run test:unit` lists 216 tests. The Twenty visual suite lists 57 tests: X07 adds 9 baseline tests and 9 axe tests (the axe tests run at 1440 px only, so 6 skip); in a full visual run X07 passed 12 and skipped 6, and four older desktop tests timed out or reported an unexpected pass under the same load (I18N-001, I18N-002, VIS-X02, VIS-002), which was not baselined against `main`.
 
 ### Phase 3 known product bugs
 
@@ -299,16 +317,16 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 
 ### Phase 3 done and carried to Phase 4
 
-| Item                                                                                 | Status                                          |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| Cal VIS, I18N, A11Y (PR #34)                                                         | Done                                            |
-| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06 | Done                                            |
-| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                            |
-| Medusa FW-001..005 and X01..X05 (Phase 4 batch 1)                                    | Done                                            |
-| Medusa visual, i18n and a11y (VIS-001..003, I18N-001..002, X06..X14)                 | Done (Phase 4 batch 2)                          |
-| Twenty CSV import and 2FA (Phase 4 batch 3)                                          | Done                                            |
-| TW-VIS-X07 Arabic RTL People layout                                                  | Carried (dropped 2026-10-16: not probed)        |
-| `e2e / visual` as a required check                                                   | Carried (set it after two green runs on `main`) |
+| Item                                                                                 | Status                                     |
+| ------------------------------------------------------------------------------------ | ------------------------------------------ |
+| Cal VIS, I18N, A11Y (PR #34)                                                         | Done                                       |
+| Documenso VIS-001..005 and X01..X07; Twenty VIS-001..004, I18N-001..002 and X01..X06 | Done                                       |
+| CI visual job, baseline update workflow, GitHub Pages, known-bug report evidence     | Done                                       |
+| Medusa FW-001..005 and X01..X05 (Phase 4 batch 1)                                    | Done                                       |
+| Medusa visual, i18n and a11y (VIS-001..003, I18N-001..002, X06..X14)                 | Done (Phase 4 batch 2)                     |
+| Twenty CSV import and 2FA (Phase 4 batch 3)                                          | Done                                       |
+| Twenty live updates, concurrent edits and Arabic RTL (Phase 4 batch 4)               | Done (RT-003 and RT-004 are findings)      |
+| `e2e / visual` as a required check                                                   | Ready to switch on (six green `main` runs) |
 
 ## CI
 

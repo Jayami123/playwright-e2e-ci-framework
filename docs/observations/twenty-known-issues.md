@@ -1,4 +1,4 @@
-# Twenty known product issues (Phase 4 batch 3)
+# Twenty known product issues (Phase 4 batches 3 and 4)
 
 Recorded during Phase 4 batch 3 against `twentycrm/twenty:v2.44.0` (fork `Jayami123/twenty-CRM` @ `7cbdfec6f346b43715bc2056932f4fad5886f733`, read as source reference only). Probe output lives outside the repository in `D:\Jayami\Portfolio\welcome-probe-out\` and is not committed.
 
@@ -85,6 +85,16 @@ Recorded during Phase 4 batch 3 against `twentycrm/twenty:v2.44.0` (fork `Jayami
 
 **Expected (standard):** a non-empty accessible name (WCAG 2.2 SC 4.1.2).
 
+## TW-RT-002-F1 (`P1-TW-RT-002`): a record created through the API raises another user’s filtered list count but its row never appears
+
+**Label:** PRODUCT BUG: Twenty’s own client contract is that a matching create is inserted into every cached list whose filter matches.
+
+**Observed:** user B has People filtered by a name prefix and one seed row. User A creates a matching person through `POST /rest/people` (201). B’s stream is live: an update of the seed row reaches B’s list in 128 to 400 ms, and the view count then reads "All People · 2" while one row is shown. The new row is still absent 15 s later, with no navigation. Probe 17 of 17 creates (11 + 6), and the build runs repeat it.
+
+**Expected (source):** on an SSE `CREATED` event the client inserts the record into every cached list whose filter matches (`useTriggerOptimisticEffectFromSseCreateEvents.ts` calls `triggerCreateRecordsOptimisticEffect({ shouldMatchRootQueryFilter: true })`, which filters with `isRecordMatchingFilter`). Count and rows must agree (precedent: TW-VIS-004).
+
+**Handling:** RT-002 asserts the working path hard (REST 201, the API shows two matches, the anchor update arrives, the count reads "· 2"), attaches `known-bug-evidence`, calls `test.fail(true, …)` and then asserts the new row is visible. An unfiltered list is not used as the oracle: another worker’s people land in it and its row inserts miss (24 of 29).
+
 ## Observations (asserted as observed, no standard violated)
 
 - **X05 empty file (probe against build):** the probe saw an empty CSV stay on Upload. In the build the upload prompt does stay on screen (two runs plus two re-runs, file confirmed 0 bytes), but the stepper moves to "Match Columns" over a blank dropzone, and Close then asks "Exit import flow". Both are the same dialog; the probe looked only at the prompt.
@@ -94,6 +104,23 @@ Recorded during Phase 4 batch 3 against `twentycrm/twenty:v2.44.0` (fork `Jayami
 - **2FA-X03:** enabling 2FA keeps a session that was open before. **2FA-X04:** Reset 2FA asks only for the typed email, no code, and the next login has no challenge.
 - **2FA-X02:** codes one step either side of now sign in; two steps are refused (`window: 1`).
 
+## Observations from batch 4 (live updates, concurrent edits, RTL)
+
+- **O-01 `setOffline` does not cut the event stream.** `context.setOffline(true)` leaves Twenty’s open SSE stream delivering frames (7 frames in 10 s, 3 of them `UPDATED company`), while follow-up `fetch` calls fail. A real cut needs `setOffline` plus a fault on the `text/event-stream` body.
+- **O-03 reconnect backoff is random up to 120 s.** After a true cut and `setOffline(false)`, the client reconnects after `random() × 120000` ms (seen 7, 28, 48, 78 s, and once more than 150 s). 1 s only in a development build (`useHandleSseClientConnectionRetry.ts`, `SseConnectionRetryMaxWaitTimeInMs.ts`).
+- **O-04 (RT-003, not built) missed edits never reach the record page after reconnect.** Three edits made while the stream was cut never showed on the record page without a reload (240 s, 150 s, 150 s; one run had reconnected at 7.2 s and issued no `FindOneCompany`). On reconnect the client resyncs only the metadata store (`SSEClientEffect.tsx`).
+- **O-05 (RT-004, not built) a list converges after reconnect, with no duplicates.** Both rows created while cut appeared at 30.2 s and 49.9 s, after the list refetched on reconnect. Only after the random backoff.
+- **O-07 Playwright’s clock breaks the reconnect.** With `context.clock.install()` the app works and live updates arrive (255 to 609 ms), but after `runFor(130_000)` or `fastForward(130_000)` no new `text/event-stream` request opens in 40 s and later live edits stop arriving (3 of 3). A test built on it would test a state the product never reaches, so RT-003 and RT-004 are findings, not tests.
+- **O-LU-01 silent last write wins.** Two users saving the same company name at once: both saves return 200, the stored name is always one of the two (20 of 20 in the probe, 10 of 10 rounds in the build), and no warning, alert or dialog appears.
+- **O-LU-02 a loser can keep its own value.** In 1 of 20 probe rounds, B kept showing its own losing name 2.5 s after both saves while A and the API had A’s value; a reload fixed it. LU tests therefore assert after reload.
+- **O-LU-03 live stage lag.** B’s record page showed A’s Kanban move within 2.5 s in only 6 of 10 and 7 of 10 probe rounds.
+- **X-02 a save into a soft-deleted record succeeds (possible data-integrity issue, no documented contract).** B’s Tagline editor is open, A soft-deletes the company, B presses Enter: `UpdateOneCompany` returns 200 with no toast, the row stays soft-deleted (`deletedAt` set) with B’s tagline, and the live count is 0. The probe saw the "This record has been deleted" banner and "Restore" **live**; in the build runs the banner never appeared live (4 of 4, with the record subscription ready and with the editor open), and appears after a reload. LU-X02 therefore records `bannerLive`, the save status and the stored tagline in `x02-observation.json` and asserts only the API state and the banner after a reload.
+- **O-RT-05 unfiltered list inserts miss.** 24 of 29 API-created people appeared in an unfiltered People list without a reload (mostly the first create after load missed), so it is not used as an oracle.
+- **O-RTL-01 the Arabic catalog covers built-in strings, not custom objects.** Under `ar-SA` the sidebar standard objects (Companies, People, Opportunities, Tasks, Notes), Create, Filter, Sort, Options and the column headers are Arabic; custom objects (Rockets, Pets, Survey results, Employment Histories, Pet Care Agreements, Star History) stay English. The probe (E-07) read People, Companies, Create, Fields and Timeline as English in some pages; the Docker run did not reproduce that for the People page. The translated Filter button is why the RTL People list is scoped by a saved view, not the English-only filter UI.
+- **O-RTL-02 no bidi isolation of user data.** An Arabic name with Latin and digits ("P1-PROBE-…-سارة / العتيبي 42") renders its digits beside the Latin prefix in the LTR UI; user data has no `dir="auto"` or `<bdi>`. Not tested: no normative requirement.
+- **Arabic RTL passes.** `ar-SA` sets `<html dir="rtl">`, the sidebar and Settings navigation mirror to the right, no page scrolls horizontally, no button overflows, and axe finds the same serious and critical violations as English on People, a person record and Settings.
+- **Test-design facts.** `browser.newContext()` inherits the project’s `storageState` (Jane): the three cookies of Jane’s state appear in a bare context, so member provisioning now passes an explicit empty state. The first `AddQueryToEventStream` on a page is for the agent chat thread (about 11 s after load); a record page adds `record-show-<kind>-<id>` and a filtered list `record-table-virtualized-person` 4 to 10 s later, so readiness is matched on those query ids and the filter. Kanban `locator.dragTo` moved a card 0 of 5 times; 20 mouse steps 25 of 25. The "New" add-record button of every column shares the stage header’s name; only the header has `aria-expanded`.
+
 ## Tests
 
-`tests/twenty/import/csv-import.spec.ts` (CSV-001..004), `tests/twenty/import/csv-edge.spec.ts` (CSV-X01..X07), `tests/twenty/auth/2fa.spec.ts` (2FA-001..002, X01..X05). Each known-bug test asserts its working path, attaches `known-bug-evidence`, calls `test.fail(true, <issue>)` and then asserts the strict expectation.
+`tests/twenty/import/csv-import.spec.ts` (CSV-001..004), `tests/twenty/import/csv-edge.spec.ts` (CSV-X01..X07), `tests/twenty/auth/2fa.spec.ts` (2FA-001..002, X01..X05). `tests/twenty/live/concurrency.spec.ts` (LU-001 and LU-002 as one test per round, LU-X01, LU-X02), `tests/twenty/live/realtime.spec.ts` (RT-001, RT-002), `tests/twenty/i18n/rtl.i18n.spec.ts` (VIS-X07). RT-003 and RT-004 are findings, not tests. Each known-bug test asserts its working path, attaches `known-bug-evidence`, calls `test.fail(true, <issue>)` and then asserts the strict expectation.

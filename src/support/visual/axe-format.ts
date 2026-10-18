@@ -19,6 +19,8 @@ export interface AxeReportEntry {
   readonly impact: "serious" | "critical";
   readonly help: string;
   readonly helpUrl: string;
+  /** Affected nodes; one node can have several selectors (frames), so this is not targets.length. */
+  readonly nodeCount: number;
   readonly targets: readonly string[];
 }
 
@@ -62,6 +64,7 @@ export function buildAxeReport(
             impact: v.impact,
             help: v.help,
             helpUrl: v.helpUrl,
+            nodeCount: v.nodes.length,
             targets: v.nodes.flatMap((n) => n.target.map(targetToString)),
           },
         ]
@@ -72,4 +75,23 @@ export function buildAxeReport(
 
 export function formatAxeReport(report: AxeReport): string {
   return `${JSON.stringify(report, null, 2)}\n`;
+}
+
+/** Serious/critical node count per axe rule id. */
+export function idCounts(report: AxeReport): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of report.blocking) {
+    counts[entry.id] = (counts[entry.id] ?? 0) + entry.nodeCount;
+  }
+  return counts;
+}
+
+/** Rule ids where Arabic has more nodes than English (ids new in Arabic count as English 0). */
+export function axeRegressions(
+  english: Readonly<Record<string, number>>,
+  arabic: Readonly<Record<string, number>>,
+): string[] {
+  return Object.entries(arabic)
+    .filter(([id, n]) => n > (english[id] ?? 0))
+    .map(([id, n]) => `${id}: ar ${String(n)} > en ${String(english[id] ?? 0)}`);
 }
