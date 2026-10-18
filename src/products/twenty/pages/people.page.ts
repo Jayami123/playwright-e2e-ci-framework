@@ -1,6 +1,7 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page, type Response } from "@playwright/test";
 import { BasePage } from "../../../core/base.page.js";
 import { TWENTY_ROUTES, twentyTimeouts } from "../env.js";
+import { waitForLiveSubscription } from "./live-subscription.js";
 import { TwentyObjectFilterPage } from "./object-filter.page.js";
 
 export class TwentyPeoplePage extends BasePage {
@@ -21,6 +22,20 @@ export class TwentyPeoplePage extends BasePage {
   /** The view header button, e.g. "All People · 100". */
   viewCount(): Locator {
     return this.page.getByRole("button", { name: /^All People/ });
+  }
+
+  /** Opens a saved view without the English-only Filter button wait, so it works under any locale. */
+  async gotoView(viewId: string): Promise<void> {
+    await this.gotoPath(`${TWENTY_ROUTES.people}?viewId=${viewId}`);
+  }
+
+  rowById(id: string): Locator {
+    return this.page.getByTestId(`row-id-${id}`);
+  }
+
+  /** The list query filtered by `namePrefix`; register before filterNameContains(). */
+  liveSubscription(namePrefix: string): Promise<Response> {
+    return waitForLiveSubscription(this.page, "record-table-virtualized-person", namePrefix);
   }
 
   rowsNamed(prefix: string): Locator {
