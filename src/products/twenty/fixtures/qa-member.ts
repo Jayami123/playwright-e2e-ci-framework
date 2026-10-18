@@ -31,6 +31,11 @@ export function qaMemberEmail(seed: number, worker: number): string {
   return `p1-qa-${String(seed)}-${String(worker)}@example.test`;
 }
 
+/** Pure; unit-tested. Per-test 2FA member: still under the p1-qa- prefix the leak check counts. */
+export function qaFreshMemberEmail(seed: number, worker: number, n: number): string {
+  return `p1-qa-${String(seed)}-${String(worker)}-f${String(n)}@example.test`;
+}
+
 /** Pure; fixed so screenshots never show a seed. */
 export const QA_MEMBER_NAME = { firstName: "P1-QA Visual", lastName: "Member" } as const;
 
