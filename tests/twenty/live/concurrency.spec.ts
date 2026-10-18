@@ -18,7 +18,7 @@ import { TwentyRecordPage } from "../../../src/products/twenty/pages/record.page
 
 /**
  * P1 is functional UI E2E: each case runs one round on a fresh record. The repeated soak (many rounds per
- * run) lives in P6 as P6-TW-RACE-001. A round is two full page loads per user (15 to 25 s each under load),
+ * run) is planned for P6 as P6-TW-RACE-001 (backlog). A round is two full page loads per user (15 to 25 s each under load),
  * so one round per test keeps every test well inside the 120 s timeout.
  */
 const ROUND = 1;
