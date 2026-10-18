@@ -122,9 +122,7 @@ test.describe("Twenty real-time propagation", { tag: ["@twenty", "@live"] }, () 
         expected: { rowsById: 1 },
       });
       test.fail(true, TW_RT_002_CREATED_ROW_MISSING_ISSUE);
-      // The anchor update above arrived on the same subscription after the create, so 5 s is ample for the
-      // created row; the default 15 s only lengthened the expected failure.
-      await expect(peopleB.rowById(created.id)).toBeVisible({ timeout: 5_000 });
+      await expect(peopleB.rowById(created.id)).toBeVisible();
     },
   );
 });
