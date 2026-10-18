@@ -33,9 +33,12 @@ export class TwentyPeoplePage extends BasePage {
     return this.page.getByTestId(`row-id-${id}`);
   }
 
-  /** The list query filtered by `namePrefix`; register before filterNameContains(). */
-  liveSubscription(namePrefix: string): Promise<Response> {
-    return waitForLiveSubscription(this.page, "record-table-virtualized-person", namePrefix);
+  /**
+   * The person table query; register before goto(). Twenty does not always re-add it with the filter
+   * (one add, unfiltered, in a failing run), and that subscription already carries every person event.
+   */
+  liveSubscription(): Promise<Response> {
+    return waitForLiveSubscription(this.page, "record-table-virtualized-person");
   }
 
   rowsNamed(prefix: string): Locator {

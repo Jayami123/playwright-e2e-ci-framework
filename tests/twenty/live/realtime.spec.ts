@@ -30,8 +30,8 @@ test.describe("Twenty real-time propagation", { tag: ["@twenty", "@live"] }, () 
       const person = await createPersonWithJob(api, `${prefix}-RT001-Ann`, "Probe", "rt-0");
       liveRecords.capture("person", person.id);
 
+      const subscribed = peopleB.liveSubscription();
       await peopleB.goto();
-      const subscribed = peopleB.liveSubscription(`${prefix}-RT001`);
       await peopleB.filterNameContains(`${prefix}-RT001`);
       await expect(peopleB.rowById(person.id)).toContainText("rt-0");
       await subscribed;
@@ -84,8 +84,8 @@ test.describe("Twenty real-time propagation", { tag: ["@twenty", "@live"] }, () 
       const seed = await createPersonWithJob(api, `${prefix}-RT002-Seed`, "Probe", "anchor-0");
       liveRecords.capture("person", seed.id);
 
+      const subscribed = peopleB.liveSubscription();
       await peopleB.goto();
-      const subscribed = peopleB.liveSubscription(`${prefix}-RT002`);
       await peopleB.filterNameContains(`${prefix}-RT002`);
       await expect(peopleB.rowById(seed.id)).toBeVisible();
       await subscribed;
