@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
 import { stat } from "node:fs/promises";
 import { attachKnownBugEvidence } from "../../../src/core/known-bug-evidence.js";
 import { buildPeopleCsv, peopleCsvEmail } from "../../../src/products/twenty/csv.js";
@@ -155,6 +155,16 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
       const released = new Promise<void>((resolve) => {
         releaseHeld = resolve;
       });
+      // How the held batch 2 ended. Tracked from the page events so the count below is read only
+      // after it has finished, and so a Cancel that stops aborting it fails here, not silently.
+      let heldRequest: Request | undefined;
+      let heldOutcome: "pending" | "failed" | "finished" = "pending";
+      page.on("requestfailed", (request) => {
+        if (request === heldRequest) heldOutcome = "failed";
+      });
+      page.on("requestfinished", (request) => {
+        if (request === heldRequest) heldOutcome = "finished";
+      });
       await page.route("**/graphql", async (route) => {
         if (!isPeopleBatchCreate(route.request().postData())) {
           await route.fallback();
@@ -163,6 +173,7 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
         batchesIssued += 1;
         if (cancelClicked) issuedAfterCancel += 1;
         if (batchesIssued === 2) {
+          heldRequest = route.request();
           batch2Held();
           await released;
         }
@@ -187,6 +198,9 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
         releaseHeld();
         await wizard.expectClosed();
       });
+      // Wait for the held batch to end, then require that Twenty aborted it before counting people.
+      await expect.poll(() => heldOutcome, { timeout: twentyTimeouts().page }).not.toBe("pending");
+      expect(heldOutcome, "the held batch 2 is aborted by Twenty, never committed").toBe("failed");
       await page.unrouteAll({ behavior: "ignoreErrors" });
       // Cancel stopped the remaining batches: the page issued only the two it had started.
       expect(batchesIssued, "batch requests the page issued").toBe(2);
