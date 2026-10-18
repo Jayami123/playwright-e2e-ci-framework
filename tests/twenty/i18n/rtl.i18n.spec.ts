@@ -16,7 +16,7 @@ import { freezeClock, VISUAL_FROZEN_INSTANT } from "../../../src/support/visual/
 import { documentScroll, measureScroll } from "../../../src/support/visual/dom.js";
 import { overflowingControls } from "../../../src/support/visual/layout.js";
 import { maskLocators } from "../../../src/support/visual/masks.js";
-import { onlyOnProjects } from "../../../src/support/visual/projects.js";
+import { onlyOnProjectsSuite } from "../../../src/support/visual/projects.js";
 import { stableScreenshot } from "../../../src/support/visual/screenshot.js";
 
 const DESKTOP = "visual-desktop";
@@ -135,41 +135,50 @@ test.describe("Twenty Arabic RTL", () => {
     },
   );
 
-  for (const target of ["people", "person", "settings"] as const) {
-    test(
-      `P1-TW-VIS-X07 Arabic adds no axe violations over English (${target})`,
-      { tag: ["@twenty", "@visual"], annotation: X07_ANNOTATION },
-      async ({ page, twentyQaMember, rtlPerson }, testInfo) => {
-        onlyOnProjects(testInfo.project.name, [DESKTOP]);
-        // Two full-page scans (40 to 100 s each with rescans) plus two loads: a named exception to the
-        // project timeout (precedent: contrast.a11y.spec.ts).
-        test.setTimeout(240_000);
-        const open = async (): Promise<void> => {
-          if (target === "people") await openPeople(page, rtlPerson);
-          else if (target === "person") await openPerson(page, rtlPerson);
-          else await openSettings(page);
-        };
-        const scan = async (): Promise<AxeReport> =>
-          (await axeScan(page, { project: testInfo.project.name, allowlist: [], context: "light" }))
-            .report;
+  test.describe("axe comparison", () => {
+    // Probed at 1440 px only. Skipped before the rtlPerson and member-prefs fixtures run on other viewports.
+    onlyOnProjectsSuite([DESKTOP]);
 
-        await setQaMemberPrefs(twentyQaMember, { locale: "en" });
-        await open();
-        await expectDir(page, "ltr", "en");
-        const english = await scan();
-        await attachAxeReport(testInfo, `axe-${target}-en`, english);
+    for (const target of ["people", "person", "settings"] as const) {
+      test(
+        `P1-TW-VIS-X07 Arabic adds no axe violations over English (${target})`,
+        { tag: ["@twenty", "@visual"], annotation: X07_ANNOTATION },
+        async ({ page, twentyQaMember, rtlPerson }, testInfo) => {
+          // Two full-page scans (40 to 100 s each with rescans) plus two loads: a named exception to the
+          // project timeout (precedent: contrast.a11y.spec.ts).
+          test.setTimeout(240_000);
+          const open = async (): Promise<void> => {
+            if (target === "people") await openPeople(page, rtlPerson);
+            else if (target === "person") await openPerson(page, rtlPerson);
+            else await openSettings(page);
+          };
+          const scan = async (): Promise<AxeReport> =>
+            (
+              await axeScan(page, {
+                project: testInfo.project.name,
+                allowlist: [],
+                context: "light",
+              })
+            ).report;
 
-        await setQaMemberPrefs(twentyQaMember, { locale: "ar-SA" });
-        await page.reload();
-        await open();
-        await expectDir(page, "rtl", "ar-SA");
-        const arabic = await scan();
-        await attachAxeReport(testInfo, `axe-${target}-ar`, arabic);
-        expect(
-          axeRegressions(idCounts(english), idCounts(arabic)),
-          "Arabic serious/critical axe ids with more nodes than English",
-        ).toEqual([]);
-      },
-    );
-  }
+          await setQaMemberPrefs(twentyQaMember, { locale: "en" });
+          await open();
+          await expectDir(page, "ltr", "en");
+          const english = await scan();
+          await attachAxeReport(testInfo, `axe-${target}-en`, english);
+
+          await setQaMemberPrefs(twentyQaMember, { locale: "ar-SA" });
+          // open() is a full page.goto, so it already loads the new locale; no reload first.
+          await open();
+          await expectDir(page, "rtl", "ar-SA");
+          const arabic = await scan();
+          await attachAxeReport(testInfo, `axe-${target}-ar`, arabic);
+          expect(
+            axeRegressions(idCounts(english), idCounts(arabic)),
+            "Arabic serious/critical axe ids with more nodes than English",
+          ).toEqual([]);
+        },
+      );
+    }
+  });
 });

@@ -7,7 +7,11 @@ import {
   rectsOverlap,
   type TextSpan,
 } from "../../src/support/visual/layout.js";
-import { projectSkipReason } from "../../src/support/visual/projects.js";
+import {
+  onlyOnProjectsSuite,
+  projectSkipReason,
+  projectsOnlyReason,
+} from "../../src/support/visual/projects.js";
 
 test.describe("focus frame bands", () => {
   test("frameBands returns the top and bottom bands of the clip", { tag: ["@unit"] }, () => {
@@ -41,6 +45,31 @@ test.describe("visual projects", () => {
 
   test("a disallowed project names the allowed ones", { tag: ["@unit"] }, () => {
     expect(projectSkipReason("visual-tablet", ["visual-mobile"])).toContain("visual-mobile");
+  });
+
+  test("the suite skip reason lists every allowed project", { tag: ["@unit"] }, () => {
+    expect(projectsOnlyReason(["visual-desktop", "visual-tablet"])).toBe(
+      "runs only in visual-desktop, visual-tablet (case is viewport-specific)",
+    );
+  });
+});
+
+const fixtureGuard = test.extend<{ mustNotSetUp: undefined }>({
+  // eslint-disable-next-line no-empty-pattern -- fixture declares no upstream dependencies
+  mustNotSetUp: async ({}, use) => {
+    await use(undefined);
+    throw new Error("a test-scoped fixture was set up before the suite skip");
+  },
+});
+
+fixtureGuard.describe("onlyOnProjectsSuite", () => {
+  // The unit project is not a visual project, so this group must be skipped before its fixture runs:
+  // the test reports "skipped", never the fixture error.
+  onlyOnProjectsSuite(["visual-desktop"]);
+
+  fixtureGuard("skips before test-scoped fixtures", { tag: ["@unit"] }, ({ mustNotSetUp }) => {
+    expect(mustNotSetUp).toBeUndefined();
+    throw new Error("the suite skip did not apply");
   });
 });
 
