@@ -35,8 +35,15 @@ test.describe("Documenso long text", () => {
       await expect(link).toBeVisible();
       await expect(link).toHaveAttribute("title", DOC_LONG_TITLE);
       await expect.poll(() => computedStyleOf(link, "textOverflow")).toBe("ellipsis");
-      const linkSize = await scrollSizeOf(link);
-      expect(linkSize.scrollWidth).toBeGreaterThan(linkSize.clientWidth);
+      // CI (Playwright 1.64): the list re-renders after load, so a one-shot read can land on the
+      // replaced, detached <a> (scrollWidth 0, clientWidth 0). Retry until the live link is laid out.
+      await expect(async () => {
+        const linkSize = await scrollSizeOf(link);
+        expect(linkSize.clientWidth, "title link has a laid-out width").toBeGreaterThan(0);
+        expect(linkSize.scrollWidth, "title text overflows its link box").toBeGreaterThan(
+          linkSize.clientWidth,
+        );
+      }).toPass({ timeout: 10_000 });
       const action = ownerPage
         .getByRole("row")
         .filter({ has: link })
