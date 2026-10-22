@@ -6,16 +6,16 @@ everything under "Pasted by hand" lives in the cloud product's own settings and 
 
 ## What is automatic from the repo
 
-| Piece                                                                                | Cursor cloud                                                                                                                              | Claude Code cloud                                                              |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Image: Node 22.23.3, pnpm 10.11.1, Node 24.21.0 at `/opt/node24`, shellcheck, Docker | `.cursor/Dockerfile` (rebuilt when it changes)                                                                                            | The product's base image plus the setup script below                           |
-| Dependencies and product forks                                                       | `.cursor/environment.json` `install`: `npm ci`, `npx playwright install --with-deps chromium firefox`, `bash scripts/bootstrap.sh medusa` | Run `npm ci` and `bash scripts/bootstrap.sh <products>` on demand              |
-| Docker daemon                                                                        | `start`: `sudo service docker start`                                                                                                      | `.claude/hooks/session-start.sh`                                               |
-| `127.0.0.1 p1.lvh.me` in `/etc/hosts` (Documenso public host, as in `e2e.yml`)       | `start` (idempotent)                                                                                                                      | `.claude/hooks/session-start.sh` (idempotent)                                  |
-| `/usr/local/bin` first on `PATH` (Node 22.23)                                        | Not needed in the image; see AGENTS.md for Cursor's own Node                                                                              | Hook writes it to `$CLAUDE_ENV_FILE`                                           |
-| `.env` (non-secret defaults, generated Medusa admin password)                        | `scripts/bootstrap.sh` calls `scripts/cloud-env.sh`                                                                                       | Hook calls `scripts/cloud-env.sh`; `bootstrap.sh` calls it again               |
-| No Claude attribution lines in commits and PRs                                       | n/a                                                                                                                                       | `.claude/settings.json`                                                        |
-| `P1:` hints on stderr when something is missing                                      | n/a                                                                                                                                       | Hook: Node 24, shellcheck, `CAL_E2E_PASSWORD`, `CAL_DST_PASSWORD` (names only) |
+| Piece                                                                                | Cursor cloud                                                                                                                                                                  | Claude Code cloud                                                                                                              |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Image: Node 22.23.3, pnpm 10.11.1, Node 24.21.0 at `/opt/node24`, shellcheck, Docker | `.cursor/Dockerfile` (rebuilt when it changes)                                                                                                                                | Setup script below (as root)                                                                                                   |
+| Dependencies and product forks                                                       | `.cursor/environment.json` `install`: `export PATH=/usr/local/bin:$PATH`, `npm ci`, `npx playwright install --with-deps chromium firefox`, `bash scripts/bootstrap.sh medusa` | Setup script: `npm ci`, Playwright browsers, `bash scripts/bootstrap.sh ${P1_BOOTSTRAP_PRODUCTS:-medusa cal documenso twenty}` |
+| Docker daemon                                                                        | `start`: `sudo service docker start`                                                                                                                                          | `.claude/hooks/session-start.sh`                                                                                               |
+| `127.0.0.1 p1.lvh.me` in `/etc/hosts` (Documenso public host, as in `e2e.yml`)       | `start` (idempotent)                                                                                                                                                          | `.claude/hooks/session-start.sh` (idempotent)                                                                                  |
+| `/usr/local/bin` first on `PATH` (Node 22.23)                                        | Not needed in the image; see AGENTS.md for Cursor's own Node                                                                                                                  | Hook writes it to `$CLAUDE_ENV_FILE`                                                                                           |
+| `.env` (non-secret defaults, generated Medusa admin password)                        | `scripts/bootstrap.sh` calls `scripts/cloud-env.sh`                                                                                                                           | Hook calls `scripts/cloud-env.sh`; `bootstrap.sh` calls it again                                                               |
+| No Claude attribution lines in commits and PRs                                       | n/a                                                                                                                                                                           | `.claude/settings.json`                                                                                                        |
+| `P1:` hints on stderr when something is missing                                      | n/a                                                                                                                                                                           | Hook: Node 24, shellcheck, `CAL_E2E_PASSWORD`, `CAL_DST_PASSWORD` (names only)                                                 |
 
 `scripts/cloud-env.sh` creates `.env` (mode 600, temp file then move) when it is missing. When `.env` exists it
 appends only the keys that are missing and never changes an existing line. It writes `PRODUCTS_ROOT`, the Cal,
@@ -53,6 +53,7 @@ Open the cloud environment menu in the session title bar, then Edit.
   | `registry.npmjs.org`                                                         | `npm ci`, Documenso `npm ci`, pnpm and Yarn package downloads            |
   | `repo.yarnpkg.com`                                                           | Corepack fetches Yarn 4 for the Cal fork                                 |
   | `github.com`, `codeload.github.com`                                          | product fork clones, `qa-portfolio-harness` install                      |
+  | `release-assets.githubusercontent.com`, `objects.githubusercontent.com`      | actionlint download (`scripts/actionlint.mts`)                           |
   | `cdn.playwright.dev`, `playwright.download.prss.microsoft.com`               | Playwright browser downloads                                             |
   | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | images `postgres:15`, `redis:7`, `inbucket/inbucket`, `twentycrm/twenty` |
 
@@ -64,46 +65,81 @@ Open the cloud environment menu in the session title bar, then Edit.
   values are never written to a file): `CAL_E2E_PASSWORD` and `CAL_DST_PASSWORD`. Add them as variables of the
   cloud environment, using whatever secret mechanism the product offers. The hook prints a `P1:` hint naming
   either one if it is missing. `TWENTY_PASSWORD` stays unset (the harness default applies).
-- **Setup script**, pasted as it is. It runs when each new session starts, is idempotent, checks the tarball
-  against `SHASUMS256.txt`, works as root or with `sudo`, and never changes `PATH`:
+- **Setup script**, pasted as it is. It runs as root when each new session starts and is idempotent: a Node
+  version that is already installed is skipped, and each download is checked against the official
+  `SHASUMS256.txt`. It stops at the first failing command (`set -e`). Set the environment variable
+  `P1_BOOTSTRAP_PRODUCTS` only to bootstrap fewer products than the default.
 
   ```bash
-  # --- P1: Node 24 for Documenso (side by side; /usr/local/bin keeps Node 22 first) ---
-  P1_NODE24_VERSION=v24.21.0
-  P1_SUDO=""; [ "$(id -u)" -eq 0 ] || P1_SUDO="sudo"
-  if [ "$(/opt/node24/bin/node -v 2>/dev/null)" != "$P1_NODE24_VERSION" ]; then
-    p1_tmp="$(mktemp -d)"
-    p1_tar="node-$P1_NODE24_VERSION-linux-x64.tar.xz"
-    curl -fsSL --retry 3 -o "$p1_tmp/$p1_tar" "https://nodejs.org/dist/$P1_NODE24_VERSION/$p1_tar" &&
-      curl -fsSL --retry 3 -o "$p1_tmp/SHASUMS256.txt" "https://nodejs.org/dist/$P1_NODE24_VERSION/SHASUMS256.txt" &&
-      (cd "$p1_tmp" && grep " $p1_tar\$" SHASUMS256.txt | sha256sum -c -) &&
-      $P1_SUDO rm -rf /opt/node24 &&
-      $P1_SUDO mkdir -p /opt/node24 &&
-      $P1_SUDO tar -xJf "$p1_tmp/$p1_tar" -C /opt/node24 --strip-components=1 ||
-      echo "P1: Node 24 install failed; Documenso commands will report ENV until it is fixed" >&2
-    rm -rf "$p1_tmp"
-  fi
-  /opt/node24/bin/node -v 2>/dev/null || echo "P1: /opt/node24/bin/node missing" >&2
-  command -v shellcheck >/dev/null 2>&1 || { $P1_SUDO apt-get install -y shellcheck >/dev/null 2>&1 || echo "P1: shellcheck install failed" >&2; }
-  ```
+  # --- P1: toolchain, dependencies and product forks (root, idempotent) ---
+  set -euo pipefail
+  P1_NODE22_VERSION=22.23.3
+  P1_NODE24_VERSION=24.21.0
+  P1_PNPM_VERSION=10.11.1
+  P1_REPO=/home/user/playwright-e2e-ci-framework
 
-  Do not add `bootstrap.sh` here; run it on demand.
+  case "$(uname -m)" in
+    x86_64) p1_arch=x64 ;;
+    aarch64) p1_arch=arm64 ;;
+    *) echo "P1: unsupported architecture $(uname -m)" >&2; exit 1 ;;
+  esac
+
+  # p1_install_node <version> <prefix>: skip if installed, else download and verify before extracting.
+  p1_install_node() {
+    local version="$1" prefix="$2" tar="node-v$1-linux-$p1_arch.tar.xz" tmp
+    if [ "$("$prefix/bin/node" -v 2>/dev/null)" = "v$version" ]; then return 0; fi
+    tmp="$(mktemp -d)"
+    curl -fsSL --retry 3 -o "$tmp/$tar" "https://nodejs.org/dist/v$version/$tar"
+    curl -fsSL --retry 3 -o "$tmp/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
+    (cd "$tmp" && grep " $tar\$" SHASUMS256.txt | sha256sum -c -)
+    [ "$prefix" = /usr/local ] || rm -rf "$prefix"
+    mkdir -p "$prefix"
+    tar -xJf "$tmp/$tar" -C "$prefix" --strip-components=1
+    rm -rf "$tmp"
+  }
+
+  export PATH="/usr/local/bin:$PATH"
+  p1_install_node "$P1_NODE22_VERSION" /usr/local
+  p1_install_node "$P1_NODE24_VERSION" /opt/node24
+  corepack enable
+  corepack prepare "pnpm@$P1_PNPM_VERSION" --activate
+  command -v shellcheck >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq shellcheck; }
+  echo "node $(node -v), node24 $(/opt/node24/bin/node -v), pnpm $(cd / && pnpm -v)," \
+    "shellcheck $(shellcheck --version | awk '/^version:/ { print $2 }')"
+
+  if [ -d "$P1_REPO" ]; then
+    cd "$P1_REPO"
+    npm ci
+    npx playwright install --with-deps chromium firefox
+    if [ -f scripts/bootstrap.sh ]; then
+      # shellcheck disable=SC2086  # the product list is meant to word-split
+      bash scripts/bootstrap.sh ${P1_BOOTSTRAP_PRODUCTS:-medusa cal documenso twenty}
+    fi
+  fi
+  ```
 
 ## Pasted by hand: Cursor cloud
 
-Nothing. There are no variables or secrets in the settings form. Set the same two variables
-(`CAL_E2E_PASSWORD`, `CAL_DST_PASSWORD`) as secrets of the Cursor cloud environment. If the environment limits
-network access, allow the domains in the table above.
+Not everything lives in the repo. Three things are set in Cursor itself:
+
+- **Secrets:** add `CAL_E2E_PASSWORD` and `CAL_DST_PASSWORD` under Cursor's Secrets (names only here, values
+  are never written to a file). No plain environment variables are needed.
+- **Environment location:** a new saved environment must point its `environment.json` location at this
+  repo's `.cursor/environment.json`, so Cursor builds from `.cursor/Dockerfile` and runs `install` and `start`.
+- **Default branch only:** Cursor builds from the default-branch config, so changes to `.cursor/` apply only
+  after they are merged to `main`. Testing a Dockerfile change needs a merge first.
+
+If the environment limits network access, allow the domains in the table above.
 
 ## Updating
 
-| Change                                                               | Where to change it                                                                                                                        |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Product ref (`MEDUSA_REF`, `DOCUMENSO_REF`, `TWENTY_REF`, `CAL_REF`) | `.github/workflows/e2e.yml` `env`, then the same value in `scripts/bootstrap.sh`; the unit test enforces it                               |
-| Twenty image tag                                                     | `e2e.yml` `TWENTY_IMAGE_TAG`, then `scripts/cloud-env.sh`; the unit test enforces it                                                      |
-| Node 22, pnpm, Docker or shellcheck version                          | `.cursor/Dockerfile` (Cursor rebuilds). Claude uses its own base image: nothing to change unless a `P1:` hint appears                     |
-| Node 24 version                                                      | `DOCUMENSO_NODE_VERSION` in `.cursor/Dockerfile` and `P1_NODE24_VERSION` in the Claude setup script above and in the environment settings |
-| New default `.env` key                                               | `scripts/cloud-env.sh`. Existing machines get the key on the next run; their existing lines are never edited                              |
-| Setup script or allowed domains in Claude                            | Edit the environment settings by hand, then update the matching text in this file in the same pull request                                |
+| Change                                                               | Where to change it                                                                                                                     |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Product ref (`MEDUSA_REF`, `DOCUMENSO_REF`, `TWENTY_REF`, `CAL_REF`) | `.github/workflows/e2e.yml` `env`, then the same value in `scripts/bootstrap.sh`; the unit test enforces it                            |
+| Twenty image tag                                                     | `e2e.yml` `TWENTY_IMAGE_TAG`, then `scripts/cloud-env.sh`; the unit test enforces it                                                   |
+| Node 22, pnpm, Docker or shellcheck version                          | `.cursor/Dockerfile` (Cursor rebuilds); `P1_NODE22_VERSION` and `P1_PNPM_VERSION` in the Claude setup script above and in the settings |
+| Node 24 version                                                      | `DOCUMENSO_NODE_VERSION` in `.cursor/Dockerfile` and `P1_NODE24_VERSION` in the Claude setup script above and in the settings          |
+| New default `.env` key                                               | `scripts/cloud-env.sh`. Existing machines get the key on the next run; their existing lines are never edited                           |
+| Setup script or allowed domains in Claude                            | Edit the environment settings by hand, then update the matching text in this file in the same pull request                             |
 
 Existing Claude environments keep their saved settings; only new sessions pick up an edited setup script.
