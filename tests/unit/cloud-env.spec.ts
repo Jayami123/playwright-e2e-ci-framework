@@ -60,6 +60,8 @@ test.describe("cloud-env.sh", { tag: ["@unit"] }, () => {
     ["quoted whitespace only", 'MEDUSA_ADMIN_PASSWORD="  "'],
     ["exported and empty", "export MEDUSA_ADMIN_PASSWORD="],
     ["empty with a CRLF ending", "MEDUSA_ADMIN_PASSWORD=\r"],
+    ["empty with an inline comment", "MEDUSA_ADMIN_PASSWORD= # set later"],
+    ["quoted empty with an inline comment", 'MEDUSA_ADMIN_PASSWORD="" # x'],
   ] as const) {
     test(`treats MEDUSA_ADMIN_PASSWORD as missing when ${label}`, () => {
       const { envFile, stdout } = runCloudEnv(`${line}\n`);
@@ -74,6 +76,10 @@ test.describe("cloud-env.sh", { tag: ["@unit"] }, () => {
     const { envFile } = runCloudEnv('MEDUSA_ADMIN_PASSWORD="kept value"\n');
     expect(dotenv.parse(envFile).MEDUSA_ADMIN_PASSWORD).toBe("kept value");
     expect(envFile.match(/^MEDUSA_ADMIN_PASSWORD=/gm)).toHaveLength(1);
+
+    const hash = runCloudEnv('MEDUSA_ADMIN_PASSWORD="a#b"\n');
+    expect(dotenv.parse(hash.envFile).MEDUSA_ADMIN_PASSWORD).toBe("a#b");
+    expect(hash.envFile.match(/^MEDUSA_ADMIN_PASSWORD=/gm)).toHaveLength(1);
 
     const later = runCloudEnv("MEDUSA_ADMIN_PASSWORD=\nMEDUSA_ADMIN_PASSWORD=second\n");
     expect(dotenv.parse(later.envFile).MEDUSA_ADMIN_PASSWORD).toBe("second");

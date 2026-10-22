@@ -19,15 +19,22 @@ log() { printf '[cloud-env] %s\n' "$*"; }
 tmp=""
 trap 'rm -f "$tmp"' EXIT
 
-# A key counts as present only when its value is non-empty after dotenv-style reading: the last line for
-# the key wins, an optional "export " prefix, CR, surrounding quotes and whitespace are ignored. So a blank
-# KEY=, KEY="" or KEY='' line gets a value appended.
+# A key counts as present only when its value is non-empty the way dotenv reads it: the last line for the key
+# wins; an optional "export " prefix and CR are ignored. A quoted value is the text up to the matching closing
+# quote, so anything after it (e.g. "" # x) is ignored and a # inside the quotes stays part of the value. An
+# unquoted value ends at a # at its start or after whitespace. Surrounding whitespace never counts. So KEY=,
+# KEY="", KEY='' and KEY= # later all get a value appended.
 has_key() {
   [ -f "$ENV_FILE" ] || return 1
-  local value
+  local value double='^"([^"]*)"' single="^'([^']*)'"
   value="$(sed -nE "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r')"
-  value="$(printf '%s' "$value" | sed -E "s/^[[:space:]]+//; s/[[:space:]]+\$//; s/^\"(.*)\"\$/\1/; s/^'(.*)'\$/\1/; s/^[[:space:]]+//; s/[[:space:]]+\$//")"
-  [ -n "$value" ]
+  value="${value#"${value%%[![:space:]]*}"}"
+  if [[ "$value" =~ $double ]] || [[ "$value" =~ $single ]]; then
+    value="${BASH_REMATCH[1]}"
+  else
+    value="$(printf '%s' "$value" | sed -E 's/^#.*$//; s/[[:space:]]+#.*$//')"
+  fi
+  [ -n "${value//[[:space:]]/}" ]
 }
 
 main() {
