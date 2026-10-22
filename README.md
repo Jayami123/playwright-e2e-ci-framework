@@ -44,6 +44,10 @@ Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2F
 - A local Cal.diy fork under `PRODUCTS_ROOT` (default `../products`)
 - Copy `.env.example` to `.env` and set `CAL_E2E_PASSWORD` (cal.diy seed: password equals username)
 
+## Cloud agents
+
+Cursor cloud (`.cursor/`) and Claude Code cloud (`.claude/`) environments are committed in this repo, with `scripts/bootstrap.sh` and `scripts/cloud-env.sh` preparing the product forks and `.env`. What is automatic, what is pasted by hand and how to update both: [docs/cloud-environments.md](docs/cloud-environments.md). Agent rules: [AGENTS.md](AGENTS.md).
+
 ## Folder structure
 
 ```
