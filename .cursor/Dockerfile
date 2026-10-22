@@ -13,8 +13,11 @@ ARG NODE_VERSION=22.23.3
 ENV COREPACK_HOME=/opt/corepack
 RUN arch="$(dpkg --print-architecture)" && \
     case "$arch" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo "unsupported $arch"; exit 1 ;; esac && \
-    curl --retry 3 -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
-    | tar -xJ -C /usr/local --strip-components=1 && \
+    v="v${NODE_VERSION}" && tar="node-${v}-linux-${node_arch}.tar.xz" && tmp="$(mktemp -d)" && \
+    curl --retry 3 -fsSL -o "$tmp/$tar" "https://nodejs.org/dist/${v}/${tar}" && \
+    curl --retry 3 -fsSL -o "$tmp/SHASUMS256.txt" "https://nodejs.org/dist/${v}/SHASUMS256.txt" && \
+    (cd "$tmp" && grep " ${tar}\$" SHASUMS256.txt | sha256sum -c -) && \
+    tar -xJf "$tmp/$tar" -C /usr/local --strip-components=1 && rm -rf "$tmp" && \
     mkdir -p "$COREPACK_HOME" && corepack enable && corepack prepare pnpm@10.11.1 --activate && \
     chmod -R a+rwX "$COREPACK_HOME" && node --version && pnpm --version
 
