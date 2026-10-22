@@ -62,10 +62,18 @@ clone_pinned() {
   fi
   log "cloning $url at $ref into $dest (depth 1)"
   mkdir -p "$dest"
-  git -C "$dest" init -q
-  git -C "$dest" remote add origin "$url"
-  git -C "$dest" fetch -q --depth 1 origin "$ref"
-  git -C "$dest" -c advice.detachedHead=false checkout -q FETCH_HEAD
+  # One chain: a half-finished clone (network error, bad ref) must not leave a .git behind, or the
+  # next run would treat the empty checkout as "already cloned".
+  if ! {
+    git -C "$dest" init -q \
+      && git -C "$dest" remote add origin "$url" \
+      && git -C "$dest" fetch -q --depth 1 origin "$ref" \
+      && git -C "$dest" -c advice.detachedHead=false checkout -q FETCH_HEAD
+  }; then
+    rm -rf "$dest/.git"
+    log "ERROR cloning $url at $ref into $dest failed; removed $dest/.git so a rerun clones again."
+    exit 1
+  fi
   log "cloned $(git -C "$dest" rev-parse HEAD)"
 }
 
