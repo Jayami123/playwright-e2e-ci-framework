@@ -19,8 +19,16 @@ log() { printf '[cloud-env] %s\n' "$*"; }
 tmp=""
 trap 'rm -f "$tmp"' EXIT
 
-# A key counts as present only with a non-empty value, so a blank "KEY=" line gets a value appended.
-has_key() { [ -f "$ENV_FILE" ] && grep -qE "^$1=." "$ENV_FILE"; }
+# A key counts as present only when its value is non-empty after dotenv-style reading: the last line for
+# the key wins, an optional "export " prefix, CR, surrounding quotes and whitespace are ignored. So a blank
+# KEY=, KEY="" or KEY='' line gets a value appended.
+has_key() {
+  [ -f "$ENV_FILE" ] || return 1
+  local value
+  value="$(sed -nE "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r')"
+  value="$(printf '%s' "$value" | sed -E "s/^[[:space:]]+//; s/[[:space:]]+\$//; s/^\"(.*)\"\$/\1/; s/^'(.*)'\$/\1/; s/^[[:space:]]+//; s/[[:space:]]+\$//")"
+  [ -n "$value" ]
+}
 
 main() {
   umask 077

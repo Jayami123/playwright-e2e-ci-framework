@@ -53,4 +53,30 @@ test.describe("cloud-env.sh", { tag: ["@unit"] }, () => {
       expect(parsed[key], key).toBeUndefined();
     }
   });
+
+  for (const [label, line] of [
+    ["double-quoted and empty", 'MEDUSA_ADMIN_PASSWORD=""'],
+    ["single-quoted and empty", "MEDUSA_ADMIN_PASSWORD=''"],
+    ["quoted whitespace only", 'MEDUSA_ADMIN_PASSWORD="  "'],
+    ["exported and empty", "export MEDUSA_ADMIN_PASSWORD="],
+    ["empty with a CRLF ending", "MEDUSA_ADMIN_PASSWORD=\r"],
+  ] as const) {
+    test(`treats MEDUSA_ADMIN_PASSWORD as missing when ${label}`, () => {
+      const { envFile, stdout } = runCloudEnv(`${line}\n`);
+      expect(envFile.startsWith(`${line}\n`), "existing line is not edited").toBe(true);
+      const password = dotenv.parse(envFile).MEDUSA_ADMIN_PASSWORD;
+      expect(password).toMatch(/^[0-9a-f]{32}$/);
+      expect(stdout).not.toContain(password ?? "unreachable");
+    });
+  }
+
+  test("keeps quoted non-empty values and the last duplicate line", () => {
+    const { envFile } = runCloudEnv('MEDUSA_ADMIN_PASSWORD="kept value"\n');
+    expect(dotenv.parse(envFile).MEDUSA_ADMIN_PASSWORD).toBe("kept value");
+    expect(envFile.match(/^MEDUSA_ADMIN_PASSWORD=/gm)).toHaveLength(1);
+
+    const later = runCloudEnv("MEDUSA_ADMIN_PASSWORD=\nMEDUSA_ADMIN_PASSWORD=second\n");
+    expect(dotenv.parse(later.envFile).MEDUSA_ADMIN_PASSWORD).toBe("second");
+    expect(later.envFile.match(/^MEDUSA_ADMIN_PASSWORD=/gm)).toHaveLength(2);
+  });
 });
