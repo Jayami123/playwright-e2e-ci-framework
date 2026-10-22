@@ -6,16 +6,16 @@ everything under "Pasted by hand" lives in the cloud product's own settings and 
 
 ## What is automatic from the repo
 
-| Piece                                                                                | Cursor cloud                                                                                                                                                                  | Claude Code cloud                                                                                                              |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Image: Node 22.23.3, pnpm 10.11.1, Node 24.21.0 at `/opt/node24`, shellcheck, Docker | `.cursor/Dockerfile` (rebuilt when it changes)                                                                                                                                | Setup script below (as root)                                                                                                   |
-| Dependencies and product forks                                                       | `.cursor/environment.json` `install`: `export PATH=/usr/local/bin:$PATH`, `npm ci`, `npx playwright install --with-deps chromium firefox`, `bash scripts/bootstrap.sh medusa` | Setup script: `npm ci`, Playwright browsers, `bash scripts/bootstrap.sh ${P1_BOOTSTRAP_PRODUCTS:-medusa cal documenso twenty}` |
-| Docker daemon                                                                        | `start`: `sudo service docker start`                                                                                                                                          | `.claude/hooks/session-start.sh`                                                                                               |
-| `127.0.0.1 p1.lvh.me` in `/etc/hosts` (Documenso public host, as in `e2e.yml`)       | `start` (idempotent)                                                                                                                                                          | `.claude/hooks/session-start.sh` (idempotent)                                                                                  |
-| `/usr/local/bin` first on `PATH` (Node 22.23)                                        | Not needed in the image; see AGENTS.md for Cursor's own Node                                                                                                                  | Hook writes it to `$CLAUDE_ENV_FILE`                                                                                           |
-| `.env` (non-secret defaults, generated Medusa admin password)                        | `scripts/bootstrap.sh` calls `scripts/cloud-env.sh`                                                                                                                           | Hook calls `scripts/cloud-env.sh`; `bootstrap.sh` calls it again                                                               |
-| No Claude attribution lines in commits and PRs                                       | n/a                                                                                                                                                                           | `.claude/settings.json`                                                                                                        |
-| `P1:` hints on stderr when something is missing                                      | n/a                                                                                                                                                                           | Hook: Node 24, shellcheck, `CAL_E2E_PASSWORD`, `CAL_DST_PASSWORD` (names only)                                                 |
+| Piece                                                                                | Cursor cloud                                                                                                                                                                  | Claude Code cloud                                                                                         |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Image: Node 22.23.3, pnpm 10.11.1, Node 24.21.0 at `/opt/node24`, shellcheck, Docker | `.cursor/Dockerfile` (rebuilt when it changes)                                                                                                                                | Setup script below (as root)                                                                              |
+| Dependencies and product forks                                                       | `.cursor/environment.json` `install`: `export PATH=/usr/local/bin:$PATH`, `npm ci`, `npx playwright install --with-deps chromium firefox`, `bash scripts/bootstrap.sh medusa` | Setup script: `npm ci`, Playwright browsers, `bash scripts/bootstrap.sh ${P1_BOOTSTRAP_PRODUCTS:-medusa}` |
+| Docker daemon                                                                        | `start`: `sudo service docker start`                                                                                                                                          | `.claude/hooks/session-start.sh`                                                                          |
+| `127.0.0.1 p1.lvh.me` in `/etc/hosts` (Documenso public host, as in `e2e.yml`)       | `start` (idempotent)                                                                                                                                                          | `.claude/hooks/session-start.sh` (idempotent)                                                             |
+| `/usr/local/bin` first on `PATH` (Node 22.23)                                        | Not needed in the image; see AGENTS.md for Cursor's own Node                                                                                                                  | Hook writes it to `$CLAUDE_ENV_FILE`                                                                      |
+| `.env` (non-secret defaults, generated Medusa admin password)                        | `scripts/bootstrap.sh` calls `scripts/cloud-env.sh`                                                                                                                           | Hook calls `scripts/cloud-env.sh`; `bootstrap.sh` calls it again                                          |
+| No Claude attribution lines in commits and PRs                                       | n/a                                                                                                                                                                           | `.claude/settings.json`                                                                                   |
+| `P1:` hints on stderr when something is missing                                      | n/a                                                                                                                                                                           | Hook: Node 24, shellcheck, `CAL_E2E_PASSWORD`, `CAL_DST_PASSWORD` (names only)                            |
 
 `scripts/cloud-env.sh` creates `.env` (mode 600, temp file then move) when it is missing. When `.env` exists it
 appends only the keys that are missing and never changes an existing line. It writes `PRODUCTS_ROOT`, the Cal,
@@ -49,7 +49,7 @@ Open the cloud environment menu in the session title bar, then Edit.
 
   | Domain                                                                       | Why                                                                      |
   | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-  | `nodejs.org`                                                                 | Node 24.21.0 tarball and `SHASUMS256.txt` (setup script)                 |
+  | `nodejs.org`                                                                 | Node 22.23.3 and 24.21.0 tarballs and `SHASUMS256.txt` (setup script)    |
   | `registry.npmjs.org`                                                         | `npm ci`, Documenso `npm ci`, pnpm and Yarn package downloads            |
   | `repo.yarnpkg.com`                                                           | Corepack fetches Yarn 4 for the Cal fork                                 |
   | `github.com`, `codeload.github.com`                                          | product fork clones, `qa-portfolio-harness` install                      |
@@ -65,10 +65,20 @@ Open the cloud environment menu in the session title bar, then Edit.
   values are never written to a file): `CAL_E2E_PASSWORD` and `CAL_DST_PASSWORD`. Add them as variables of the
   cloud environment, using whatever secret mechanism the product offers. The hook prints a `P1:` hint naming
   either one if it is missing. `TWENTY_PASSWORD` stays unset (the harness default applies).
-- **Setup script**, pasted as it is. It runs as root when each new session starts and is idempotent: a Node
-  version that is already installed is skipped, and each download is checked against the official
-  `SHASUMS256.txt`. It stops at the first failing command (`set -e`). Set the environment variable
-  `P1_BOOTSTRAP_PRODUCTS` only to bootstrap fewer products than the default.
+- **Setup script**, pasted as it is. It runs as root and is idempotent: a Node version that is already installed
+  is skipped, and each Node download is checked against the official `SHASUMS256.txt`. The toolchain part (Node
+  22 and 24, corepack and pnpm, shellcheck) stops at the first failing command (`set -euo pipefail`), because
+  nothing after it works without it. The dependency part (`npm ci`, the Playwright browsers, `bootstrap.sh`) is
+  fail-soft: a failure prints a `P1:` line to stderr and the script goes on, so it always exits 0. Claude Code
+  fails the session when a setup script exits non-zero
+  ([script requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements)).
+
+  The default is `bootstrap.sh medusa`, the same as Cursor. Set the environment variable `P1_BOOTSTRAP_PRODUCTS`
+  to change it. Run the other products on demand: `bash scripts/bootstrap.sh cal documenso twenty`. The reason is
+  time: Claude snapshots the environment only when the setup script finishes in roughly five minutes, and a
+  longer script is not cached, so every new session would repeat it
+  ([environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching)). Cloning and
+  installing all four forks takes longer than that.
 
   ```bash
   # --- P1: toolchain, dependencies and product forks (root, idempotent) ---
@@ -107,15 +117,21 @@ Open the cloud environment menu in the session title bar, then Edit.
   echo "node $(node -v), node24 $(/opt/node24/bin/node -v), pnpm $(cd / && pnpm -v)," \
     "shellcheck $(shellcheck --version | awk '/^version:/ { print $2 }')"
 
-  if [ -d "$P1_REPO" ]; then
-    cd "$P1_REPO"
-    npm ci
-    npx playwright install --with-deps chromium firefox
+  # Dependencies and forks are fail-soft: report with a "P1:" line and carry on, so the script exits 0.
+  set +euo pipefail
+  if [ -d "$P1_REPO" ] && cd "$P1_REPO"; then
+    npm ci || echo "P1: npm ci failed; run it by hand in $P1_REPO" >&2
+    npx playwright install --with-deps chromium firefox \
+      || echo "P1: Playwright browser install failed; run it by hand in $P1_REPO" >&2
     if [ -f scripts/bootstrap.sh ]; then
       # shellcheck disable=SC2086  # the product list is meant to word-split
-      bash scripts/bootstrap.sh ${P1_BOOTSTRAP_PRODUCTS:-medusa cal documenso twenty}
+      bash scripts/bootstrap.sh ${P1_BOOTSTRAP_PRODUCTS:-medusa} \
+        || echo "P1: bootstrap.sh failed; run it by hand in $P1_REPO" >&2
     fi
+  else
+    echo "P1: repo not found at $P1_REPO; skipped npm ci and bootstrap" >&2
   fi
+  exit 0
   ```
 
 ## Pasted by hand: Cursor cloud
