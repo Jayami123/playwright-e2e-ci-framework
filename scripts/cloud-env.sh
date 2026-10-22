@@ -19,7 +19,8 @@ log() { printf '[cloud-env] %s\n' "$*"; }
 tmp=""
 trap 'rm -f "$tmp"' EXIT
 
-has_key() { [ -f "$ENV_FILE" ] && grep -qE "^$1=" "$ENV_FILE"; }
+# A key counts as present only with a non-empty value, so a blank "KEY=" line gets a value appended.
+has_key() { [ -f "$ENV_FILE" ] && grep -qE "^$1=." "$ENV_FILE"; }
 
 main() {
   umask 077
