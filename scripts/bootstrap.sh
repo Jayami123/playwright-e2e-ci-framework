@@ -17,7 +17,7 @@ ALL_PRODUCTS=(cal documenso medusa twenty)
 
 log() { printf '[bootstrap] %s\n' "$*"; }
 
-# Folder names the harness resolves under PRODUCTS_ROOT (harness v0.2.11 src/config.ts).
+# Folder names the harness resolves under PRODUCTS_ROOT (harness v0.3.0 src/config.ts).
 product_dir() {
   case "$1" in
     cal) echo cal ;;
