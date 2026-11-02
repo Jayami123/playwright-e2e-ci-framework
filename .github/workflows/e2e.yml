@@ -59,6 +59,8 @@ on:
         required: false
       CAL_DST_PASSWORD:
         required: false
+      STRIPE_API_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -280,6 +282,7 @@ jobs:
       P1_WORKING_DIRECTORY: p1
       CAL_CHECKOUT_PATH: products/cal
       PRODUCTS_ROOT: ${{ github.workspace }}/products
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
     steps:
       - name: Decide whether visual is requested
         id: visual_requested
