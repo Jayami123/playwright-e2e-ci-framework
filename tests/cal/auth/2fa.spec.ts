@@ -50,6 +50,8 @@ test.describe("P1-CAL-2FA-001 UI enrol", () => {
 
       await test.step("session and event-types oracle", async () => {
         await pollSessionHasEmail(page.request, twoFactorUser.email);
+        // Same race as P1-CAL-2FA-003: the auth callback redirect can still be loading when this goto starts.
+        await login.waitForSignedInLanding();
         await page.goto(CAL_ROUTES.eventTypes, { waitUntil: "domcontentloaded" });
         await expect(eventTypes.heading).toBeVisible();
       });
