@@ -1,8 +1,1 @@
-[
-  {
-    "id": "GHSA-MRHX-C7XC-M3W5",
-    "package": "zod",
-    "reason": "zod 3.x has no patched release. qa-portfolio-harness (github:Jayami123/qa-portfolio-harness#v0.2.11) pins zod ^3.24.2. Remove this entry once the harness or an override moves zod to 4.6.6 or later.",
-    "expires": "2026-12-02"
-  }
-]
+[]
