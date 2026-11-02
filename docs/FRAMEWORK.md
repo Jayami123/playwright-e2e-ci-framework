@@ -2,7 +2,7 @@
 
 [![P1 E2E](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/p1-e2e.yml/badge.svg?branch=main)](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/p1-e2e.yml)
 [![CodeQL](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/workflows/codeql.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 
 Portfolio **P1 Web E2E & CI**. Playwright + TypeScript black-box tests against product forks. This repo does not modify product source.
 
@@ -10,31 +10,31 @@ Depends on [qa-portfolio-harness](https://github.com/Jayami123/qa-portfolio-harn
 
 ## Scope
 
-**Phase 2e (2026-10-13):** Cal FW, timezone/DST, and 2FA (table below); Documenso auth, 2FA, passkeys, signing framework cases, and rate limits — `P1-DOC-AUTH-000`, `P1-DOC-2FA-001`–`009`, `P1-DOC-PK-001`–`006`, `P1-DOC-FW-001`–`011`, `P1-DOC-RL-001`. PR CI runs Documenso on Chromium (`documenso-chromium`); nightly Firefox covers `P1-DOC-FW-001`–`003`. Self-hosted job: `e2e / documenso-self-hosted` ([ADR 0011](docs/adr/0011-documenso-ci.md)).
+**Phase 2e (2026-10-13):** Cal FW, timezone/DST, and 2FA (table below); Documenso auth, 2FA, passkeys, signing framework cases, and rate limits — `P1-DOC-AUTH-000`, `P1-DOC-2FA-001`–`009`, `P1-DOC-PK-001`–`006`, `P1-DOC-FW-001`–`011`, `P1-DOC-RL-001`. PR CI runs Documenso on Chromium (`documenso-chromium`); nightly Firefox covers `P1-DOC-FW-001`–`003`. Self-hosted job: `e2e / documenso-self-hosted` ([ADR 0011](adr/0011-documenso-ci.md)).
 
-Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 2026-10-13** on [CI run 38392549848](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38392549848)): 2FA-004 wrong TOTP HTTP 500; 2FA-006 backup reuse; 2FA-007 TOTP replay; 2FA-009 disable-2FA HTTP 500. Living list: [docs/observations/documenso-2fa-known-issues.md](docs/observations/documenso-2fa-known-issues.md).
+Four Documenso cases use **`test.fail`** for known product bugs (**confirmed 2026-10-13** on [CI run 38392549848](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38392549848)): 2FA-004 wrong TOTP HTTP 500; 2FA-006 backup reuse; 2FA-007 TOTP replay; 2FA-009 disable-2FA HTTP 500. Living list: [docs/observations/documenso-2fa-known-issues.md](observations/documenso-2fa-known-issues.md).
 
-Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](docs/observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](docs/observations/cal-2fa-known-issues.md).
+Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2FA-002 TOTP replay); see [docs/observations/cal-tz-dst-known-issues.md](observations/cal-tz-dst-known-issues.md) and [docs/observations/cal-2fa-known-issues.md](observations/cal-2fa-known-issues.md).
 
-**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases in the table below (`@twenty-tz`, serial Jane TZ). PR CI job `e2e / twenty-chromium` ([ADR 0016](docs/adr/0016-twenty-ci.md)). Typical Twenty CI duration: **TBD** (first green job summary). After **two** green `e2e / twenty-chromium` runs on `main`, add that check as required in GitHub settings (not automated in this repo). Medusa Admin is wired in Phase 4 batch 1 (below).
+**Phase 2f (2026-10-15):** Twenty smoke (`@twenty-smoke`) plus timezone UI cases in the table below (`@twenty-tz`, serial Jane TZ). PR CI job `e2e / twenty-chromium` ([ADR 0016](adr/0016-twenty-ci.md)). Typical Twenty CI duration: **TBD** (first green job summary). After **two** green `e2e / twenty-chromium` runs on `main`, add that check as required in GitHub settings (not automated in this repo). Medusa Admin is wired in Phase 4 batch 1 (below).
 
-**Phase 4 batch 1 (2026-10-16):** Medusa admin SPA and Admin API: `P1-MED-FW-001..005` plus extras `X01..X05` (`npm run test:medusa`, 11 tests including setup; X04 and X05 are expected failures). PR CI job `e2e / medusa-self-hosted` ([ADR 0018](docs/adr/0018-medusa-ci.md)); it needs `qa-portfolio-harness` `#v0.2.11` since batch 2. Typical Medusa CI duration: **TBD** (first green job summary). Known product bugs: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
+**Phase 4 batch 1 (2026-10-16):** Medusa admin SPA and Admin API: `P1-MED-FW-001..005` plus extras `X01..X05` (`npm run test:medusa`, 11 tests including setup; X04 and X05 are expected failures). PR CI job `e2e / medusa-self-hosted` ([ADR 0018](adr/0018-medusa-ci.md)); it needs `qa-portfolio-harness` `#v0.2.11` since batch 2. Typical Medusa CI duration: **TBD** (first green job summary). Known product bugs: [medusa-known-issues.md](observations/medusa-known-issues.md).
 
-**Phase 4 batch 2 (2026-10-17):** Medusa German order page layout (`P1-MED-I18N-001`), long product title truncation (`P1-MED-I18N-002`), orders list baselines at three viewports (`P1-MED-VIS-001`), products API 500 error state (`P1-MED-VIS-002`), slow API skeleton (`P1-MED-VIS-003`) and extras `X06..X14`. They run only in the Docker `visual-*` projects, so `npm run test:medusa` is still 11 tests. The Medusa visual suite joins the `e2e / visual` gate through `e2e / medusa-self-hosted` ([ADR 0018 amendment](docs/adr/0018-medusa-ci.md)). It needs the production admin bundle from harness `v0.2.11`: the development bundle showed stack traces on the error state.
+**Phase 4 batch 2 (2026-10-17):** Medusa German order page layout (`P1-MED-I18N-001`), long product title truncation (`P1-MED-I18N-002`), orders list baselines at three viewports (`P1-MED-VIS-001`), products API 500 error state (`P1-MED-VIS-002`), slow API skeleton (`P1-MED-VIS-003`) and extras `X06..X14`. They run only in the Docker `visual-*` projects, so `npm run test:medusa` is still 11 tests. The Medusa visual suite joins the `e2e / visual` gate through `e2e / medusa-self-hosted` ([ADR 0018 amendment](adr/0018-medusa-ci.md)). It needs the production admin bundle from harness `v0.2.11`: the development bundle showed stack traces on the error state.
 
-| Case                                             | Status                                                | ADR                                               |
-| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------- |
-| P1-TW-TZ-001 DATE no-shift Honolulu / Kiritimati | CI test (`@twenty-tz`)                                | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
-| P1-TW-TZ-002 DATE_TIME Colombo + UTC             | CI test                                               | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
-| P1-TW-TZ-003 Berlin calendar DST days            | CI test                                               | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
-| P1-TW-TZ-X01 Honolulu DATE_TIME                  | CI test                                               | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
-| P1-TW-TZ-X02 Settings TZ round-trip (last)       | CI test                                               | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
-| P1-TW-TZ-X03 relative today Kiritimati           | CI test                                               | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
-| P1-TW-TZ-X05 fall-back 02:30 labels              | CI test                                               | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
-| P1-TW-TZ-X04 CSV vs fixture UTC                  | Observation (assert CSV = stored ISO, no `test.fail`) | [0015](docs/adr/0015-twenty-dst-relative-date.md) |
-| OBS-001 bare date on DATE_TIME                   | Observation (not automated)                           | [0014](docs/adr/0014-twenty-timezone-testing.md)  |
+| Case                                             | Status                                                | ADR                                          |
+| ------------------------------------------------ | ----------------------------------------------------- | -------------------------------------------- |
+| P1-TW-TZ-001 DATE no-shift Honolulu / Kiritimati | CI test (`@twenty-tz`)                                | [0014](adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-002 DATE_TIME Colombo + UTC             | CI test                                               | [0014](adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-003 Berlin calendar DST days            | CI test                                               | [0015](adr/0015-twenty-dst-relative-date.md) |
+| P1-TW-TZ-X01 Honolulu DATE_TIME                  | CI test                                               | [0014](adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-X02 Settings TZ round-trip (last)       | CI test                                               | [0014](adr/0014-twenty-timezone-testing.md)  |
+| P1-TW-TZ-X03 relative today Kiritimati           | CI test                                               | [0015](adr/0015-twenty-dst-relative-date.md) |
+| P1-TW-TZ-X05 fall-back 02:30 labels              | CI test                                               | [0015](adr/0015-twenty-dst-relative-date.md) |
+| P1-TW-TZ-X04 CSV vs fixture UTC                  | Observation (assert CSV = stored ISO, no `test.fail`) | [0015](adr/0015-twenty-dst-relative-date.md) |
+| OBS-001 bare date on DATE_TIME                   | Observation (not automated)                           | [0014](adr/0014-twenty-timezone-testing.md)  |
 
-**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German layout and light and dark axe scans for Cal, Documenso and Twenty, and Arabic RTL layout for Cal, and for Twenty since Phase 4 batch 4. Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](docs/adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
+**Phase 3 (2026-10-16):** visual baselines at three viewports (393, 820, 1440), German layout and light and dark axe scans for Cal, Documenso and Twenty, and Arabic RTL layout for Cal, and for Twenty since Phase 4 batch 4. Baselines are Linux-only and come from the pinned Playwright Docker image ([ADR 0017](adr/0017-visual-baselines.md)); locally run `npm run visual:test -- --product=<cal|documenso|twenty>`. CI runs a `visual:test` step in each product job and a `visual` aggregator job (check `e2e / visual`); the baseline update workflow and the published report are described under [CI](#ci). Public report: <https://jayami123.github.io/playwright-e2e-ci-framework/>.
 
 ## Prerequisites
 
@@ -46,7 +46,7 @@ Cal still has four **`test.fail`** cases (DST-002, DST-003, TZ-003 Kathmandu, 2F
 
 ## Cloud agents
 
-Cursor cloud (`.cursor/`) and Claude Code cloud (`.claude/`) environments are committed in this repo, with `scripts/bootstrap.sh` and `scripts/cloud-env.sh` preparing the product forks and `.env`. What is automatic, what is pasted by hand and how to update both: [docs/cloud-environments.md](docs/cloud-environments.md). Agent rules: [AGENTS.md](AGENTS.md).
+Cursor cloud (`.cursor/`) and Claude Code cloud (`.claude/`) environments are committed in this repo, with `scripts/bootstrap.sh` and `scripts/cloud-env.sh` preparing the product forks and `.env`. What is automatic, what is pasted by hand and how to update both: [docs/cloud-environments.md](cloud-environments.md). Agent rules: [AGENTS.md](../AGENTS.md).
 
 ## Folder structure
 
@@ -135,7 +135,7 @@ node node_modules/qa-portfolio-harness/scripts/up.mjs twenty
 npm run test:twenty
 ```
 
-`globalSetup` waits on `GET /healthz` (HTTP 200), calls `getAdapter('twenty').up()` when needed, then `seed()`. `twenty-setup` UI-logs in as Jane and writes `.auth/twenty-jane.json` on every run ([ADR 0012](docs/adr/0012-twenty-ui-storage-state.md)).
+`globalSetup` waits on `GET /healthz` (HTTP 200), calls `getAdapter('twenty').up()` when needed, then `seed()`. `twenty-setup` UI-logs in as Jane and writes `.auth/twenty-jane.json` on every run ([ADR 0012](adr/0012-twenty-ui-storage-state.md)).
 
 If `node node_modules/qa-portfolio-harness/scripts/smoke.mjs twenty` or `npm run test:twenty` prints `dist/ is missing. Run npm run build first`, npm skipped harness `prepare` (`allowScripts`). Build the harness package once:
 
@@ -159,7 +159,7 @@ npm run test:medusa
 
 `globalSetup` skips `up()` when `GET /health` is 200, then runs the harness `seed()` and a local QA sweep. `medusa-setup` logs in through the API, creates the session and writes `.auth/medusa-admin.json` on every run. Orders cannot be deleted, so each test archives its order; check leftovers with `npx tsx scripts/count-medusa-qa-leaks.mts`.
 
-The batch 2 specs need Docker (baselines are Linux-only, [ADR 0017](docs/adr/0017-visual-baselines.md)) with Medusa running on `http://127.0.0.1:9000`:
+The batch 2 specs need Docker (baselines are Linux-only, [ADR 0017](adr/0017-visual-baselines.md)) with Medusa running on `http://127.0.0.1:9000`:
 
 ```powershell
 npm run visual:test -- --product=medusa
@@ -251,11 +251,11 @@ Status: **pass** = passes; **expected fail** = `test.fail` for a known product b
 | P1-MED-FW-X08 Login error announced (MED-F-06)                | desktop                 | expected fail |
 | P1-MED-FW-X13 Order detail reflows at 320 px (MED-F-07)       | mobile                  | expected fail |
 
-`npm run visual:test -- --product=medusa` runs 27 tests and skips 27 (viewport rules): 23 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](docs/observations/medusa-known-issues.md).
+`npm run visual:test -- --product=medusa` runs 27 tests and skips 27 (viewport rules): 23 pass and 4 are the expected failures. Details and evidence: [medusa-known-issues.md](observations/medusa-known-issues.md).
 
 ### Phase 4 batch 3: Twenty (CSV import and TOTP 2FA)
 
-Both areas run as fresh QA members, never as Jane: CSV imports use the worker QA member, 2FA uses one member per test. Details and evidence: [ADR 0016](docs/adr/0016-twenty-ci.md) and [twenty-known-issues.md](docs/observations/twenty-known-issues.md).
+Both areas run as fresh QA members, never as Jane: CSV imports use the worker QA member, 2FA uses one member per test. Details and evidence: [ADR 0016](adr/0016-twenty-ci.md) and [twenty-known-issues.md](observations/twenty-known-issues.md).
 
 | Case                                                         | Status        |
 | ------------------------------------------------------------ | ------------- |
@@ -282,7 +282,7 @@ Both areas run as fresh QA members, never as Jane: CSV imports use the worker QA
 
 ### Phase 4 batch 4: Twenty (live updates, concurrent edits, Arabic RTL)
 
-Two QA members in two browser contexts: the worker member A and a worker-scoped peer B, both Members, never Jane. Details and evidence: [ADR 0016 amendment](docs/adr/0016-twenty-ci.md) and [twenty-known-issues.md](docs/observations/twenty-known-issues.md).
+Two QA members in two browser contexts: the worker member A and a worker-scoped peer B, both Members, never Jane. Details and evidence: [ADR 0016 amendment](adr/0016-twenty-ci.md) and [twenty-known-issues.md](observations/twenty-known-issues.md).
 
 | Case                                                                   | Status                                  |
 | ---------------------------------------------------------------------- | --------------------------------------- |
@@ -304,7 +304,7 @@ RT-003 and RT-004 are not tests: `setOffline` does not cut Twenty’s SSE stream
 
 ### Phase 3 known product bugs
 
-Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](docs/observations/documenso-signing-known-issues.md), [twenty-login-a11y.md](docs/observations/twenty-login-a11y.md) and [cal-visual-a11y.md](docs/observations/cal-visual-a11y.md).
+Each run attaches a screenshot and JSON per bug to the Playwright report; details are in [documenso-signing-known-issues.md](observations/documenso-signing-known-issues.md), [twenty-login-a11y.md](observations/twenty-login-a11y.md) and [cal-visual-a11y.md](observations/cal-visual-a11y.md).
 
 | ID                                          | Product   | Finding                                                                                                                                                 | Test                                             |
 | ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
@@ -336,11 +336,11 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 
 ## CI
 
-[`p1-e2e.yml`](.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, daily schedule `0 18 * * *` (18:00 UTC), and `workflow_dispatch` (optional inputs `browser_matrix`, `documenso_probe_only`). It calls reusable [`e2e.yml`](.github/workflows/e2e.yml), which checks out [Jayami123/cal](https://github.com/Jayami123/cal) at `CAL_REF` and [Jayami123/documenso](https://github.com/Jayami123/documenso) at `DOCUMENSO_REF` (pinned commit SHA in workflow env, not `main`). Product build caches are saved only on pushes to `main`. PR path filters skip `cal-self-hosted` or `documenso-self-hosted` when unrelated paths change. Concurrency group includes `event_name` so scheduled runs do not cancel PRs; PRs still cancel in-progress. Permissions: `contents: read`. Matrix policy: [ADR 0008](docs/adr/0008-cal-browser-matrix.md). Documenso self-hosted policy: [ADR 0011](docs/adr/0011-documenso-ci.md). On schedule or `browser_matrix` dispatch only, job `nightly-alert` opens or comments on a `nightly-failure` issue when the matrix fails and closes it after the next green run ([ADR 0009](docs/adr/0009-nightly-failure-alerting-via-github-issues.md)).
+[`p1-e2e.yml`](../.github/workflows/p1-e2e.yml) runs on pull requests, pushes to `main`, daily schedule `0 18 * * *` (18:00 UTC), and `workflow_dispatch` (optional inputs `browser_matrix`, `documenso_probe_only`). It calls reusable [`e2e.yml`](../.github/workflows/e2e.yml), which checks out [Jayami123/cal](https://github.com/Jayami123/cal) at `CAL_REF` and [Jayami123/documenso](https://github.com/Jayami123/documenso) at `DOCUMENSO_REF` (pinned commit SHA in workflow env, not `main`). Product build caches are saved only on pushes to `main`. PR path filters skip `cal-self-hosted` or `documenso-self-hosted` when unrelated paths change. Concurrency group includes `event_name` so scheduled runs do not cancel PRs; PRs still cancel in-progress. Permissions: `contents: read`. Matrix policy: [ADR 0008](adr/0008-cal-browser-matrix.md). Documenso self-hosted policy: [ADR 0011](adr/0011-documenso-ci.md). On schedule or `browser_matrix` dispatch only, job `nightly-alert` opens or comments on a `nightly-failure` issue when the matrix fails and closes it after the next green run ([ADR 0009](adr/0009-nightly-failure-alerting-via-github-issues.md)).
 
 **Always:** `lint` (actionlint, ESLint, Prettier, and `npm run test:unit`) and `typecheck (always)`.
 
-**E2E path** (one per run — see [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
+**E2E path** (one per run — see [ADR 0005](adr/0005-ci-self-hosted-cal.md)). Fork and Dependabot PRs without the secret run self-hosted E2E:
 
 | Secret `CAL_E2E_BASE_URL` | What runs                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -359,7 +359,7 @@ Each run attaches a screenshot and JSON per bug to the Playwright report; detail
 
 **Browser coverage (`@tz` / `@2fa` matrix cases only)**
 
-**Local hard gate (Windows):** Chromium + Firefox. `npm run test:cal` then `npm run test:cal:firefox` ([ADR 0008](docs/adr/0008-cal-browser-matrix.md)). Safari/WebKit is a known gap.
+**Local hard gate (Windows):** Chromium + Firefox. `npm run test:cal` then `npm run test:cal:firefox` ([ADR 0008](adr/0008-cal-browser-matrix.md)). Safari/WebKit is a known gap.
 
 | Engine   | Local gate (Windows)           | Nightly / dispatch (Ubuntu)  |
 | -------- | ------------------------------ | ---------------------------- |
@@ -374,8 +374,8 @@ Self-hosted CI sets `PRODUCTS_ROOT` to `products/` so P1 and Cal are siblings (N
 
 External-path blob shards retain 3 days; merged HTML and self-hosted artifacts retain 14 days.
 
-**Governance and supply chain:** [`pr-title.yml`](.github/workflows/pr-title.yml) enforces Conventional Commits on PR titles (and on single-commit PR bodies). [`codeql.yml`](.github/workflows/codeql.yml) scans TypeScript and workflow Actions weekly and on PRs. [Dependabot](.github/dependabot.yml) opens grouped npm and GitHub Actions update PRs (no secrets on those PRs, so CI uses the self-hosted Cal path per [ADR 0005](docs/adr/0005-ci-self-hosted-cal.md)). Third-party and first-party `uses:` refs are pinned to full commit SHAs; Dependabot bumps them on the weekly schedule.
+**Governance and supply chain:** [`pr-title.yml`](../.github/workflows/pr-title.yml) enforces Conventional Commits on PR titles (and on single-commit PR bodies). [`codeql.yml`](../.github/workflows/codeql.yml) scans TypeScript and workflow Actions weekly and on PRs. [Dependabot](../.github/dependabot.yml) opens grouped npm and GitHub Actions update PRs (no secrets on those PRs, so CI uses the self-hosted Cal path per [ADR 0005](adr/0005-ci-self-hosted-cal.md)). Third-party and first-party `uses:` refs are pinned to full commit SHAs; Dependabot bumps them on the weekly schedule.
 
-**Security:** see [SECURITY.md](SECURITY.md). **License:** [MIT](LICENSE).
+**Security:** see [SECURITY.md](../SECURITY.md). **License:** [MIT](../LICENSE).
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, PR, and commit rules.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for branch, PR, and commit rules.
