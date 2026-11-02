@@ -35,7 +35,7 @@
     "audit:gate": "tsx scripts/audit-gate.mts"
   },
   "dependencies": {
-    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.11"
+    "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.3.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
