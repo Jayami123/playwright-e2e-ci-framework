@@ -339,7 +339,7 @@ Modified:
 - [`.github/workflows/p1-e2e.yml`](../../.github/workflows/p1-e2e.yml)
 - [`playwright.config.ts`](../../playwright.config.ts) (Twenty `retries: 0`)
 - [`global-setup/twenty.ts`](../../global-setup/twenty.ts) (seed timestamps + step-summary append)
-- [`README.md`](../../README.md)
+- [`docs/FRAMEWORK.md`](../FRAMEWORK.md)
 - [`docs/adr/0012-twenty-ui-storage-state.md`](../adr/0012-twenty-ui-storage-state.md)
 - [`docs/adr/0013-twenty-qa-api-fixture.md`](../adr/0013-twenty-qa-api-fixture.md)
 - [`.env.example`](../../.env.example) (`TWENTY_IMAGE_TAG`, `PW_WORKERS=2` note for Twenty CI)

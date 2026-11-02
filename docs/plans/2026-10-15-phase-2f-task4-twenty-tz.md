@@ -164,7 +164,7 @@ Modified:
 - [src/products/twenty/fixtures/sweep.ts](../../src/products/twenty/fixtures/sweep.ts): list/destroy pets by `name ilike prefix%`. `countQaRecords` / `destroyListed` include pets. Log names pets (section 9).
 - [src/products/twenty/fixtures/index.ts](../../src/products/twenty/fixtures/index.ts): `createPet`, `petIds` in captured set, destroy pets before TZ restore. Expose a baseline capture so X02 UI TZ changes still restore (section 7).
 - [tests/unit/twenty-sweep-pagination.spec.ts](../../tests/unit/twenty-sweep-pagination.spec.ts): pets list/destroy pagination, same cursor rules as companies.
-- [README.md](../../README.md): coverage line: TZ-001, TZ-002, OBS-001 (if a test exists), X01, X02; Twenty still not in CI.
+- [docs/FRAMEWORK.md](../FRAMEWORK.md): coverage line: TZ-001, TZ-002, OBS-001 (if a test exists), X01, X02; Twenty still not in CI.
 
 Not in this task: Twenty CI job (next task), TZ-003, fork edits, `test.fail` unless intent is cited **and** a write-probe proves a product bug. No push.
 

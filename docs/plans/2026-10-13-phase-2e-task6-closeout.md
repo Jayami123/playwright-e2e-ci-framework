@@ -79,7 +79,7 @@ No workflow file change for this.
 
 ## 4. README Phase 2e summary
 
-[README.md](../../README.md) **Scope** is stale ("Cal.com only", "14 of 66", "Later suites: Documenso"). Replace that block with a short Phase 2e summary, not a second case table:
+[docs/FRAMEWORK.md](../FRAMEWORK.md) **Scope** is stale ("Cal.com only", "14 of 66", "Later suites: Documenso"). Replace that block with a short Phase 2e summary, not a second case table:
 
 - Covered: Cal FW/TZ/DST/2FA (existing table stays below); Documenso AUTH-000, 2FA-001..009, PK-001..006, FW-001..011, RL-001; PR Chromium; nightly Firefox FW-001..003; CI job `documenso-self-hosted`.
 - Four known Documenso bugs (`test.fail`), **confirmed 2026-10-13** on run [38392549848](https://github.com/Jayami123/playwright-e2e-ci-framework/actions/runs/38392549848): 2FA-004 HTTP 500 on wrong TOTP; 2FA-006 backup reuse; 2FA-007 TOTP replay; 2FA-009 disable-2FA 500. Living list: [documenso-2fa-known-issues.md](../observations/documenso-2fa-known-issues.md) (so the README list does not go stale silently).
