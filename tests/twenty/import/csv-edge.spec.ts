@@ -195,6 +195,13 @@ test.describe("Twenty CSV import edge cases", { tag: ["@twenty", "@csv"] }, () =
         await batch2HeldPromise;
         await wizard.cancelDuringImport();
         cancelClicked = true;
+        // Release the held batch only after the browser has aborted it. Releasing first races the abort: a
+        // request continued before Cancel lands reaches the server, which keeps it, and the count is then
+        // 400, not 200. "finished" here means Twenty committed batch 2 after Cancel, which is a product failure.
+        await expect
+          .poll(() => heldOutcome, { timeout: twentyTimeouts().page })
+          .toBe("failed")
+          .catch(() => undefined);
         releaseHeld();
         await wizard.expectClosed();
       });
