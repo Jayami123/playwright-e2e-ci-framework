@@ -154,10 +154,11 @@ jobs:
           set -euo pipefail
           ./actionlint
       - uses: ./.github/actions/setup-p1
-      - name: npm audit
+      - name: npm audit gate
         run: |
           set -euo pipefail
-          npm audit --audit-level=high
+          # High and critical advisories must be allowlisted with an expiry date (.github/audit-allowlist.json).
+          npx tsx scripts/audit-gate.mts
       - run: |
           set -euo pipefail
           npm run lint

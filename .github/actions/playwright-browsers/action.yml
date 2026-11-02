@@ -41,8 +41,8 @@ runs:
       run: |
         set -euo pipefail
         for attempt in 1 2 3; do
-          if npx playwright install chromium --with-deps; then exit 0; fi
-          echo "::warning::playwright install chromium failed (attempt ${attempt}/3)"
+          if timeout --kill-after=30s 6m npx playwright install chromium --with-deps; then exit 0; fi
+          echo "::warning::playwright install chromium failed or hung past 6m (attempt ${attempt}/3)"
           sleep $((attempt * 20))
         done
         exit 1
@@ -53,8 +53,8 @@ runs:
       run: |
         set -euo pipefail
         for attempt in 1 2 3; do
-          if npx playwright install chromium firefox --with-deps; then exit 0; fi
-          echo "::warning::playwright install chromium firefox failed (attempt ${attempt}/3)"
+          if timeout --kill-after=30s 6m npx playwright install chromium firefox --with-deps; then exit 0; fi
+          echo "::warning::playwright install chromium firefox failed or hung past 6m (attempt ${attempt}/3)"
           sleep $((attempt * 20))
         done
         exit 1
@@ -65,8 +65,8 @@ runs:
       run: |
         set -euo pipefail
         for attempt in 1 2 3; do
-          if npx playwright install chrome --with-deps; then exit 0; fi
-          echo "::warning::playwright install chrome failed (attempt ${attempt}/3)"
+          if timeout --kill-after=30s 6m npx playwright install chrome --with-deps; then exit 0; fi
+          echo "::warning::playwright install chrome failed or hung past 6m (attempt ${attempt}/3)"
           sleep $((attempt * 20))
         done
         exit 1

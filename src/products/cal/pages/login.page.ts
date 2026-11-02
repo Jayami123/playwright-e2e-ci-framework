@@ -64,6 +64,18 @@ export class LoginPage extends BasePage {
     await this.submitButton.click();
   }
 
+  /**
+   * After a successful sign-in the browser follows the auth callback redirect. The session cookie can be
+   * visible before that navigation has finished, and a new navigation started then is aborted in Firefox
+   * (NS_BINDING_ABORTED). Wait for the redirect to leave /auth/ and for the page to finish loading.
+   */
+  async waitForSignedInLanding(): Promise<void> {
+    await this.page.waitForURL((url) => !url.pathname.startsWith("/auth/"), {
+      timeout: timeouts().page,
+    });
+    await this.page.waitForLoadState("load", { timeout: timeouts().page });
+  }
+
   incorrectBackupAlert(): Locator {
     return this.page.getByRole("heading", { name: "Backup code is incorrect." });
   }
