@@ -172,6 +172,25 @@ test.describe("parseAllowlist", () => {
   test("rejects a date that is not YYYY-MM-DD", { tag: ["@unit"] }, () => {
     expect(() =>
       parseAllowlist([{ id: ZOD_GHSA, package: "zod", reason: "x", expires: "12/02/2026" }]),
-    ).toThrow(/non-ISO/);
+    ).toThrow(/invalid calendar "expires"/);
+  });
+
+  test(
+    "rejects impossible calendar dates, including ones JavaScript would roll over",
+    { tag: ["@unit"] },
+    () => {
+      for (const expires of ["9999-99-99", "2026-02-30", "2026-13-01"]) {
+        expect(() =>
+          parseAllowlist([{ id: ZOD_GHSA, package: "zod", reason: "x", expires }]),
+        ).toThrow(/invalid calendar "expires"/);
+      }
+    },
+  );
+
+  test("accepts a real leap day", { tag: ["@unit"] }, () => {
+    const [entry] = parseAllowlist([
+      { id: ZOD_GHSA, package: "zod", reason: "x", expires: "2028-02-29" },
+    ]);
+    expect(entry?.expires).toBe("2028-02-29");
   });
 });

@@ -96,9 +96,17 @@ export function parseAllowlist(raw: unknown): AllowlistEntry[] {
         throw new Error(`audit allowlist entry ${String(index)} is missing "${field}"`);
       }
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.expires as string)) {
+    // Shape alone is not enough: 9999-99-99 would otherwise be treated as unexpired. The round trip through
+    // Date rejects impossible dates, including ones JavaScript would roll over (2026-02-30).
+    const expires = e.expires as string;
+    const parsed = new Date(`${expires}T00:00:00Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(expires) ||
+      Number.isNaN(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== expires
+    ) {
       throw new Error(
-        `audit allowlist entry ${String(index)} has a non-ISO "expires": ${String(e.expires)}`,
+        `audit allowlist entry ${String(index)} has an invalid calendar "expires": ${String(e.expires)}`,
       );
     }
     return {

@@ -43,6 +43,11 @@ export class TwentyObjectFilterPage extends BasePage {
         .toBeLessThan(before)
         .catch(() => undefined);
     }
+    // The last Escape may still be unmounting the portal. Give it the action timeout to leave before failing.
+    await expect
+      .poll(() => portals.count(), { timeout: twentyTimeouts().action })
+      .toBe(0)
+      .catch(() => undefined);
     const left = await portals.count();
     if (left > 0) {
       const texts = await portals.allInnerTexts();
