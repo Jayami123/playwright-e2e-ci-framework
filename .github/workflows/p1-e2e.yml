@@ -29,7 +29,8 @@ jobs:
     uses: ./.github/workflows/e2e.yml
     with:
       run_browser_matrix: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix) }}
-      playwright_browsers_timeout_minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix)) && 20 || 10 }}
+      # Three install attempts at 6 minutes each, plus the retry backoff, need more than 20 minutes on the matrix path.
+      playwright_browsers_timeout_minutes: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.browser_matrix)) && 30 || 10 }}
       documenso_probe_only: ${{ github.event_name == 'workflow_dispatch' && inputs.documenso_probe_only }}
       documenso_self_hosted_timeout_minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.documenso_probe_only && 30 || 90 }}
     secrets: inherit
