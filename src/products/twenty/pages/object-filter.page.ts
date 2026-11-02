@@ -5,6 +5,7 @@ import { twentyTimeouts } from "../env.js";
 /** Step 0 2026-10-15: one Escape leaves the floating-ui portal (listbox) mounted; a second closes it. */
 const FLOATING_PORTAL = "[data-floating-ui-portal]";
 const MAX_PORTAL_ESCAPES = 3;
+const PORTAL_DETACH_TIMEOUT_MS = 2000;
 
 export class TwentyObjectFilterPage extends BasePage {
   readonly filterButton: Locator;
@@ -33,9 +34,22 @@ export class TwentyObjectFilterPage extends BasePage {
     // ADR 0006 rule gap: no-raw-locators flags string literals only; the portal has no role or test id of its own.
     const portals = this.page.locator(FLOATING_PORTAL);
     for (let i = 0; i < MAX_PORTAL_ESCAPES && (await portals.count()) > 0; i += 1) {
+      // One Escape closes one layer. Wait for that layer to unmount before the next press, so the
+      // next Escape cannot land on the page while the listbox is still animating out.
+      const before = await portals.count();
       await this.page.keyboard.press("Escape");
+      await expect
+        .poll(() => portals.count(), { timeout: PORTAL_DETACH_TIMEOUT_MS })
+        .toBeLessThan(before)
+        .catch(() => undefined);
     }
-    await expect(portals).toHaveCount(0, { timeout: twentyTimeouts().action });
+    const left = await portals.count();
+    if (left > 0) {
+      const texts = await portals.allInnerTexts();
+      throw new Error(
+        `${String(left)} floating-ui portal(s) still open after ${String(MAX_PORTAL_ESCAPES)} Escape presses: ${JSON.stringify(texts)}`,
+      );
+    }
   }
 
   async resetAndExpectChipGone(): Promise<void> {
