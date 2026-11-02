@@ -31,7 +31,8 @@
     "check": "npm run lint && npx prettier --check . && npm run typecheck && npm run lint:actions",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "audit:gate": "tsx scripts/audit-gate.mts"
   },
   "dependencies": {
     "qa-portfolio-harness": "github:Jayami123/qa-portfolio-harness#v0.2.11"
