@@ -169,6 +169,7 @@ test.describe("P1-CAL-2FA-003 backup code", () => {
         await login.fillBackupCode(formattedBackup);
         await login.submitBackupCode();
         await pollSessionHasEmail(page.request, twoFactorUser.email);
+        await login.waitForSignedInLanding();
       });
 
       await test.step("backup ciphertext changes after use", async () => {
