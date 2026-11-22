@@ -1,6 +1,6 @@
 # I test the places where web apps break for real users
 
-QA engineer with 2.5 years in industry, open to remote roles and contract work.
+QA engineer with 4 years in industry, open to remote roles and contract work.
 
 This repository is the end-to-end UI testing part of my QA portfolio. Most automated UI suites click through the main path and confirm each page loads. That catches a broken button. It rarely catches the bug a customer reports in launch week, like an order that is canceled and fulfilled at the same time, or a login code that works twice. I write tests aimed at the spots where those bugs live. Two people acting at once. Security codes. Time zones and daylight saving. File imports. Screen readers, other languages and right-to-left layouts. How each page looks on a phone, a tablet and a desktop.
 
